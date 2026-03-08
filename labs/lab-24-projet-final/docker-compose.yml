@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - '3000:3000'
+    environment:
+      - DATABASE_URL=file:./prisma/dev.db
+      - JWT_SECRET=super-secret-key
+      - JWT_EXPIRATION=1h
+      - NODE_ENV=production
+    volumes:
+      - app-data:/app/prisma
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '6379:6379'
+
+volumes:
+  app-data:

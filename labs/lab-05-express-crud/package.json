@@ -1,0 +1,13 @@
+{
+  "name": "lab-05-express-crud",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Lab 05 — Express CRUD API",
+  "scripts": {
+    "exercise": "node exercise.js",
+    "solution": "node solution.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0"
+  }
+}

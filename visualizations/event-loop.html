@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Event Loop Node.js — Visualisation NestJS</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:#1a1a2e;color:#e0e0e0;font-family:'Segoe UI',system-ui,sans-serif;overflow-x:hidden}
+  .header{background:#16213e;border-bottom:1px solid #333;padding:12px 24px;display:flex;align-items:center;gap:16px}
+  .header h1{font-size:1.3rem;color:#8be9fd}
+  .header .badge{background:#8be9fd22;color:#8be9fd;padding:2px 10px;border-radius:12px;font-size:.75rem}
+  .main{display:grid;grid-template-columns:240px 1fr 260px;grid-template-rows:1fr auto;height:calc(100vh - 52px)}
+  .panel{background:#16213e;border:1px solid #333;padding:16px;overflow-y:auto}
+  .panel h2{font-size:.95rem;color:#bd93f9;margin-bottom:12px;text-transform:uppercase;letter-spacing:1px}
+  label{display:block;font-size:.82rem;color:#aaa;margin-bottom:4px;margin-top:10px}
+  select{width:100%;background:#0f3460;border:1px solid #333;color:#e0e0e0;padding:7px 10px;border-radius:6px;font-size:.85rem}
+  select:focus{outline:none;border-color:#8be9fd}
+  .btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border:1px solid #333;border-radius:6px;background:#0f3460;color:#e0e0e0;cursor:pointer;font-size:.82rem;transition:all .2s}
+  .btn:hover{border-color:#8be9fd;color:#8be9fd}
+  .btn-primary{background:#8be9fd22;border-color:#8be9fd;color:#8be9fd}
+  .btn-green{background:#50fa7b22;border-color:#50fa7b;color:#50fa7b}
+  .btn-orange{background:#ffb86c22;border-color:#ffb86c;color:#ffb86c}
+  .btn-red{background:#ff555522;border-color:#ff5555;color:#ff5555}
+  .btn-group{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+  .canvas-area{position:relative;overflow:hidden;background:#1a1a2e}
+  canvas{display:block}
+  .log-entry{font-size:.78rem;padding:4px 0;border-bottom:1px solid #333;font-family:'Consolas',monospace}
+  .log-entry.exec{color:#8be9fd}
+  .log-entry.micro{color:#bd93f9}
+  .log-entry.macro{color:#ffb86c}
+  .log-entry.pool{color:#50fa7b}
+  .log-entry.output{color:#50fa7b;font-weight:bold}
+  .explanation{grid-column:1/-1;background:#16213e;border-top:1px solid #333;padding:14px 24px;font-size:.85rem;line-height:1.5;color:#ccc}
+  .explanation strong{color:#8be9fd}
+  .info-banner{background:#0f3460;border:1px solid #8be9fd;border-left:4px solid #8be9fd;border-radius:6px;padding:12px 18px;margin:0;font-size:.85rem;line-height:1.5;color:#ccc}
+  .info-banner strong{color:#8be9fd}
+  .step-indicator{background:#0f3460;border:1px solid #333;border-radius:6px;padding:6px 10px;font-size:.78rem;color:#aaa;margin-top:12px;text-align:center}
+  .step-indicator .current{color:#8be9fd;font-weight:bold;font-size:.9rem}
+  @media(max-width:900px){.main{grid-template-columns:1fr;grid-template-rows:auto 1fr auto auto}}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>Event Loop Node.js</h1>
+  <span class="badge">Module 01</span>
+  <span style="flex:1"></span>
+  <span style="font-size:.75rem;color:#888">Visualisation interactive NestJS</span>
+</div>
+
+<div class="info-banner" style="margin:10px 24px 0 24px">
+  <strong>Note pedagogique :</strong> Cette visualisation est un modele simplifie de la boucle d'evenements Node.js. En realite, libuv gere 6 phases distinctes (timers, pending callbacks, idle/prepare, poll, check, close). Ici nous montrons les concepts cles : Call Stack, Microtask Queue, Macrotask Queue et le Thread Pool.
+</div>
+
+<div class="main">
+  <!-- Left Panel -->
+  <div class="panel" style="border-right:1px solid #333">
+    <h2>Controles</h2>
+
+    <label>Scenario</label>
+    <select id="scenarioSelect" onchange="loadScenario()">
+      <option value="0">setTimeout vs Promise</option>
+      <option value="1">process.nextTick</option>
+      <option value="2">Async I/O (fs.readFile)</option>
+      <option value="3">Mixte (complexe)</option>
+    </select>
+
+    <div class="btn-group" style="margin-top:14px">
+      <button class="btn btn-green" onclick="play()" id="btnPlay">&#9654; Play</button>
+      <button class="btn btn-orange" onclick="pause()" id="btnPause">&#10074;&#10074; Pause</button>
+    </div>
+    <div class="btn-group">
+      <button class="btn btn-primary" onclick="step()">&#9654;| Step</button>
+      <button class="btn btn-red" onclick="resetAnim()">&#8634; Reset</button>
+    </div>
+
+    <label>Vitesse</label>
+    <select id="speedSelect">
+      <option value="1500">Lente</option>
+      <option value="900" selected>Normale</option>
+      <option value="400">Rapide</option>
+    </select>
+
+    <div class="step-indicator">
+      Etape <span class="current" id="stepNum">0</span> / <span id="stepTotal">0</span>
+    </div>
+
+    <div style="margin-top:16px">
+      <h2>Sortie console</h2>
+      <div id="consoleOutput" style="background:#0f3460;border:1px solid #333;border-radius:6px;padding:8px;font-family:Consolas,monospace;font-size:.78rem;min-height:80px;max-height:200px;overflow-y:auto;color:#50fa7b"></div>
+    </div>
+  </div>
+
+  <!-- Center Canvas -->
+  <div class="canvas-area" id="canvasArea">
+    <canvas id="mainCanvas"></canvas>
+  </div>
+
+  <!-- Right Panel -->
+  <div class="panel" style="border-left:1px solid #333">
+    <h2>Journal</h2>
+    <div id="logPanel" style="max-height:calc(100vh - 200px);overflow-y:auto"></div>
+  </div>
+
+  <!-- Explanation -->
+  <div class="explanation" id="explanation">
+    <strong>Event Loop Node.js :</strong> Le moteur V8 execute le JavaScript sur un seul thread via la <strong>Call Stack</strong>. Les operations asynchrones (timers, I/O) sont deleguees a libuv. Les callbacks sont places dans la <strong>Macrotask Queue</strong>, tandis que les Promises et process.nextTick vont dans la <strong>Microtask Queue</strong> (prioritaire). Choisissez un scenario et observez l'ordre d'execution.
+  </div>
+</div>
+
+<script>
+// ── Scenarios ──
+const scenarios = [
+  { // 0: setTimeout vs Promise
+    name: 'setTimeout vs Promise',
+    code: `console.log("1: debut");
+setTimeout(() => console.log("2: timeout"), 0);
+Promise.resolve().then(() => console.log("3: promise"));
+console.log("4: fin");`,
+    steps: [
+      { action:'push', target:'stack', item:'main()', log:'Execution du script principal', explain:'Le script commence. <strong>main()</strong> est pousse sur la Call Stack.' },
+      { action:'push', target:'stack', item:'console.log("1: debut")', log:'console.log("1: debut")', explain:'<strong>console.log</strong> est synchrone, execute immediatement.', output:'1: debut' },
+      { action:'pop', target:'stack', item:'console.log("1: debut")', log:'log termine' },
+      { action:'push', target:'stack', item:'setTimeout(cb, 0)', log:'setTimeout enregistre', explain:'<strong>setTimeout</strong> est envoye aux Node APIs. Meme avec 0ms, le callback ira dans la Macrotask Queue.' },
+      { action:'move', target:'apis', item:'Timer (0ms)', log:'Timer demarre dans Node APIs', color:'#ffb86c' },
+      { action:'pop', target:'stack', item:'setTimeout(cb, 0)', log:'setTimeout retourne' },
+      { action:'push', target:'stack', item:'Promise.resolve().then(cb)', log:'Promise.resolve().then()', explain:'<strong>Promise.resolve()</strong> est resolue immediatement. Le callback .then() va dans la <strong>Microtask Queue</strong>.' },
+      { action:'move', target:'micro', item:'Promise.then(cb)', log:'Callback promise en microtask', color:'#bd93f9' },
+      { action:'pop', target:'stack', item:'Promise.resolve().then(cb)', log:'Promise retourne' },
+      { action:'push', target:'stack', item:'console.log("4: fin")', log:'console.log("4: fin")', output:'4: fin' },
+      { action:'pop', target:'stack', item:'console.log("4: fin")', log:'log termine' },
+      { action:'move', target:'macro', item:'setTimeout cb', from:'apis', log:'Timer expire, callback en macrotask', explain:'Le timer de 0ms expire. Son callback est place dans la <strong>Macrotask Queue</strong>.', color:'#ffb86c' },
+      { action:'pop', target:'stack', item:'main()', log:'main() termine', explain:'Le script principal est termine. La Call Stack est vide. L\'event loop verifie la <strong>Microtask Queue</strong> en priorite.' },
+      { action:'tick', phase:'microtasks', explain:'<strong>Event Loop :</strong> La Call Stack est vide. Les microtasks sont traitees AVANT les macrotasks.' },
+      { action:'exec_micro', item:'Promise.then(cb)', log:'Execute microtask: Promise.then', explain:'Le callback Promise est execute depuis la Microtask Queue.' },
+      { action:'push', target:'stack', item:'() => console.log("3: promise")', log:'Callback promise execute', output:'3: promise' },
+      { action:'pop', target:'stack', item:'() => console.log("3: promise")', log:'Callback promise termine' },
+      { action:'tick', phase:'macrotasks', explain:'<strong>Event Loop :</strong> Microtask Queue vide. On passe aux macrotasks (setTimeout).' },
+      { action:'exec_macro', item:'setTimeout cb', log:'Execute macrotask: setTimeout cb', explain:'Le callback setTimeout est execute depuis la Macrotask Queue.' },
+      { action:'push', target:'stack', item:'() => console.log("2: timeout")', log:'Callback timeout execute', output:'2: timeout' },
+      { action:'pop', target:'stack', item:'() => console.log("2: timeout")', log:'Callback timeout termine' },
+      { action:'done', explain:'<strong>Resultat :</strong> L\'ordre est 1:debut, 4:fin, 3:promise, 2:timeout. Les <strong>microtasks (Promise)</strong> sont toujours executees avant les <strong>macrotasks (setTimeout)</strong>, meme si setTimeout a un delai de 0ms.' }
+    ]
+  },
+  { // 1: process.nextTick
+    name: 'process.nextTick',
+    code: `console.log("1: debut");
+setTimeout(() => console.log("2: timeout"), 0);
+Promise.resolve().then(() => console.log("3: promise"));
+process.nextTick(() => console.log("4: nextTick"));
+console.log("5: fin");`,
+    steps: [
+      { action:'push', target:'stack', item:'main()', log:'Execution du script principal', explain:'Le script principal commence.' },
+      { action:'push', target:'stack', item:'console.log("1: debut")', log:'console.log("1: debut")', output:'1: debut' },
+      { action:'pop', target:'stack', item:'console.log("1: debut")' },
+      { action:'push', target:'stack', item:'setTimeout(cb, 0)', log:'setTimeout(cb, 0)' },
+      { action:'move', target:'apis', item:'Timer (0ms)', color:'#ffb86c' },
+      { action:'pop', target:'stack', item:'setTimeout(cb, 0)' },
+      { action:'push', target:'stack', item:'Promise.resolve().then(cb)', log:'Promise.resolve().then(cb)', explain:'Le callback .then() va dans la Microtask Queue.' },
+      { action:'move', target:'micro', item:'Promise.then(cb)', color:'#bd93f9' },
+      { action:'pop', target:'stack', item:'Promise.resolve().then(cb)' },
+      { action:'push', target:'stack', item:'process.nextTick(cb)', log:'process.nextTick(cb)', explain:'<strong>process.nextTick</strong> place son callback dans la Microtask Queue avec une priorite SUPERIEURE aux Promises.' },
+      { action:'move', target:'micro', item:'nextTick(cb)', color:'#ff5555', prepend:true },
+      { action:'pop', target:'stack', item:'process.nextTick(cb)' },
+      { action:'push', target:'stack', item:'console.log("5: fin")', log:'console.log("5: fin")', output:'5: fin' },
+      { action:'pop', target:'stack', item:'console.log("5: fin")' },
+      { action:'move', target:'macro', item:'setTimeout cb', from:'apis', log:'Timer expire', color:'#ffb86c' },
+      { action:'pop', target:'stack', item:'main()', log:'main() termine', explain:'Script termine. L\'event loop traite les microtasks : <strong>nextTick passe en premier</strong>.' },
+      { action:'tick', phase:'microtasks' },
+      { action:'exec_micro', item:'nextTick(cb)', log:'Execute nextTick' },
+      { action:'push', target:'stack', item:'() => console.log("4: nextTick")', output:'4: nextTick' },
+      { action:'pop', target:'stack', item:'() => console.log("4: nextTick")' },
+      { action:'exec_micro', item:'Promise.then(cb)', log:'Execute Promise.then' },
+      { action:'push', target:'stack', item:'() => console.log("3: promise")', output:'3: promise' },
+      { action:'pop', target:'stack', item:'() => console.log("3: promise")' },
+      { action:'tick', phase:'macrotasks' },
+      { action:'exec_macro', item:'setTimeout cb', log:'Execute setTimeout' },
+      { action:'push', target:'stack', item:'() => console.log("2: timeout")', output:'2: timeout' },
+      { action:'pop', target:'stack', item:'() => console.log("2: timeout")' },
+      { action:'done', explain:'<strong>Resultat :</strong> Ordre = 1, 5, 4 (nextTick), 3 (promise), 2 (timeout). <strong>process.nextTick</strong> a la plus haute priorite parmi les microtasks, suivi des Promises, puis des macrotasks.' }
+    ]
+  },
+  { // 2: Async I/O
+    name: 'Async I/O (fs.readFile)',
+    code: `console.log("1: debut");
+fs.readFile("data.txt", (err, data) => {
+  console.log("2: fichier lu");
+});
+console.log("3: fin");`,
+    steps: [
+      { action:'push', target:'stack', item:'main()', log:'Execution du script', explain:'Le script principal demarre.' },
+      { action:'push', target:'stack', item:'console.log("1: debut")', output:'1: debut' },
+      { action:'pop', target:'stack', item:'console.log("1: debut")' },
+      { action:'push', target:'stack', item:'fs.readFile("data.txt", cb)', log:'fs.readFile() appele', explain:'<strong>fs.readFile</strong> est une operation I/O asynchrone. Elle est deleguee au <strong>Thread Pool libuv</strong> (4 threads par defaut).' },
+      { action:'move', target:'pool', item:'readFile("data.txt")', color:'#50fa7b', thread:0 },
+      { action:'pop', target:'stack', item:'fs.readFile("data.txt", cb)' },
+      { action:'push', target:'stack', item:'console.log("3: fin")', output:'3: fin' },
+      { action:'pop', target:'stack', item:'console.log("3: fin")' },
+      { action:'pop', target:'stack', item:'main()', log:'main() termine' },
+      { action:'pool_work', thread:0, progress:33, explain:'<strong>Thread Pool :</strong> Un worker thread libuv lit le fichier en arriere-plan. Le thread principal est libre.' },
+      { action:'pool_work', thread:0, progress:66 },
+      { action:'pool_work', thread:0, progress:100, explain:'<strong>Thread Pool :</strong> La lecture est terminee. Le callback est place dans la Macrotask Queue.' },
+      { action:'pool_done', thread:0, item:'readFile cb', log:'I/O termine, callback en queue', color:'#ffb86c' },
+      { action:'tick', phase:'macrotasks', explain:'L\'event loop recupere le callback I/O de la Macrotask Queue.' },
+      { action:'exec_macro', item:'readFile cb' },
+      { action:'push', target:'stack', item:'(err, data) => console.log("2: fichier lu")', output:'2: fichier lu' },
+      { action:'pop', target:'stack', item:'(err, data) => console.log("2: fichier lu")' },
+      { action:'done', explain:'<strong>Resultat :</strong> Ordre = 1, 3, 2. L\'operation I/O est executee dans le <strong>Thread Pool libuv</strong> sans bloquer le thread principal. Le callback est appele une fois l\'I/O terminee.' }
+    ]
+  },
+  { // 3: Mixed
+    name: 'Mixte (complexe)',
+    code: `console.log("1");
+setTimeout(() => console.log("2: timeout1"), 0);
+setImmediate(() => console.log("3: immediate"));
+process.nextTick(() => console.log("4: tick"));
+Promise.resolve().then(() => {
+  console.log("5: promise");
+  process.nextTick(() => console.log("6: tick2"));
+});
+console.log("7");`,
+    steps: [
+      { action:'push', target:'stack', item:'main()', explain:'Script complexe avec toutes les formes d\'asynchronisme.' },
+      { action:'push', target:'stack', item:'console.log("1")', output:'1' },
+      { action:'pop', target:'stack', item:'console.log("1")' },
+      { action:'push', target:'stack', item:'setTimeout(cb, 0)' },
+      { action:'move', target:'apis', item:'Timer (0ms)', color:'#ffb86c' },
+      { action:'pop', target:'stack', item:'setTimeout(cb, 0)' },
+      { action:'push', target:'stack', item:'setImmediate(cb)', explain:'<strong>setImmediate</strong> execute le callback dans la phase <em>check</em> de l\'event loop (macrotask).' },
+      { action:'move', target:'macro', item:'setImmediate cb', color:'#ffb86c' },
+      { action:'pop', target:'stack', item:'setImmediate(cb)' },
+      { action:'push', target:'stack', item:'process.nextTick(cb)' },
+      { action:'move', target:'micro', item:'nextTick(cb)', color:'#ff5555', prepend:true },
+      { action:'pop', target:'stack', item:'process.nextTick(cb)' },
+      { action:'push', target:'stack', item:'Promise.resolve().then(cb)' },
+      { action:'move', target:'micro', item:'Promise.then(cb)', color:'#bd93f9' },
+      { action:'pop', target:'stack', item:'Promise.resolve().then(cb)' },
+      { action:'push', target:'stack', item:'console.log("7")', output:'7' },
+      { action:'pop', target:'stack', item:'console.log("7")' },
+      { action:'move', target:'macro', item:'setTimeout cb', from:'apis', color:'#ffb86c' },
+      { action:'pop', target:'stack', item:'main()', explain:'Script termine. L\'event loop traite les microtasks.' },
+      { action:'tick', phase:'microtasks', explain:'<strong>Microtasks :</strong> nextTick en premier, puis Promise.' },
+      { action:'exec_micro', item:'nextTick(cb)' },
+      { action:'push', target:'stack', item:'() => console.log("4: tick")', output:'4: tick' },
+      { action:'pop', target:'stack', item:'() => console.log("4: tick")' },
+      { action:'exec_micro', item:'Promise.then(cb)' },
+      { action:'push', target:'stack', item:'() => { console.log("5: promise"); ... }', output:'5: promise', explain:'Le callback Promise s\'execute et enregistre un nouveau nextTick.' },
+      { action:'move', target:'micro', item:'nextTick2(cb)', color:'#ff5555' },
+      { action:'pop', target:'stack', item:'() => { console.log("5: promise"); ... }' },
+      { action:'tick', phase:'microtasks', explain:'<strong>Nouveau nextTick detecte !</strong> Les microtasks sont drainee completement avant de passer aux macrotasks.' },
+      { action:'exec_micro', item:'nextTick2(cb)' },
+      { action:'push', target:'stack', item:'() => console.log("6: tick2")', output:'6: tick2' },
+      { action:'pop', target:'stack', item:'() => console.log("6: tick2")' },
+      { action:'tick', phase:'macrotasks', explain:'Microtask Queue vide. Passage aux macrotasks.' },
+      { action:'exec_macro', item:'setTimeout cb' },
+      { action:'push', target:'stack', item:'() => console.log("2: timeout1")', output:'2: timeout1' },
+      { action:'pop', target:'stack', item:'() => console.log("2: timeout1")' },
+      { action:'exec_macro', item:'setImmediate cb' },
+      { action:'push', target:'stack', item:'() => console.log("3: immediate")', output:'3: immediate' },
+      { action:'pop', target:'stack', item:'() => console.log("3: immediate")' },
+      { action:'done', explain:'<strong>Resultat :</strong> 1, 7, 4 (nextTick), 5 (promise), 6 (tick2 cree pendant promise), 2 (timeout), 3 (immediate). Les microtasks sont TOUJOURS drainees completement, y compris celles ajoutees pendant leur traitement.' }
+    ]
+  }
+];
+
+// ── State ──
+let currentScenario = 0;
+let currentStep = 0;
+let playing = false;
+let playTimer = null;
+let callStack = [];
+let microQueue = [];
+let macroQueue = [];
+let apis = [];
+let pool = [null, null, null, null]; // 4 threads
+let loopPhase = '';
+
+const canvas = document.getElementById('mainCanvas');
+const ctx = canvas.getContext('2d');
+
+function loadScenario() {
+  currentScenario = parseInt(document.getElementById('scenarioSelect').value);
+  resetAnim();
+}
+
+function resetAnim() {
+  pause();
+  currentStep = 0;
+  callStack = [];
+  microQueue = [];
+  macroQueue = [];
+  apis = [];
+  pool = [null, null, null, null];
+  loopPhase = '';
+  document.getElementById('consoleOutput').innerHTML = '';
+  document.getElementById('logPanel').innerHTML = '';
+  const sc = scenarios[currentScenario];
+  document.getElementById('stepTotal').textContent = sc.steps.length;
+  document.getElementById('stepNum').textContent = '0';
+  document.getElementById('explanation').innerHTML = `<strong>Event Loop Node.js :</strong> Selectionnez un scenario et appuyez sur Play ou Step pour observer l'ordre d'execution des callbacks asynchrones. Le code source du scenario :<br><code style="color:#8be9fd;font-size:.82rem;white-space:pre">${sc.code.replace(/</g,'&lt;')}</code>`;
+  draw();
+}
+
+function play() {
+  if (playing) return;
+  playing = true;
+  doStep();
+}
+
+function pause() {
+  playing = false;
+  if (playTimer) { clearTimeout(playTimer); playTimer = null; }
+}
+
+function step() {
+  pause();
+  doStep();
+}
+
+function doStep() {
+  const sc = scenarios[currentScenario];
+  if (currentStep >= sc.steps.length) { pause(); return; }
+  const s = sc.steps[currentStep];
+  executeStep(s);
+  currentStep++;
+  document.getElementById('stepNum').textContent = currentStep;
+  draw();
+  if (playing && currentStep < sc.steps.length) {
+    const speed = parseInt(document.getElementById('speedSelect').value);
+    playTimer = setTimeout(doStep, speed);
+  } else if (currentStep >= sc.steps.length) {
+    pause();
+  }
+}
+
+function executeStep(s) {
+  if (s.log) addLog(s.action === 'exec_micro' ? 'micro' : s.action === 'exec_macro' ? 'macro' : s.target === 'pool' || s.action === 'pool_work' ? 'pool' : 'exec', s.log);
+  if (s.output) {
+    const co = document.getElementById('consoleOutput');
+    co.innerHTML += `<div>${s.output}</div>`;
+    co.scrollTop = co.scrollHeight;
+    addLog('output', `> ${s.output}`);
+  }
+  if (s.explain) document.getElementById('explanation').innerHTML = s.explain;
+
+  switch (s.action) {
+    case 'push':
+      if (s.target === 'stack') callStack.push({ name: s.item, color: s.color || '#8be9fd' });
+      break;
+    case 'pop':
+      if (s.target === 'stack') callStack.pop();
+      break;
+    case 'move':
+      if (s.target === 'micro') {
+        const entry = { name: s.item, color: s.color || '#bd93f9' };
+        if (s.prepend) microQueue.unshift(entry);
+        else microQueue.push(entry);
+      }
+      else if (s.target === 'macro') macroQueue.push({ name: s.item, color: s.color || '#ffb86c' });
+      else if (s.target === 'apis') apis.push({ name: s.item, color: s.color || '#ffb86c' });
+      else if (s.target === 'pool') pool[s.thread] = { name: s.item, color: s.color || '#50fa7b', progress: 0 };
+      if (s.from === 'apis') apis = apis.filter(a => a.name !== 'Timer (0ms)');
+      break;
+    case 'exec_micro':
+      microQueue.shift();
+      break;
+    case 'exec_macro':
+      macroQueue.shift();
+      break;
+    case 'pool_work':
+      if (pool[s.thread]) pool[s.thread].progress = s.progress;
+      break;
+    case 'pool_done':
+      pool[s.thread] = null;
+      macroQueue.push({ name: s.item, color: s.color || '#ffb86c' });
+      break;
+    case 'tick':
+      loopPhase = s.phase;
+      break;
+    case 'done':
+      loopPhase = 'done';
+      break;
+  }
+}
+
+// ── Drawing ──
+function resizeCanvas() {
+  const area = document.getElementById('canvasArea');
+  canvas.width = area.clientWidth;
+  canvas.height = area.clientHeight;
+  draw();
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const W = canvas.width, H = canvas.height;
+
+  // Layout regions
+  const stackX = 30, stackY = 30, stackW = 180, stackH = H * 0.35;
+  const microX = 30, microY = stackY + stackH + 30, microW = 180, microH = H * 0.2;
+  const macroX = W - 220, macroY = 30, macroW = 190, macroH = H * 0.35;
+  const apisX = W - 220, apisY = macroY + macroH + 30, apisW = 190, apisH = H * 0.2;
+  const poolX = 30, poolY = H - 100, poolW = W - 60, poolH = 70;
+  const loopCX = W / 2, loopCY = H * 0.38, loopR = Math.min(80, W * 0.1);
+
+  // Call Stack
+  drawBox(stackX, stackY, stackW, stackH, 'Call Stack', '#8be9fd');
+  for (let i = 0; i < callStack.length; i++) {
+    const fy = stackY + stackH - 30 - i * 28;
+    drawItem(stackX + 8, fy, stackW - 16, 24, callStack[i].name, callStack[i].color, i === callStack.length - 1);
+  }
+
+  // Microtask Queue
+  drawBox(microX, microY, microW, microH, 'Microtask Queue', '#bd93f9');
+  for (let i = 0; i < microQueue.length; i++) {
+    drawItem(microX + 8, microY + 30 + i * 26, microW - 16, 22, microQueue[i].name, microQueue[i].color, loopPhase === 'microtasks' && i === 0);
+  }
+
+  // Macrotask Queue
+  drawBox(macroX, macroY, macroW, macroH, 'Macrotask Queue', '#ffb86c');
+  for (let i = 0; i < macroQueue.length; i++) {
+    drawItem(macroX + 8, macroY + 30 + i * 26, macroW - 16, 22, macroQueue[i].name, macroQueue[i].color, loopPhase === 'macrotasks' && i === 0);
+  }
+
+  // Node APIs
+  drawBox(apisX, apisY, apisW, apisH, 'Node APIs', '#ffb86c');
+  for (let i = 0; i < apis.length; i++) {
+    drawItem(apisX + 8, apisY + 30 + i * 26, apisW - 16, 22, apis[i].name, apis[i].color, false);
+  }
+
+  // Thread Pool
+  drawBox(poolX, poolY, poolW, poolH, 'libuv Thread Pool', '#50fa7b');
+  const tw = (poolW - 50) / 4;
+  for (let i = 0; i < 4; i++) {
+    const tx = poolX + 10 + i * (tw + 10);
+    const ty = poolY + 28;
+    ctx.fillStyle = '#0f3460';
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 1;
+    roundRect(ctx, tx, ty, tw, 30, 4);
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#888';
+    ctx.font = '10px Consolas';
+    ctx.textAlign = 'center';
+    ctx.fillText(`Thread ${i + 1}`, tx + tw / 2, ty + 12);
+    if (pool[i]) {
+      const pw = (tw - 8) * (pool[i].progress / 100);
+      ctx.fillStyle = pool[i].color + '44';
+      roundRect(ctx, tx + 4, ty + 17, tw - 8, 9, 3);
+      ctx.fill();
+      ctx.fillStyle = pool[i].color;
+      if (pw > 0) {
+        roundRect(ctx, tx + 4, ty + 17, Math.max(pw, 6), 9, 3);
+        ctx.fill();
+      }
+      ctx.fillStyle = pool[i].color;
+      ctx.font = '9px Consolas';
+      ctx.fillText(pool[i].name, tx + tw / 2, ty + 24);
+    } else {
+      ctx.fillStyle = '#555';
+      ctx.font = '9px Consolas';
+      ctx.fillText('idle', tx + tw / 2, ty + 24);
+    }
+  }
+
+  // Event Loop circle
+  drawEventLoop(loopCX, loopCY, loopR);
+
+  // Arrows
+  ctx.strokeStyle = '#555';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 4]);
+  // Stack -> Loop
+  drawArrow(stackX + stackW, stackY + stackH / 2, loopCX - loopR - 10, loopCY, '#555');
+  // Loop -> Micro
+  drawArrow(loopCX - loopR * 0.7, loopCY + loopR * 0.7, microX + microW, microY + microH / 2, '#bd93f9');
+  // Loop -> Macro
+  drawArrow(loopCX + loopR * 0.7, loopCY - loopR * 0.7, macroX, macroY + macroH / 2, '#ffb86c');
+  ctx.setLineDash([]);
+}
+
+function drawBox(x, y, w, h, title, color) {
+  ctx.fillStyle = '#16213e';
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 1;
+  roundRect(ctx, x, y, w, h, 8);
+  ctx.fill(); ctx.stroke();
+  // title bar
+  ctx.fillStyle = color + '22';
+  roundRectTop(ctx, x, y, w, 24, 8);
+  ctx.fill();
+  ctx.fillStyle = color;
+  ctx.font = 'bold 11px Segoe UI';
+  ctx.textAlign = 'left';
+  ctx.fillText(title, x + 8, y + 16);
+}
+
+function drawItem(x, y, w, h, text, color, active) {
+  ctx.fillStyle = active ? color + '33' : '#0f3460';
+  ctx.strokeStyle = active ? color : '#333';
+  ctx.lineWidth = active ? 2 : 1;
+  roundRect(ctx, x, y, w, h, 4);
+  ctx.fill(); ctx.stroke();
+  if (active) {
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 8;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+  ctx.fillStyle = active ? color : '#e0e0e0';
+  ctx.font = '10px Consolas';
+  ctx.textAlign = 'left';
+  const maxW = w - 8;
+  let display = text;
+  ctx.font = '10px Consolas';
+  while (ctx.measureText(display).width > maxW && display.length > 3) {
+    display = display.slice(0, -4) + '...';
+  }
+  ctx.fillText(display, x + 4, y + h / 2 + 3);
+}
+
+function drawEventLoop(cx, cy, r) {
+  // Outer ring
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.strokeStyle = loopPhase === 'done' ? '#50fa7b' : (loopPhase ? '#8be9fd' : '#333');
+  ctx.lineWidth = loopPhase ? 3 : 1.5;
+  ctx.stroke();
+  if (loopPhase && loopPhase !== 'done') {
+    ctx.shadowColor = '#8be9fd';
+    ctx.shadowBlur = 15;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+  // rotating arrow
+  const angle = (Date.now() / 1500) % (Math.PI * 2);
+  if (loopPhase && loopPhase !== 'done') {
+    const ax = cx + Math.cos(angle) * (r - 5);
+    const ay = cy + Math.sin(angle) * (r - 5);
+    ctx.beginPath();
+    ctx.arc(ax, ay, 4, 0, Math.PI * 2);
+    ctx.fillStyle = '#8be9fd';
+    ctx.fill();
+  }
+  // Center text
+  ctx.fillStyle = '#e0e0e0';
+  ctx.font = 'bold 11px Segoe UI';
+  ctx.textAlign = 'center';
+  ctx.fillText('Event', cx, cy - 6);
+  ctx.fillText('Loop', cx, cy + 8);
+  if (loopPhase && loopPhase !== 'done') {
+    ctx.fillStyle = loopPhase === 'microtasks' ? '#bd93f9' : '#ffb86c';
+    ctx.font = '9px Segoe UI';
+    ctx.fillText(loopPhase, cx, cy + 22);
+  }
+  if (loopPhase === 'done') {
+    ctx.fillStyle = '#50fa7b';
+    ctx.font = '9px Segoe UI';
+    ctx.fillText('termine', cx, cy + 22);
+  }
+}
+
+function drawArrow(x1, y1, x2, y2, color) {
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function roundRectTop(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h);
+  ctx.lineTo(x, y + h);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function addLog(type, msg) {
+  const div = document.getElementById('logPanel');
+  const entry = document.createElement('div');
+  entry.className = 'log-entry ' + type;
+  entry.textContent = `[${new Date().toLocaleTimeString('fr-FR')}] ${msg}`;
+  div.prepend(entry);
+  if (div.children.length > 80) div.removeChild(div.lastChild);
+}
+
+// ── Init ──
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+resetAnim();
+</script>
+</body>
+</html>

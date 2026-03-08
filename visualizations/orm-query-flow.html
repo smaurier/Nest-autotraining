@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ORM Query Flow — Visualisation NestJS</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:#1a1a2e;color:#e0e0e0;font-family:'Segoe UI',system-ui,sans-serif;overflow-x:hidden}
+  .header{background:#16213e;border-bottom:1px solid #333;padding:12px 24px;display:flex;align-items:center;gap:16px}
+  .header h1{font-size:1.3rem;color:#8be9fd}
+  .header .badge{background:#8be9fd22;color:#8be9fd;padding:2px 10px;border-radius:12px;font-size:.75rem}
+  .main{display:grid;grid-template-columns:220px 1fr 220px;grid-template-rows:1fr auto;height:calc(100vh - 52px)}
+  .panel{background:#16213e;border:1px solid #333;padding:16px;overflow-y:auto}
+  .panel h2{font-size:.95rem;color:#bd93f9;margin-bottom:12px;text-transform:uppercase;letter-spacing:1px}
+  label{display:block;font-size:.82rem;color:#aaa;margin-bottom:4px;margin-top:10px}
+  select{width:100%;background:#0f3460;border:1px solid #333;color:#e0e0e0;padding:7px 10px;border-radius:6px;font-size:.85rem}
+  select:focus{outline:none;border-color:#8be9fd}
+  .btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border:1px solid #333;border-radius:6px;background:#0f3460;color:#e0e0e0;cursor:pointer;font-size:.82rem;transition:all .2s}
+  .btn:hover{border-color:#8be9fd;color:#8be9fd}
+  .btn-primary{background:#8be9fd22;border-color:#8be9fd;color:#8be9fd}
+  .btn-green{background:#50fa7b22;border-color:#50fa7b;color:#50fa7b}
+  .btn-orange{background:#ffb86c22;border-color:#ffb86c;color:#ffb86c}
+  .btn-red{background:#ff555522;border-color:#ff5555;color:#ff5555}
+  .btn-group{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+  .center-area{overflow-y:auto;background:#1a1a2e;padding:16px}
+  .log-entry{font-size:.78rem;padding:4px 0;border-bottom:1px solid #333;font-family:'Consolas',monospace}
+  .log-entry.ts{color:#8be9fd}
+  .log-entry.sql{color:#50fa7b}
+  .log-entry.result{color:#bd93f9}
+  .explanation{grid-column:1/-1;background:#16213e;border-top:1px solid #333;padding:14px 24px;font-size:.85rem;line-height:1.5;color:#ccc}
+  .explanation strong{color:#8be9fd}
+  .info-banner{background:#0f3460;border:1px solid #8be9fd;border-left:4px solid #8be9fd;border-radius:6px;padding:12px 18px;margin:0;font-size:.85rem;line-height:1.5;color:#ccc}
+  .info-banner strong{color:#8be9fd}
+
+  /* ORM specific */
+  .orm-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;height:100%}
+  .orm-col{background:#16213e;border:1px solid #333;border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:10px}
+  .orm-col h3{text-align:center;font-size:.95rem;padding-bottom:8px;border-bottom:1px solid #333}
+  .orm-col h3.typeorm{color:#ff5555}
+  .orm-col h3.prisma{color:#bd93f9}
+  .code-block{background:#0f3460;border:1px solid #333;border-radius:6px;padding:10px;font-family:Consolas,monospace;font-size:.75rem;white-space:pre-wrap;line-height:1.4;overflow:auto;transition:all .4s;opacity:0.3;max-height:180px}
+  .code-block.visible{opacity:1}
+  .code-block.active{border-color:#8be9fd;box-shadow:0 0 8px #8be9fd22}
+  .code-block .label{display:block;font-size:.7rem;color:#888;text-transform:uppercase;margin-bottom:6px;letter-spacing:1px}
+  .code-block.ts-code{color:#8be9fd}
+  .code-block.sql-code{color:#50fa7b}
+  .code-block.result-code{color:#bd93f9}
+  .step-arrow{text-align:center;color:#555;font-size:1.2rem;transition:color .3s}
+  .step-arrow.active{color:#8be9fd}
+  .typing-cursor{display:inline;animation:blink 1s step-end infinite;color:#50fa7b}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+  .step-indicator{background:#0f3460;border:1px solid #333;border-radius:6px;padding:6px 10px;font-size:.78rem;color:#aaa;margin-top:12px;text-align:center}
+  .step-indicator .current{color:#8be9fd;font-weight:bold;font-size:.9rem}
+  @media(max-width:900px){.main{grid-template-columns:1fr;grid-template-rows:auto 1fr auto auto}.orm-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>ORM Query Flow</h1>
+  <span class="badge">Modules 14-17</span>
+  <span style="flex:1"></span>
+  <span style="font-size:.75rem;color:#888">Visualisation interactive NestJS</span>
+</div>
+
+<div class="info-banner" style="margin:10px 24px 0 24px">
+  <strong>Comparaison TypeORM vs Prisma :</strong> Observez comment le meme besoin est exprime en TypeScript avec chaque ORM, le SQL genere, et le resultat mappe en objet. Les deux approches ont des compromis differents en termes de type-safety et de flexibilite.
+</div>
+
+<div class="main">
+  <!-- Left Panel -->
+  <div class="panel" style="border-right:1px solid #333">
+    <h2>Controles</h2>
+
+    <label>Scenario</label>
+    <select id="scenarioSelect" onchange="loadScenario()">
+      <option value="0">Simple find (findOne)</option>
+      <option value="1">Find avec relations</option>
+      <option value="2">Create avec relations</option>
+      <option value="3">Requete complexe (QueryBuilder)</option>
+      <option value="4">Pagination</option>
+      <option value="5">Transaction</option>
+    </select>
+
+    <div class="btn-group" style="margin-top:14px">
+      <button class="btn btn-green" onclick="play()">&#9654; Play</button>
+      <button class="btn btn-orange" onclick="pauseAnim()">&#10074;&#10074; Pause</button>
+    </div>
+    <div class="btn-group">
+      <button class="btn btn-primary" onclick="stepOnce()">&#9654;| Step</button>
+      <button class="btn btn-red" onclick="resetAnim()">&#8634; Reset</button>
+    </div>
+
+    <label>Vitesse</label>
+    <select id="speedSelect">
+      <option value="1200">Lente</option>
+      <option value="600" selected>Normale</option>
+      <option value="250">Rapide</option>
+    </select>
+
+    <div class="step-indicator">
+      Etape <span class="current" id="stepNum">0</span> / <span id="stepTotal">0</span>
+    </div>
+  </div>
+
+  <!-- Center -->
+  <div class="center-area">
+    <div class="orm-grid">
+      <!-- TypeORM Column -->
+      <div class="orm-col">
+        <h3 class="typeorm">TypeORM</h3>
+        <div class="code-block ts-code" id="typeorm-ts">
+          <span class="label">TypeScript</span>
+          <div id="typeorm-ts-content"></div>
+        </div>
+        <div class="step-arrow" id="typeorm-arrow1">\u2193 genere</div>
+        <div class="code-block sql-code" id="typeorm-sql">
+          <span class="label">SQL genere</span>
+          <div id="typeorm-sql-content"></div>
+        </div>
+        <div class="step-arrow" id="typeorm-arrow2">\u2193 resultat</div>
+        <div class="code-block result-code" id="typeorm-result">
+          <span class="label">Objet TypeScript</span>
+          <div id="typeorm-result-content"></div>
+        </div>
+      </div>
+      <!-- Prisma Column -->
+      <div class="orm-col">
+        <h3 class="prisma">Prisma</h3>
+        <div class="code-block ts-code" id="prisma-ts">
+          <span class="label">TypeScript</span>
+          <div id="prisma-ts-content"></div>
+        </div>
+        <div class="step-arrow" id="prisma-arrow1">\u2193 genere</div>
+        <div class="code-block sql-code" id="prisma-sql">
+          <span class="label">SQL genere</span>
+          <div id="prisma-sql-content"></div>
+        </div>
+        <div class="step-arrow" id="prisma-arrow2">\u2193 resultat</div>
+        <div class="code-block result-code" id="prisma-result">
+          <span class="label">Objet TypeScript</span>
+          <div id="prisma-result-content"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Panel -->
+  <div class="panel" style="border-left:1px solid #333">
+    <h2>Journal</h2>
+    <div id="logPanel" style="max-height:calc(100vh - 200px);overflow-y:auto"></div>
+  </div>
+
+  <!-- Explanation -->
+  <div class="explanation" id="explanation">
+    <strong>ORM Query Flow :</strong> Les ORM (Object-Relational Mapping) transforment vos appels TypeScript en requetes SQL. <strong>TypeORM</strong> utilise un pattern Active Record/Data Mapper avec un QueryBuilder puissant. <strong>Prisma</strong> genere un client type-safe a partir d'un schema declaratif. Choisissez un scenario pour comparer.
+  </div>
+</div>
+
+<script>
+// ── Scenario data ──
+const scenariosData = [
+  { // 0: Simple find
+    name: 'Simple find',
+    typeorm: {
+      ts: `// TypeORM - findOne
+const user = await this.userRepo.findOne({
+  where: { id: 1 }
+});`,
+      sql: `SELECT "user"."id"    AS "user_id",
+       "user"."name"  AS "user_name",
+       "user"."email" AS "user_email"
+FROM "users" "user"
+WHERE "user"."id" = $1
+LIMIT 1
+-- Parameters: [1]`,
+      result: `{
+  id: 1,
+  name: "Alice",
+  email: "alice@example.com"
+}`
+    },
+    prisma: {
+      ts: `// Prisma - findUnique
+const user = await this.prisma.user.findUnique({
+  where: { id: 1 }
+});`,
+      sql: `SELECT "public"."users"."id",
+       "public"."users"."name",
+       "public"."users"."email"
+FROM "public"."users"
+WHERE "public"."users"."id" = $1
+LIMIT 1 OFFSET 0
+-- Parameters: [1]`,
+      result: `{
+  id: 1,
+  name: "Alice",
+  email: "alice@example.com"
+}`
+    },
+    explain: '<strong>Simple find :</strong> Les deux ORM generent un SELECT similaire avec WHERE et LIMIT 1. Prisma utilise <strong>findUnique</strong> (sur champ unique/@id) tandis que TypeORM utilise <strong>findOne</strong> avec un objet where.'
+  },
+  { // 1: Find with relations
+    name: 'Find avec relations',
+    typeorm: {
+      ts: `// TypeORM - findOne avec relations
+const user = await this.userRepo.findOne({
+  where: { id: 1 },
+  relations: {
+    posts: true,
+    profile: true
+  }
+});`,
+      sql: `SELECT "user"."id", "user"."name",
+       "posts"."id"    AS "posts_id",
+       "posts"."title" AS "posts_title",
+       "profile"."bio" AS "profile_bio"
+FROM "users" "user"
+LEFT JOIN "posts" "posts"
+  ON "posts"."userId" = "user"."id"
+LEFT JOIN "profiles" "profile"
+  ON "profile"."userId" = "user"."id"
+WHERE "user"."id" = $1`,
+      result: `{
+  id: 1,
+  name: "Alice",
+  posts: [
+    { id: 10, title: "Mon premier post" },
+    { id: 11, title: "NestJS tips" }
+  ],
+  profile: { bio: "Dev fullstack" }
+}`
+    },
+    prisma: {
+      ts: `// Prisma - include relations
+const user = await this.prisma.user.findUnique({
+  where: { id: 1 },
+  include: {
+    posts: true,
+    profile: true
+  }
+});`,
+      sql: `SELECT "public"."users"."id", "public"."users"."name"
+FROM "public"."users"
+WHERE "public"."users"."id" = $1;
+
+SELECT "public"."posts"."id", "public"."posts"."title"
+FROM "public"."posts"
+WHERE "public"."posts"."userId" IN ($1);
+
+SELECT "public"."profiles"."bio"
+FROM "public"."profiles"
+WHERE "public"."profiles"."userId" IN ($1);`,
+      result: `{
+  id: 1,
+  name: "Alice",
+  posts: [
+    { id: 10, title: "Mon premier post" },
+    { id: 11, title: "NestJS tips" }
+  ],
+  profile: { bio: "Dev fullstack" }
+}`
+    },
+    explain: '<strong>Relations :</strong> TypeORM utilise des <strong>LEFT JOIN</strong> dans une seule requete. Prisma genere <strong>plusieurs requetes separees</strong> et assemble les resultats en memoire. Le resultat TypeScript est identique mais la strategie SQL differe.'
+  },
+  { // 2: Create with relations
+    name: 'Create avec relations',
+    typeorm: {
+      ts: `// TypeORM - save avec relations
+const user = this.userRepo.create({
+  name: "Bob",
+  email: "bob@example.com",
+  profile: {
+    bio: "Nouveau dev"
+  }
+});
+await this.userRepo.save(user);`,
+      sql: `BEGIN;
+
+INSERT INTO "users" ("name", "email")
+VALUES ($1, $2)
+RETURNING "id"
+-- Parameters: ["Bob", "bob@example.com"]
+
+INSERT INTO "profiles" ("bio", "userId")
+VALUES ($1, $2)
+RETURNING "id"
+-- Parameters: ["Nouveau dev", 2]
+
+COMMIT;`,
+      result: `{
+  id: 2,
+  name: "Bob",
+  email: "bob@example.com",
+  profile: {
+    id: 5,
+    bio: "Nouveau dev"
+  }
+}`
+    },
+    prisma: {
+      ts: `// Prisma - nested create
+const user = await this.prisma.user.create({
+  data: {
+    name: "Bob",
+    email: "bob@example.com",
+    profile: {
+      create: {
+        bio: "Nouveau dev"
+      }
+    }
+  },
+  include: { profile: true }
+});`,
+      sql: `BEGIN;
+
+INSERT INTO "public"."users" ("name","email")
+VALUES ($1, $2)
+RETURNING "id"
+-- Parameters: ["Bob", "bob@example.com"]
+
+INSERT INTO "public"."profiles" ("bio","userId")
+VALUES ($1, $2)
+RETURNING "id"
+-- Parameters: ["Nouveau dev", 2]
+
+COMMIT;`,
+      result: `{
+  id: 2,
+  name: "Bob",
+  email: "bob@example.com",
+  profile: {
+    id: 5,
+    bio: "Nouveau dev"
+  }
+}`
+    },
+    explain: '<strong>Create avec relations :</strong> Les deux ORM utilisent une <strong>transaction implicite</strong> (BEGIN/COMMIT) pour inserer l\'entite parent et l\'entite enfant. Prisma utilise le mot-cle <strong>create</strong> dans la relation, TypeORM passe l\'objet imbrique a <strong>save()</strong>.'
+  },
+  { // 3: Complex query
+    name: 'Requete complexe',
+    typeorm: {
+      ts: `// TypeORM - QueryBuilder
+const users = await this.userRepo
+  .createQueryBuilder("user")
+  .leftJoinAndSelect("user.posts", "post")
+  .where("user.role = :role", { role: "admin" })
+  .andWhere("post.publishedAt > :date", {
+    date: "2024-01-01"
+  })
+  .orderBy("user.name", "ASC")
+  .getMany();`,
+      sql: `SELECT "user"."id", "user"."name",
+       "user"."role",
+       "post"."id"    AS "post_id",
+       "post"."title" AS "post_title",
+       "post"."publishedAt"
+FROM "users" "user"
+LEFT JOIN "posts" "post"
+  ON "post"."userId" = "user"."id"
+WHERE "user"."role" = $1
+  AND "post"."publishedAt" > $2
+ORDER BY "user"."name" ASC
+-- Parameters: ["admin", "2024-01-01"]`,
+      result: `[
+  {
+    id: 3, name: "Charlie", role: "admin",
+    posts: [
+      { id: 20, title: "Admin guide",
+        publishedAt: "2024-03-15" }
+    ]
+  }
+]`
+    },
+    prisma: {
+      ts: `// Prisma - filtrage avance
+const users = await this.prisma.user.findMany({
+  where: {
+    role: "admin",
+    posts: {
+      some: {
+        publishedAt: { gt: new Date("2024-01-01") }
+      }
+    }
+  },
+  include: {
+    posts: {
+      where: {
+        publishedAt: { gt: new Date("2024-01-01") }
+      }
+    }
+  },
+  orderBy: { name: "asc" }
+});`,
+      sql: `SELECT "public"."users"."id",
+       "public"."users"."name",
+       "public"."users"."role"
+FROM "public"."users"
+WHERE "public"."users"."role" = $1
+  AND EXISTS (
+    SELECT 1 FROM "public"."posts"
+    WHERE "public"."posts"."userId" = "public"."users"."id"
+      AND "public"."posts"."publishedAt" > $2
+  )
+ORDER BY "public"."users"."name" ASC
+-- Parameters: ["admin", "2024-01-01T00:00:00Z"]`,
+      result: `[
+  {
+    id: 3, name: "Charlie", role: "admin",
+    posts: [
+      { id: 20, title: "Admin guide",
+        publishedAt: "2024-03-15T00:00:00Z" }
+    ]
+  }
+]`
+    },
+    explain: '<strong>Requete complexe :</strong> TypeORM utilise le <strong>QueryBuilder</strong> chainable (proche du SQL). Prisma utilise un <strong>objet de filtre type-safe</strong> avec des operateurs comme <em>gt</em>, <em>some</em>. Notez que Prisma genere un <strong>EXISTS</strong> la ou TypeORM fait un LEFT JOIN filtre.'
+  },
+  { // 4: Pagination
+    name: 'Pagination',
+    typeorm: {
+      ts: `// TypeORM - Offset pagination
+const [users, total] = await this.userRepo
+  .findAndCount({
+    skip: 20,
+    take: 10,
+    order: { createdAt: "DESC" }
+  });
+
+// total = 150, users = 10 items`,
+      sql: `SELECT "user"."id", "user"."name",
+       "user"."createdAt"
+FROM "users" "user"
+ORDER BY "user"."createdAt" DESC
+LIMIT 10 OFFSET 20;
+
+SELECT COUNT(*) AS "cnt"
+FROM "users" "user";`,
+      result: `{
+  users: [
+    { id: 130, name: "User130", ... },
+    { id: 129, name: "User129", ... },
+    // ... 8 de plus
+  ],
+  total: 150,
+  page: 3,
+  lastPage: 15
+}`
+    },
+    prisma: {
+      ts: `// Prisma - Cursor pagination
+const users = await this.prisma.user.findMany({
+  take: 10,
+  skip: 1,
+  cursor: { id: lastSeenId },
+  orderBy: { createdAt: "desc" }
+});
+
+// Cursor-based = plus performant`,
+      sql: `SELECT "public"."users"."id",
+       "public"."users"."name",
+       "public"."users"."createdAt"
+FROM "public"."users"
+WHERE "public"."users"."id" > $1
+ORDER BY "public"."users"."createdAt" DESC
+LIMIT 10 OFFSET 1
+-- Parameters: [lastSeenId]`,
+      result: `[
+  { id: 131, name: "User131", ... },
+  { id: 132, name: "User132", ... },
+  // ... 8 de plus
+]
+// Prochain cursor: users[users.length-1].id`
+    },
+    explain: '<strong>Pagination :</strong> TypeORM montre le pattern <strong>offset/limit</strong> classique avec <em>findAndCount</em> (2 requetes). Prisma favorise la <strong>pagination par curseur</strong> (plus performante pour les grands datasets car elle evite le OFFSET couteux).'
+  },
+  { // 5: Transaction
+    name: 'Transaction',
+    typeorm: {
+      ts: `// TypeORM - QueryRunner transaction
+const qr = dataSource.createQueryRunner();
+await qr.connect();
+await qr.startTransaction();
+try {
+  const user = await qr.manager.save(User, {
+    name: "Eve"
+  });
+  await qr.manager.save(Profile, {
+    bio: "New", userId: user.id
+  });
+  await qr.commitTransaction();
+} catch (err) {
+  await qr.rollbackTransaction();
+} finally {
+  await qr.release();
+}`,
+      sql: `BEGIN;
+
+INSERT INTO "users" ("name")
+VALUES ($1) RETURNING "id"
+-- Params: ["Eve"]
+
+INSERT INTO "profiles" ("bio", "userId")
+VALUES ($1, $2) RETURNING "id"
+-- Params: ["New", 3]
+
+COMMIT;
+-- (ou ROLLBACK si erreur)`,
+      result: `// Succes:
+{ user: { id: 3, name: "Eve" },
+  profile: { id: 6, bio: "New" } }
+
+// Erreur: ROLLBACK,
+// aucune donnee inseree`
+    },
+    prisma: {
+      ts: `// Prisma - $transaction interactive
+const [user, profile] = await this.prisma
+  .$transaction(async (tx) => {
+    const user = await tx.user.create({
+      data: { name: "Eve" }
+    });
+    const profile = await tx.profile.create({
+      data: {
+        bio: "New",
+        userId: user.id
+      }
+    });
+    return [user, profile];
+  });`,
+      sql: `BEGIN;
+
+INSERT INTO "public"."users" ("name")
+VALUES ($1) RETURNING "id"
+-- Params: ["Eve"]
+
+INSERT INTO "public"."profiles" ("bio","userId")
+VALUES ($1, $2) RETURNING "id"
+-- Params: ["New", 3]
+
+COMMIT;
+-- (ou ROLLBACK si erreur)`,
+      result: `// Succes:
+[
+  { id: 3, name: "Eve" },
+  { id: 6, bio: "New", userId: 3 }
+]
+
+// Erreur: ROLLBACK automatique`
+    },
+    explain: '<strong>Transactions :</strong> TypeORM utilise un <strong>QueryRunner</strong> avec gestion manuelle (connect, start, commit/rollback, release). Prisma offre une API <strong>$transaction</strong> plus ergonomique avec un callback et rollback automatique en cas d\'erreur.'
+  }
+];
+
+// ── State ──
+let currentScenario = 0;
+let currentStep = 0;
+let playingFlag = false;
+let playTimer = null;
+let typingTimer = null;
+
+function loadScenario() {
+  currentScenario = parseInt(document.getElementById('scenarioSelect').value);
+  resetAnim();
+}
+
+function resetAnim() {
+  pauseAnim();
+  currentScenario = parseInt(document.getElementById('scenarioSelect').value);
+  currentStep = 0;
+  document.getElementById('stepTotal').textContent = '6';
+  document.getElementById('stepNum').textContent = '0';
+  document.getElementById('logPanel').innerHTML = '';
+
+  // Reset all code blocks
+  ['typeorm-ts', 'typeorm-sql', 'typeorm-result', 'prisma-ts', 'prisma-sql', 'prisma-result'].forEach(id => {
+    const el = document.getElementById(id);
+    el.className = 'code-block ' + (id.includes('ts') ? 'ts-code' : id.includes('sql') ? 'sql-code' : 'result-code');
+  });
+  ['typeorm-ts-content', 'typeorm-sql-content', 'typeorm-result-content', 'prisma-ts-content', 'prisma-sql-content', 'prisma-result-content'].forEach(id => {
+    document.getElementById(id).textContent = '';
+  });
+  ['typeorm-arrow1', 'typeorm-arrow2', 'prisma-arrow1', 'prisma-arrow2'].forEach(id => {
+    document.getElementById(id).className = 'step-arrow';
+  });
+
+  const sc = scenariosData[currentScenario];
+  document.getElementById('explanation').innerHTML = `<strong>ORM Query Flow :</strong> Scenario "<em>${sc.name}</em>". Appuyez sur Play pour voir le code TypeScript, le SQL genere et le resultat mappe.`;
+}
+
+function play() {
+  if (playingFlag) return;
+  playingFlag = true;
+  doStep();
+}
+
+function pauseAnim() {
+  playingFlag = false;
+  if (playTimer) { clearTimeout(playTimer); playTimer = null; }
+  if (typingTimer) { clearInterval(typingTimer); typingTimer = null; }
+}
+
+function stepOnce() {
+  pauseAnim();
+  doStep();
+}
+
+function doStep() {
+  if (currentStep >= 6) { pauseAnim(); return; }
+  const sc = scenariosData[currentScenario];
+  const speed = parseInt(document.getElementById('speedSelect').value);
+
+  switch (currentStep) {
+    case 0: // Show TypeORM TS
+      showCode('typeorm-ts', 'typeorm-ts-content', sc.typeorm.ts, true);
+      addLog('ts', '[TypeORM] Code TypeScript');
+      document.getElementById('explanation').innerHTML = '<strong>Etape 1 :</strong> Le code TypeScript est ecrit avec l\'API TypeORM. L\'ORM va transformer cet appel en SQL.';
+      break;
+    case 1: // Show Prisma TS
+      showCode('prisma-ts', 'prisma-ts-content', sc.prisma.ts, true);
+      addLog('ts', '[Prisma] Code TypeScript');
+      document.getElementById('explanation').innerHTML = '<strong>Etape 2 :</strong> Le meme besoin est exprime avec l\'API Prisma. Notez les differences d\'API.';
+      break;
+    case 2: // TypeORM SQL with typing
+      document.getElementById('typeorm-arrow1').className = 'step-arrow active';
+      typeCode('typeorm-sql', 'typeorm-sql-content', sc.typeorm.sql, speed);
+      addLog('sql', '[TypeORM] SQL genere');
+      document.getElementById('explanation').innerHTML = '<strong>Etape 3 :</strong> TypeORM genere le SQL. Observez la structure de la requete : alias, parametres, joins...';
+      break;
+    case 3: // Prisma SQL with typing
+      document.getElementById('prisma-arrow1').className = 'step-arrow active';
+      typeCode('prisma-sql', 'prisma-sql-content', sc.prisma.sql, speed);
+      addLog('sql', '[Prisma] SQL genere');
+      document.getElementById('explanation').innerHTML = '<strong>Etape 4 :</strong> Prisma genere son propre SQL. Comparez avec TypeORM : la strategie peut etre differente (JOIN vs requetes multiples, EXISTS vs sous-requete, etc.).';
+      break;
+    case 4: // TypeORM Result
+      document.getElementById('typeorm-arrow2').className = 'step-arrow active';
+      showCode('typeorm-result', 'typeorm-result-content', sc.typeorm.result, true);
+      addLog('result', '[TypeORM] Resultat mappe');
+      document.getElementById('explanation').innerHTML = '<strong>Etape 5 :</strong> Le resultat SQL est mappe en objet TypeScript par TypeORM. Les relations sont hydratees automatiquement.';
+      break;
+    case 5: // Prisma Result + final explain
+      document.getElementById('prisma-arrow2').className = 'step-arrow active';
+      showCode('prisma-result', 'prisma-result-content', sc.prisma.result, true);
+      addLog('result', '[Prisma] Resultat mappe');
+      document.getElementById('explanation').innerHTML = sc.explain;
+      break;
+  }
+
+  currentStep++;
+  document.getElementById('stepNum').textContent = currentStep;
+
+  if (playingFlag && currentStep < 6) {
+    playTimer = setTimeout(doStep, speed * 3);
+  } else if (currentStep >= 6) {
+    pauseAnim();
+  }
+}
+
+function showCode(blockId, contentId, code, visible) {
+  const block = document.getElementById(blockId);
+  const content = document.getElementById(contentId);
+  content.textContent = code;
+  if (visible) {
+    block.classList.add('visible', 'active');
+    setTimeout(() => block.classList.remove('active'), 800);
+  }
+}
+
+function typeCode(blockId, contentId, code, speed) {
+  const block = document.getElementById(blockId);
+  const content = document.getElementById(contentId);
+  block.classList.add('visible', 'active');
+  content.textContent = '';
+  let i = 0;
+  const chars = code.split('');
+  const interval = Math.max(8, Math.min(25, speed / chars.length * 2));
+  if (typingTimer) clearInterval(typingTimer);
+  typingTimer = setInterval(() => {
+    if (i < chars.length) {
+      content.textContent += chars[i];
+      i++;
+    } else {
+      clearInterval(typingTimer);
+      typingTimer = null;
+      block.classList.remove('active');
+    }
+  }, interval);
+}
+
+function addLog(type, msg) {
+  const div = document.getElementById('logPanel');
+  const entry = document.createElement('div');
+  entry.className = 'log-entry ' + type;
+  entry.textContent = `[${new Date().toLocaleTimeString('fr-FR')}] ${msg}`;
+  div.prepend(entry);
+  if (div.children.length > 40) div.removeChild(div.lastChild);
+}
+
+// ── Init ──
+resetAnim();
+</script>
+</body>
+</html>

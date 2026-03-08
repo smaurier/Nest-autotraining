@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NestJS Request Lifecycle — Visualisation NestJS</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:#1a1a2e;color:#e0e0e0;font-family:'Segoe UI',system-ui,sans-serif;overflow-x:hidden}
+  .header{background:#16213e;border-bottom:1px solid #333;padding:12px 24px;display:flex;align-items:center;gap:16px}
+  .header h1{font-size:1.3rem;color:#8be9fd}
+  .header .badge{background:#8be9fd22;color:#8be9fd;padding:2px 10px;border-radius:12px;font-size:.75rem}
+  .main{display:grid;grid-template-columns:220px 1fr 300px;grid-template-rows:1fr auto;height:calc(100vh - 52px)}
+  .panel{background:#16213e;border:1px solid #333;padding:16px;overflow-y:auto}
+  .panel h2{font-size:.95rem;color:#bd93f9;margin-bottom:12px;text-transform:uppercase;letter-spacing:1px}
+  label{display:block;font-size:.82rem;color:#aaa;margin-bottom:4px;margin-top:10px}
+  select{width:100%;background:#0f3460;border:1px solid #333;color:#e0e0e0;padding:7px 10px;border-radius:6px;font-size:.85rem}
+  select:focus{outline:none;border-color:#8be9fd}
+  .btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border:1px solid #333;border-radius:6px;background:#0f3460;color:#e0e0e0;cursor:pointer;font-size:.82rem;transition:all .2s}
+  .btn:hover{border-color:#8be9fd;color:#8be9fd}
+  .btn-primary{background:#8be9fd22;border-color:#8be9fd;color:#8be9fd}
+  .btn-green{background:#50fa7b22;border-color:#50fa7b;color:#50fa7b}
+  .btn-orange{background:#ffb86c22;border-color:#ffb86c;color:#ffb86c}
+  .btn-red{background:#ff555522;border-color:#ff5555;color:#ff5555}
+  .btn-group{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+  .center-area{overflow-y:auto;background:#1a1a2e;padding:16px 24px}
+  .log-entry{font-size:.78rem;padding:4px 0;border-bottom:1px solid #333;font-family:'Consolas',monospace}
+  .log-entry.middleware{color:#8be9fd}
+  .log-entry.guard{color:#50fa7b}
+  .log-entry.interceptor{color:#bd93f9}
+  .log-entry.pipe{color:#ffb86c}
+  .log-entry.handler{color:#8be9fd}
+  .log-entry.filter{color:#ff5555}
+  .log-entry.response{color:#50fa7b}
+  .explanation{grid-column:1/-1;background:#16213e;border-top:1px solid #333;padding:14px 24px;font-size:.85rem;line-height:1.5;color:#ccc}
+  .explanation strong{color:#8be9fd}
+  .info-banner{background:#0f3460;border:1px solid #8be9fd;border-left:4px solid #8be9fd;border-radius:6px;padding:12px 18px;margin:0;font-size:.85rem;line-height:1.5;color:#ccc}
+  .info-banner strong{color:#8be9fd}
+
+  /* Lifecycle pipeline */
+  .lifecycle{max-width:600px;margin:0 auto}
+  .lc-step{background:#16213e;border:1px solid #333;border-radius:8px;padding:12px 16px;margin:4px 0;transition:all .4s;cursor:default;position:relative}
+  .lc-step .step-header{display:flex;align-items:center;gap:10px}
+  .lc-step .step-num{width:28px;height:28px;border-radius:50%;background:#0f3460;border:1px solid #333;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:bold;color:#888;flex-shrink:0}
+  .lc-step .step-name{font-weight:bold;font-size:.88rem;color:#e0e0e0}
+  .lc-step .step-desc{font-size:.75rem;color:#888;margin-top:4px;margin-left:38px}
+  .lc-step .step-timing{position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:.7rem;color:#555;font-family:Consolas,monospace}
+  .lc-step .step-data{background:#0f3460;border:1px solid #333;border-radius:4px;padding:6px 8px;margin-top:6px;margin-left:38px;font-family:Consolas,monospace;font-size:.72rem;color:#8be9fd;display:none;white-space:pre-wrap}
+
+  .lc-step.active{border-color:#8be9fd;background:#8be9fd11;box-shadow:0 0 12px #8be9fd22}
+  .lc-step.active .step-num{background:#8be9fd;color:#1a1a2e;border-color:#8be9fd}
+  .lc-step.active .step-data{display:block}
+  .lc-step.passed{border-color:#50fa7b44}
+  .lc-step.passed .step-num{background:#50fa7b33;color:#50fa7b;border-color:#50fa7b}
+  .lc-step.passed .step-timing{color:#50fa7b}
+  .lc-step.error{border-color:#ff5555;background:#ff555511}
+  .lc-step.error .step-num{background:#ff5555;color:#1a1a2e;border-color:#ff5555}
+  .lc-step.skipped{opacity:.35}
+  .lc-step.skipped .step-num{background:#333;color:#555}
+
+  .lc-arrow{text-align:center;color:#333;font-size:.8rem;margin:2px 0}
+  .lc-arrow.active{color:#8be9fd}
+  .lc-arrow.error-path{color:#ff5555}
+  .lc-arrow.passed{color:#50fa7b44}
+
+  .code-panel{background:#0f3460;border:1px solid #333;border-radius:6px;padding:10px;font-family:Consolas,monospace;font-size:.73rem;white-space:pre-wrap;line-height:1.4;max-height:280px;overflow-y:auto;margin-bottom:12px}
+  .code-panel .code-line{padding:1px 0;border-left:2px solid transparent;padding-left:6px}
+  .code-panel .code-line.hl{border-left-color:#8be9fd;background:#8be9fd11;color:#8be9fd}
+  .step-indicator{background:#0f3460;border:1px solid #333;border-radius:6px;padding:6px 10px;font-size:.78rem;color:#aaa;margin-top:12px;text-align:center}
+  .step-indicator .current{color:#8be9fd;font-weight:bold;font-size:.9rem}
+
+  /* Request info box */
+  .req-box{background:#0f3460;border:1px solid #333;border-radius:6px;padding:8px;font-family:Consolas,monospace;font-size:.78rem;margin-bottom:12px}
+  .req-box .method{color:#50fa7b;font-weight:bold}
+  .req-box .url{color:#8be9fd}
+  .req-box .body{color:#ffb86c}
+
+  @media(max-width:900px){.main{grid-template-columns:1fr;grid-template-rows:auto 1fr auto auto}}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>NestJS Request Lifecycle</h1>
+  <span class="badge">Module 13</span>
+  <span style="flex:1"></span>
+  <span style="font-size:.75rem;color:#888">Visualisation interactive NestJS</span>
+</div>
+
+<div class="info-banner" style="margin:10px 24px 0 24px">
+  <strong>Cycle de vie complet :</strong> Chaque requete HTTP dans NestJS traverse une sequence precise de composants. Cette visualisation montre chaque etape avec le code correspondant, les donnees transmises et le timing simule.
+</div>
+
+<div class="main">
+  <!-- Left Panel -->
+  <div class="panel" style="border-right:1px solid #333">
+    <h2>Controles</h2>
+
+    <label>Scenario</label>
+    <select id="scenarioSelect" onchange="resetAnim()">
+      <option value="0">Succes (happy path)</option>
+      <option value="1">Erreur de validation (Pipe)</option>
+      <option value="2">Non autorise (Guard)</option>
+      <option value="3">Erreur interne (Handler)</option>
+      <option value="4">Timeout (Interceptor)</option>
+    </select>
+
+    <div class="btn-group" style="margin-top:14px">
+      <button class="btn btn-green" onclick="play()">&#9654; Play</button>
+      <button class="btn btn-orange" onclick="pauseAnim()">&#10074;&#10074; Pause</button>
+    </div>
+    <div class="btn-group">
+      <button class="btn btn-primary" onclick="stepOnce()">&#9654;| Step</button>
+      <button class="btn btn-red" onclick="resetAnim()">&#8634; Reset</button>
+    </div>
+
+    <label>Vitesse</label>
+    <select id="speedSelect">
+      <option value="1500">Lente</option>
+      <option value="800" selected>Normale</option>
+      <option value="350">Rapide</option>
+    </select>
+
+    <div class="step-indicator">
+      Etape <span class="current" id="stepNum">0</span> / <span id="stepTotal">0</span>
+    </div>
+
+    <div style="margin-top:14px">
+      <h2>Requete</h2>
+      <div class="req-box">
+        <span class="method">POST</span> <span class="url">/api/users</span><br>
+        <span style="color:#888">Authorization: Bearer eyJhb...</span><br>
+        <span class="body">{ "name": "Alice", "email": "alice@test.com", "age": 25 }</span>
+      </div>
+    </div>
+
+    <h2>Timing total</h2>
+    <div style="background:#0f3460;border:1px solid #333;border-radius:6px;padding:8px;text-align:center">
+      <span style="font-size:1.2rem;font-weight:bold;color:#8be9fd" id="totalTime">0 ms</span>
+    </div>
+  </div>
+
+  <!-- Center Pipeline -->
+  <div class="center-area">
+    <div class="lifecycle" id="lifecycleContainer"></div>
+  </div>
+
+  <!-- Right Panel -->
+  <div class="panel" style="border-left:1px solid #333">
+    <h2>Code du composant</h2>
+    <div class="code-panel" id="codePanel">
+      <div class="code-line">// Selectionnez un scenario et appuyez sur Play</div>
+    </div>
+
+    <h2>Journal</h2>
+    <div id="logPanel" style="max-height:calc(100vh - 450px);overflow-y:auto"></div>
+  </div>
+
+  <!-- Explanation -->
+  <div class="explanation" id="explanation">
+    <strong>NestJS Request Lifecycle :</strong> Chaque requete traverse : <strong>Middleware</strong> (comme Express) &rarr; <strong>Guard</strong> (autorisation) &rarr; <strong>Interceptor avant</strong> (logging, cache) &rarr; <strong>Pipe</strong> (validation, transformation) &rarr; <strong>Handler</strong> (logique metier) &rarr; <strong>Interceptor apres</strong> (transformation reponse) &rarr; <strong>Exception Filter</strong> (gestion d'erreurs, chemin alternatif).
+  </div>
+</div>
+
+<script>
+// ── Lifecycle steps definition ──
+const lifecycleSteps = [
+  {
+    id: 'request', name: 'Requete entrante', desc: 'HTTP POST /api/users',
+    color: '#e0e0e0', timing: 0,
+    code: [
+      '// Requete HTTP recue par le serveur',
+      'POST /api/users HTTP/1.1',
+      'Host: localhost:3000',
+      'Authorization: Bearer eyJhbGciOiJI...',
+      'Content-Type: application/json',
+      '',
+      '{ "name": "Alice", "email": "alice@test.com", "age": 25 }'
+    ],
+    data: 'Method: POST | URL: /api/users | Body: { name, email, age }'
+  },
+  {
+    id: 'middleware', name: 'Middleware', desc: 'LoggerMiddleware — loggue la requete',
+    color: '#8be9fd', timing: 2,
+    code: [
+      '@Injectable()',
+      'export class LoggerMiddleware implements NestMiddleware {',
+      '  use(req: Request, res: Response, next: NextFunction) {',
+      '    const start = Date.now();',
+      '*   console.log(`[${req.method}] ${req.url}`);',
+      '    res.on("finish", () => {',
+      '      console.log(`${Date.now() - start}ms`);',
+      '    });',
+      '*   next();',
+      '  }',
+      '}'
+    ],
+    data: 'req.method: POST | req.url: /api/users | req.body: {...}'
+  },
+  {
+    id: 'guard', name: 'Guard', desc: 'AuthGuard — verifie le JWT',
+    color: '#50fa7b', timing: 5,
+    code: [
+      '@Injectable()',
+      'export class AuthGuard implements CanActivate {',
+      '  constructor(private jwtService: JwtService) {}',
+      '',
+      '  canActivate(context: ExecutionContext): boolean {',
+      '    const req = context.switchToHttp().getRequest();',
+      '*   const token = req.headers.authorization?.split(" ")[1];',
+      '    if (!token) throw new UnauthorizedException();',
+      '*   const payload = this.jwtService.verify(token);',
+      '*   req.user = payload;',
+      '*   return true;',
+      '  }',
+      '}'
+    ],
+    data: 'token: eyJhb... | payload: { sub: 1, role: "admin" } | canActivate: true'
+  },
+  {
+    id: 'interceptor-before', name: 'Interceptor (avant)', desc: 'LoggingInterceptor — demarre le chrono',
+    color: '#bd93f9', timing: 1,
+    code: [
+      '@Injectable()',
+      'export class LoggingInterceptor implements NestInterceptor {',
+      '  intercept(context: ExecutionContext, next: CallHandler) {',
+      '*   const now = Date.now();',
+      '*   console.log(">>> Avant le handler...");',
+      '',
+      '    return next.handle().pipe(',
+      '      tap(() => {',
+      '        console.log(`<<< Apres: ${Date.now() - now}ms`);',
+      '      })',
+      '    );',
+      '  }',
+      '}'
+    ],
+    data: 'Observable cree | timestamp debut enregistre'
+  },
+  {
+    id: 'pipe', name: 'Pipe', desc: 'ValidationPipe — valide le DTO avec class-validator',
+    color: '#ffb86c', timing: 3,
+    code: [
+      '// DTO avec decorateurs class-validator',
+      'export class CreateUserDto {',
+      '  @IsString()',
+      '  @IsNotEmpty()',
+      '  name: string;',
+      '',
+      '  @IsEmail()',
+      '  email: string;',
+      '',
+      '  @IsInt()',
+      '  @Min(0)',
+      '  age: number;',
+      '}',
+      '',
+      '// ValidationPipe transforme et valide',
+      '*// transform: true => plainToInstance()',
+      '*// validation reussie => DTO retourne'
+    ],
+    data: 'Input: plain object | Output: CreateUserDto instance | Validation: OK'
+  },
+  {
+    id: 'handler', name: 'Route Handler', desc: 'UsersController.create() — logique metier',
+    color: '#8be9fd', timing: 15,
+    code: [
+      '@Controller("users")',
+      'export class UsersController {',
+      '  constructor(private usersService: UsersService) {}',
+      '',
+      '  @Post()',
+      '  @UseGuards(AuthGuard)',
+      '  @UseInterceptors(LoggingInterceptor)',
+      '  @UsePipes(ValidationPipe)',
+      '  async create(@Body() dto: CreateUserDto) {',
+      '*   const user = await this.usersService.create(dto);',
+      '*   return user;',
+      '  }',
+      '}'
+    ],
+    data: 'UsersService.create(dto) => { id: 1, name: "Alice", email: "alice@test.com" }'
+  },
+  {
+    id: 'interceptor-after', name: 'Interceptor (apres)', desc: 'Transforme la reponse dans le pipe RxJS',
+    color: '#bd93f9', timing: 1,
+    code: [
+      '// Suite du LoggingInterceptor',
+      'return next.handle().pipe(',
+      '  // map pour transformer la reponse',
+      '  map(data => ({',
+      '*   data: data,',
+      '*   timestamp: new Date().toISOString(),',
+      '*   duration: `${Date.now() - now}ms`',
+      '  })),',
+      '  // tap pour logger',
+      '  tap(() => {',
+      '*   console.log(`<<< Apres: ${Date.now() - now}ms`);',
+      '  })',
+      ');'
+    ],
+    data: 'Reponse transformee: { data: {...}, timestamp: "...", duration: "27ms" }'
+  },
+  {
+    id: 'exception-filter', name: 'Exception Filter', desc: 'HttpExceptionFilter (chemin alternatif)',
+    color: '#ff5555', timing: 1,
+    code: [
+      '@Catch(HttpException)',
+      'export class HttpExceptionFilter implements ExceptionFilter {',
+      '  catch(exception: HttpException, host: ArgumentHost) {',
+      '    const ctx = host.switchToHttp();',
+      '    const response = ctx.getResponse<Response>();',
+      '*   const status = exception.getStatus();',
+      '*   const message = exception.getResponse();',
+      '',
+      '    response.status(status).json({',
+      '*     statusCode: status,',
+      '*     message: typeof message === "string" ? message : message,',
+      '*     timestamp: new Date().toISOString(),',
+      '*     path: ctx.getRequest<Request>().url',
+      '    });',
+      '  }',
+      '}'
+    ],
+    data: 'Exception attrapee => Reponse erreur structuree envoyee'
+  },
+  {
+    id: 'response', name: 'Reponse', desc: 'HTTP 201 Created',
+    color: '#50fa7b', timing: 0,
+    code: [
+      '// Reponse HTTP finale',
+      'HTTP/1.1 201 Created',
+      'Content-Type: application/json',
+      '',
+      '{',
+      '  "data": {',
+      '*   "id": 1,',
+      '*   "name": "Alice",',
+      '*   "email": "alice@test.com",',
+      '*   "age": 25',
+      '  },',
+      '  "timestamp": "2024-03-15T10:30:00Z",',
+      '  "duration": "27ms"',
+      '}'
+    ],
+    data: 'Status: 201 | Body: { data: {...}, timestamp: "...", duration: "27ms" }'
+  }
+];
+
+// ── Scenarios ──
+const scenariosDef = [
+  { // 0: Success
+    name: 'Succes',
+    flow: [
+      { stepId: 'request', state: 'active' },
+      { stepId: 'request', state: 'passed' },
+      { stepId: 'middleware', state: 'active', log: 'Middleware: [POST] /api/users', type: 'middleware' },
+      { stepId: 'middleware', state: 'passed', log: 'Middleware: next() appele', type: 'middleware' },
+      { stepId: 'guard', state: 'active', log: 'Guard: verification du token JWT...', type: 'guard' },
+      { stepId: 'guard', state: 'passed', log: 'Guard: canActivate = true', type: 'guard' },
+      { stepId: 'interceptor-before', state: 'active', log: 'Interceptor: >>> Avant le handler', type: 'interceptor' },
+      { stepId: 'interceptor-before', state: 'passed', log: 'Interceptor: Observable cree, chrono demarre', type: 'interceptor' },
+      { stepId: 'pipe', state: 'active', log: 'Pipe: validation CreateUserDto...', type: 'pipe' },
+      { stepId: 'pipe', state: 'passed', log: 'Pipe: validation OK, DTO transforme', type: 'pipe' },
+      { stepId: 'handler', state: 'active', log: 'Handler: UsersService.create() en cours...', type: 'handler' },
+      { stepId: 'handler', state: 'passed', log: 'Handler: user cree (id: 1)', type: 'handler' },
+      { stepId: 'interceptor-after', state: 'active', log: 'Interceptor: <<< Apres (27ms)', type: 'interceptor' },
+      { stepId: 'interceptor-after', state: 'passed', log: 'Interceptor: reponse transformee', type: 'interceptor' },
+      { stepId: 'response', state: 'active', log: 'Reponse: 201 Created envoyee', type: 'response' },
+      { stepId: 'response', state: 'passed' }
+    ],
+    explains: [
+      'La requete HTTP arrive sur le serveur NestJS.',
+      '',
+      'Le <strong>Middleware</strong> est le premier composant execute. Il fonctionne comme dans Express avec req/res/next.',
+      '',
+      'Le <strong>Guard</strong> verifie si la requete est autorisee (canActivate). Ici le JWT est valide.',
+      '',
+      'L\'<strong>Interceptor</strong> (avant) enregistre le timestamp et cree le pipeline Observable.',
+      '',
+      'Le <strong>Pipe</strong> valide le body avec les decorateurs class-validator et transforme le plain object en instance de DTO.',
+      '',
+      'Le <strong>Route Handler</strong> execute la logique metier via le service injecte.',
+      '',
+      'L\'<strong>Interceptor</strong> (apres) intercepte la reponse dans le pipe RxJS pour la transformer.',
+      '',
+      'La <strong>Reponse</strong> finale est envoyee au client avec les donnees transformees.',
+      '<strong>Succes !</strong> La requete a traverse tous les composants du lifecycle NestJS en 27ms. L\'Exception Filter n\'a pas ete invoque car aucune erreur n\'est survenue.'
+    ]
+  },
+  { // 1: Validation Error
+    name: 'Erreur de validation',
+    flow: [
+      { stepId: 'request', state: 'active' },
+      { stepId: 'request', state: 'passed' },
+      { stepId: 'middleware', state: 'active', log: 'Middleware: [POST] /api/users', type: 'middleware' },
+      { stepId: 'middleware', state: 'passed' },
+      { stepId: 'guard', state: 'active', log: 'Guard: token OK', type: 'guard' },
+      { stepId: 'guard', state: 'passed' },
+      { stepId: 'interceptor-before', state: 'active', log: 'Interceptor: avant handler', type: 'interceptor' },
+      { stepId: 'interceptor-before', state: 'passed' },
+      { stepId: 'pipe', state: 'active', log: 'Pipe: validation en cours...', type: 'pipe' },
+      { stepId: 'pipe', state: 'error', log: 'Pipe: BadRequestException! email invalide', type: 'pipe' },
+      { stepId: 'handler', state: 'skipped', log: 'Handler: IGNORE (erreur en amont)', type: 'handler' },
+      { stepId: 'interceptor-after', state: 'skipped' },
+      { stepId: 'exception-filter', state: 'active', log: 'Filter: BadRequestException attrapee', type: 'filter' },
+      { stepId: 'exception-filter', state: 'passed', log: 'Filter: reponse 400 envoyee', type: 'filter' },
+      { stepId: 'response', state: 'error', log: 'Reponse: 400 Bad Request', type: 'response' }
+    ],
+    explains: [
+      'La requete arrive mais le body contient un email invalide.',
+      '',
+      'Le Middleware s\'execute normalement.',
+      '',
+      'Le Guard autorise la requete.',
+      '',
+      'L\'Interceptor (avant) demarre.',
+      '',
+      'Le <strong>Pipe (ValidationPipe)</strong> detecte que l\'email est invalide et lance une <strong>BadRequestException</strong>.',
+      '<strong>Erreur de validation !</strong> Le Pipe a rejete les donnees.',
+      'Le Handler est <strong>ignore</strong> car l\'erreur a ete lancee avant.',
+      '',
+      'L\'<strong>Exception Filter</strong> intercepte la BadRequestException et genere une reponse 400 structuree.',
+      '',
+      '<strong>Resultat :</strong> Le client recoit un 400 avec les details de validation. Le handler n\'a jamais ete execute, protegeant la base de donnees de donnees invalides.'
+    ]
+  },
+  { // 2: Unauthorized
+    name: 'Non autorise',
+    flow: [
+      { stepId: 'request', state: 'active' },
+      { stepId: 'request', state: 'passed' },
+      { stepId: 'middleware', state: 'active', log: 'Middleware: [POST] /api/users', type: 'middleware' },
+      { stepId: 'middleware', state: 'passed' },
+      { stepId: 'guard', state: 'active', log: 'Guard: verification...', type: 'guard' },
+      { stepId: 'guard', state: 'error', log: 'Guard: canActivate = false! Token expire.', type: 'guard' },
+      { stepId: 'interceptor-before', state: 'skipped' },
+      { stepId: 'pipe', state: 'skipped' },
+      { stepId: 'handler', state: 'skipped' },
+      { stepId: 'interceptor-after', state: 'skipped' },
+      { stepId: 'exception-filter', state: 'active', log: 'Filter: ForbiddenException (403)', type: 'filter' },
+      { stepId: 'exception-filter', state: 'passed', log: 'Filter: reponse 403 envoyee', type: 'filter' },
+      { stepId: 'response', state: 'error', log: 'Reponse: 403 Forbidden', type: 'response' }
+    ],
+    explains: [
+      'La requete arrive avec un token JWT expire.',
+      '',
+      'Le Middleware s\'execute normalement.',
+      '',
+      'Le <strong>Guard</strong> detecte que le token est expire et retourne <strong>false</strong>.',
+      '<strong>Acces refuse !</strong> NestJS lance automatiquement une ForbiddenException (403).',
+      'Tous les composants suivants sont <strong>ignores</strong>.',
+      '', '', '',
+      'L\'<strong>Exception Filter</strong> intercepte l\'exception et genere la reponse d\'erreur.',
+      '',
+      '<strong>Resultat :</strong> Le client recoit un 403 Forbidden. Le Guard a protege le handler de tout acces non autorise, sans que le Pipe ou le Handler ne soient executes.'
+    ]
+  },
+  { // 3: Internal Error
+    name: 'Erreur interne',
+    flow: [
+      { stepId: 'request', state: 'active' },
+      { stepId: 'request', state: 'passed' },
+      { stepId: 'middleware', state: 'active', log: 'Middleware: OK', type: 'middleware' },
+      { stepId: 'middleware', state: 'passed' },
+      { stepId: 'guard', state: 'active', log: 'Guard: OK', type: 'guard' },
+      { stepId: 'guard', state: 'passed' },
+      { stepId: 'interceptor-before', state: 'active', log: 'Interceptor: avant', type: 'interceptor' },
+      { stepId: 'interceptor-before', state: 'passed' },
+      { stepId: 'pipe', state: 'active', log: 'Pipe: validation OK', type: 'pipe' },
+      { stepId: 'pipe', state: 'passed' },
+      { stepId: 'handler', state: 'active', log: 'Handler: en cours...', type: 'handler' },
+      { stepId: 'handler', state: 'error', log: 'Handler: DB connection lost!', type: 'handler' },
+      { stepId: 'interceptor-after', state: 'skipped', log: 'Interceptor (apres): IGNORE', type: 'interceptor' },
+      { stepId: 'exception-filter', state: 'active', log: 'Filter: InternalServerErrorException', type: 'filter' },
+      { stepId: 'exception-filter', state: 'passed', log: 'Filter: reponse 500 envoyee', type: 'filter' },
+      { stepId: 'response', state: 'error', log: 'Reponse: 500 Internal Server Error', type: 'response' }
+    ],
+    explains: [
+      'La requete est valide et autorisee.',
+      '', '', '', '', '', '', '', '', '',
+      'Le <strong>Handler</strong> tente de creer l\'utilisateur mais la connexion a la base de donnees est perdue.',
+      '<strong>Erreur interne !</strong> Le handler lance une InternalServerErrorException.',
+      'L\'Interceptor (apres) est <strong>ignore</strong> car le stream Observable a emis une erreur.',
+      'L\'<strong>Exception Filter</strong> intercepte l\'erreur et genere une reponse 500.',
+      '',
+      '<strong>Resultat :</strong> Le client recoit un 500 avec un message d\'erreur. L\'Interceptor "apres" n\'a pas pu transformer la reponse car le handler a echoue.'
+    ]
+  },
+  { // 4: Timeout
+    name: 'Timeout',
+    flow: [
+      { stepId: 'request', state: 'active' },
+      { stepId: 'request', state: 'passed' },
+      { stepId: 'middleware', state: 'active', log: 'Middleware: OK', type: 'middleware' },
+      { stepId: 'middleware', state: 'passed' },
+      { stepId: 'guard', state: 'active', log: 'Guard: OK', type: 'guard' },
+      { stepId: 'guard', state: 'passed' },
+      { stepId: 'interceptor-before', state: 'active', log: 'Interceptor: timeout(5000) configure', type: 'interceptor' },
+      { stepId: 'interceptor-before', state: 'passed' },
+      { stepId: 'pipe', state: 'active', log: 'Pipe: OK', type: 'pipe' },
+      { stepId: 'pipe', state: 'passed' },
+      { stepId: 'handler', state: 'active', log: 'Handler: requete lente en cours...', type: 'handler' },
+      { stepId: 'handler', state: 'active', log: 'Handler: 3s... toujours en cours...', type: 'handler' },
+      { stepId: 'interceptor-after', state: 'error', log: 'Interceptor: TIMEOUT apres 5000ms!', type: 'interceptor' },
+      { stepId: 'exception-filter', state: 'active', log: 'Filter: RequestTimeoutException (408)', type: 'filter' },
+      { stepId: 'exception-filter', state: 'passed', log: 'Filter: reponse 408 envoyee', type: 'filter' },
+      { stepId: 'response', state: 'error', log: 'Reponse: 408 Request Timeout', type: 'response' }
+    ],
+    explains: [
+      'La requete est valide et autorisee.',
+      '', '', '', '', '',
+      'L\'<strong>Interceptor</strong> configure un timeout de 5 secondes avec l\'operateur RxJS <em>timeout(5000)</em>.',
+      '',
+      '', '',
+      'Le <strong>Handler</strong> lance une operation lente (requete externe, calcul lourd...).',
+      'Le handler n\'a toujours pas repondu apres 3 secondes...',
+      '<strong>Timeout !</strong> L\'Interceptor coupe l\'execution apres 5 secondes via l\'operateur RxJS <em>timeout</em>. Le stream Observable emet une erreur.',
+      'L\'<strong>Exception Filter</strong> intercepte le RequestTimeoutException.',
+      '',
+      '<strong>Resultat :</strong> Le client recoit un 408 Request Timeout. L\'Interceptor a protege le serveur d\'une requete trop longue grace a l\'operateur RxJS <em>timeout()</em>.'
+    ]
+  }
+];
+
+// ── State ──
+let currentScenario = 0;
+let currentStep = 0;
+let playingFlag = false;
+let playTimer = null;
+let cumulatedTime = 0;
+
+function buildLifecycle() {
+  const container = document.getElementById('lifecycleContainer');
+  container.innerHTML = '';
+  lifecycleSteps.forEach((s, i) => {
+    if (i > 0) {
+      const arrow = document.createElement('div');
+      arrow.className = 'lc-arrow';
+      arrow.id = `arrow-${s.id}`;
+      arrow.innerHTML = s.id === 'exception-filter' ? '\u21B3 erreur' : '\u2193';
+      container.appendChild(arrow);
+    }
+    const div = document.createElement('div');
+    div.className = 'lc-step';
+    div.id = `lc-${s.id}`;
+    div.innerHTML = `
+      <div class="step-header">
+        <div class="step-num">${i + 1}</div>
+        <div>
+          <div class="step-name" style="color:${s.color}">${s.name}</div>
+          <div class="step-desc">${s.desc}</div>
+        </div>
+      </div>
+      <div class="step-timing" id="timing-${s.id}"></div>
+      <div class="step-data" id="data-${s.id}">${s.data}</div>
+    `;
+    container.appendChild(div);
+  });
+}
+
+function resetAnim() {
+  pauseAnim();
+  currentScenario = parseInt(document.getElementById('scenarioSelect').value);
+  currentStep = 0;
+  cumulatedTime = 0;
+  buildLifecycle();
+  const sc = scenariosDef[currentScenario];
+  document.getElementById('stepTotal').textContent = sc.flow.length;
+  document.getElementById('stepNum').textContent = '0';
+  document.getElementById('totalTime').textContent = '0 ms';
+  document.getElementById('logPanel').innerHTML = '';
+  document.getElementById('codePanel').innerHTML = '<div class="code-line">// Appuyez sur Play ou Step pour commencer</div>';
+  document.getElementById('explanation').innerHTML = '<strong>NestJS Request Lifecycle :</strong> Scenario "<em>' + sc.name + '</em>". Appuyez sur Play pour observer la requete traverser chaque composant.';
+}
+
+function play() {
+  if (playingFlag) return;
+  playingFlag = true;
+  doStep();
+}
+
+function pauseAnim() {
+  playingFlag = false;
+  if (playTimer) { clearTimeout(playTimer); playTimer = null; }
+}
+
+function stepOnce() {
+  pauseAnim();
+  doStep();
+}
+
+function doStep() {
+  const sc = scenariosDef[currentScenario];
+  if (currentStep >= sc.flow.length) { pauseAnim(); return; }
+  const f = sc.flow[currentStep];
+  executeFlowStep(f, currentStep);
+  currentStep++;
+  document.getElementById('stepNum').textContent = currentStep;
+
+  if (playingFlag && currentStep < sc.flow.length) {
+    const speed = parseInt(document.getElementById('speedSelect').value);
+    playTimer = setTimeout(doStep, speed);
+  } else if (currentStep >= sc.flow.length) {
+    pauseAnim();
+  }
+}
+
+function executeFlowStep(f, idx) {
+  const sc = scenariosDef[currentScenario];
+  const el = document.getElementById(`lc-${f.stepId}`);
+  if (!el) return;
+
+  // Update state
+  el.className = 'lc-step ' + (f.state || '');
+
+  // Show data on active
+  const dataEl = document.getElementById(`data-${f.stepId}`);
+  if (f.state === 'active' && dataEl) dataEl.style.display = 'block';
+
+  // Update timing
+  const lcStep = lifecycleSteps.find(s => s.id === f.stepId);
+  if (lcStep && f.state === 'passed') {
+    cumulatedTime += lcStep.timing;
+    document.getElementById(`timing-${f.stepId}`).textContent = `+${lcStep.timing}ms`;
+    document.getElementById('totalTime').textContent = `${cumulatedTime} ms`;
+  }
+  if (f.state === 'error' && lcStep) {
+    document.getElementById(`timing-${f.stepId}`).textContent = 'ERREUR';
+    document.getElementById(`timing-${f.stepId}`).style.color = '#ff5555';
+  }
+
+  // Update arrow
+  const arrowEl = document.getElementById(`arrow-${f.stepId}`);
+  if (arrowEl) {
+    if (f.state === 'active') arrowEl.className = 'lc-arrow active';
+    else if (f.state === 'passed') arrowEl.className = 'lc-arrow passed';
+    else if (f.state === 'error') arrowEl.className = 'lc-arrow error-path';
+  }
+
+  // Show code
+  if (lcStep && (f.state === 'active' || f.state === 'error')) {
+    showCode(lcStep.code, f.state === 'error');
+  }
+
+  // Log
+  if (f.log) addLog(f.type || 'middleware', f.log);
+
+  // Explanation
+  if (sc.explains[idx]) {
+    document.getElementById('explanation').innerHTML = sc.explains[idx];
+  }
+
+  // Scroll into view
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function showCode(lines, isError) {
+  const panel = document.getElementById('codePanel');
+  panel.innerHTML = '';
+  lines.forEach(line => {
+    const div = document.createElement('div');
+    const isHighlighted = line.startsWith('*');
+    const text = isHighlighted ? line.slice(1) : line;
+    div.className = 'code-line' + (isHighlighted ? ' hl' : '');
+    div.textContent = text;
+    if (isError && isHighlighted) {
+      div.style.borderLeftColor = '#ff5555';
+      div.style.background = '#ff555511';
+      div.style.color = '#ff5555';
+    }
+    panel.appendChild(div);
+  });
+}
+
+function addLog(type, msg) {
+  const div = document.getElementById('logPanel');
+  const entry = document.createElement('div');
+  entry.className = 'log-entry ' + type;
+  entry.textContent = `[${new Date().toLocaleTimeString('fr-FR')}] ${msg}`;
+  div.prepend(entry);
+  if (div.children.length > 60) div.removeChild(div.lastChild);
+}
+
+// ── Init ──
+resetAnim();
+</script>
+</body>
+</html>

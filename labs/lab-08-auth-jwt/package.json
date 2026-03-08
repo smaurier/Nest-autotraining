@@ -1,0 +1,15 @@
+{
+  "name": "lab-08-auth-jwt",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Lab 08 — Authentification JWT avec bcrypt",
+  "scripts": {
+    "exercise": "node exercise.js",
+    "solution": "node solution.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.0"
+  }
+}

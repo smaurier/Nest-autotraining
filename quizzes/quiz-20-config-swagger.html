@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quiz 20 — Config & Swagger</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1a1a2e; color: #e0e0e0; min-height: 100vh; padding: 2rem 1rem; }
+    .container { max-width: 800px; margin: 0 auto; }
+    h1 { text-align: center; margin-bottom: 0.5rem; font-size: 1.8rem; color: #ffffff; }
+    .subtitle { text-align: center; color: #8892b0; margin-bottom: 2rem; font-size: 1rem; }
+    .progress-bar-container { background: #0d1117; border-radius: 10px; height: 14px; margin-bottom: 2rem; overflow: hidden; }
+    .progress-bar { background: linear-gradient(90deg, #0d6efd, #4dabf7); height: 100%; width: 0%; border-radius: 10px; transition: width 0.4s ease; }
+    .progress-text { text-align: center; color: #8892b0; margin-bottom: 1rem; font-size: 0.9rem; }
+    .card { background: #16213e; border-radius: 12px; padding: 2rem; margin-bottom: 1.5rem; box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
+    .question-label { font-size: 0.85rem; color: #4dabf7; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 0.5rem; }
+    .question-text { font-size: 1.15rem; margin-bottom: 1.2rem; line-height: 1.5; color: #ffffff; }
+    pre { background: #0d1117; border: 1px solid #30363d; border-radius: 8px; padding: 1rem; margin-bottom: 1.2rem; overflow-x: auto; font-size: 0.95rem; }
+    code { font-family: 'Consolas', 'Fira Code', 'Courier New', monospace; color: #c9d1d9; }
+    .options { list-style: none; }
+    .options li { margin-bottom: 0.5rem; }
+    .options label { display: flex; align-items: center; gap: 0.75rem; padding: 0.8rem 1rem; background: #0d1117; border: 2px solid #30363d; border-radius: 8px; cursor: pointer; transition: border-color 0.2s, background 0.2s; font-size: 1rem; }
+    .options label:hover { border-color: #4dabf7; background: #1c2a4a; }
+    .options input[type="radio"] { accent-color: #0d6efd; width: 18px; height: 18px; flex-shrink: 0; }
+    .btn { display: inline-block; padding: 0.7rem 2rem; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: background 0.2s, transform 0.1s; }
+    .btn-primary { background: #0d6efd; color: #fff; }
+    .btn-primary:hover { background: #3b82f6; }
+    .btn-primary:disabled { background: #374151; cursor: not-allowed; }
+    .btn-restart { background: #238636; color: #fff; margin-top: 1rem; padding: 0.7rem 2rem; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; }
+    .btn-restart:hover { background: #2ea043; }
+    .feedback { margin-top: 1rem; padding: 1rem 1.2rem; border-radius: 8px; font-size: 0.95rem; line-height: 1.5; display: none; }
+    .feedback.correct { background: #0f5132; border: 1px solid #198754; color: #d1fae5; display: block; }
+    .feedback.wrong { background: #842029; border: 1px solid #dc3545; color: #fdd; display: block; }
+    .score-card { text-align: center; padding: 3rem 2rem; }
+    .score-card .score { font-size: 3rem; font-weight: 700; color: #4dabf7; margin-bottom: 0.5rem; }
+    .score-card .score-label { font-size: 1.2rem; color: #8892b0; margin-bottom: 1.5rem; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Quiz 20 — Config & Swagger</h1>
+    <p class="subtitle">ConfigModule, Joi, Swagger decorators</p>
+    <div class="progress-bar-container"><div class="progress-bar" id="progressBar"></div></div>
+    <p class="progress-text" id="progressText">Question 1 / 5</p>
+    <div id="quizContainer"></div>
+    <div id="scoreContainer" class="card score-card hidden"></div>
+  </div>
+  <script>
+    const questions = [
+      {
+        label: "Code",
+        text: "Comment configurer le ConfigModule pour charger les variables d'environnement avec validation ?",
+        code: "@Module({\n  imports: [\n    ConfigModule.forRoot({\n      isGlobal: true,\n      validationSchema: Joi.object({\n        DATABASE_URL: Joi.string().required(),\n        JWT_SECRET: Joi.string().required(),\n        PORT: Joi.number().default(3000),\n      }),\n    }),\n  ],\n})\nexport class AppModule {}",
+        options: [
+          "Ce code charge les variables d'environnement sans validation",
+          "Ce code charge et valide les variables d'environnement au demarrage de l'application",
+          "Ce code cree les variables d'environnement dans le systeme",
+          "Ce code genere un fichier .env automatiquement"
+        ],
+        answer: 1,
+        explanation: "ConfigModule.forRoot() charge les variables d'environnement (fichier .env et systeme). Le validationSchema Joi valide les variables au demarrage : si DATABASE_URL ou JWT_SECRET manquent, l'application refuse de demarrer avec un message d'erreur clair. isGlobal: true evite d'importer le module partout."
+      },
+      {
+        label: "Code",
+        text: "Comment acceder a une variable de configuration dans un service ?",
+        code: "@Injectable()\nexport class AuthService {\n  constructor(private ???: ConfigService) {}\n\n  generateToken(user: User) {\n    const secret = this.configService.get&lt;string&gt;('JWT_SECRET');\n    return jwt.sign({ sub: user.id }, secret);\n  }\n}",
+        options: ["envService", "configService", "settingsService", "appConfig"],
+        answer: 1,
+        explanation: "ConfigService est injecte via le constructeur et fournit la methode get<T>() pour acceder aux variables typees. get<string>('JWT_SECRET') retourne la valeur de la variable d'environnement. Le typage generique T garantit le type de retour. ConfigService peut aussi avoir des valeurs par defaut."
+      },
+      {
+        label: "Code",
+        text: "Comment configurer Swagger dans une application NestJS ?",
+        code: "async function bootstrap() {\n  const app = await NestFactory.create(AppModule);\n\n  const config = new DocumentBuilder()\n    .setTitle('My API')\n    .setVersion('1.0')\n    .addBearerAuth()\n    .build();\n\n  const document = SwaggerModule.???(app, config);\n  SwaggerModule.setup('api/docs', app, document);\n\n  await app.listen(3000);\n}",
+        options: ["generate", "createDocument", "build", "compile"],
+        answer: 1,
+        explanation: "SwaggerModule.createDocument() genere la specification OpenAPI a partir des decorateurs du code. SwaggerModule.setup() monte l'interface Swagger UI sur '/api/docs'. addBearerAuth() ajoute le support JWT dans Swagger. La documentation est generee automatiquement depuis les controllers et DTOs."
+      },
+      {
+        label: "Code",
+        text: "Quels decorateurs Swagger permettent de documenter un endpoint ?",
+        code: "@Controller('users')\n@ApiTags('Users')\nexport class UsersController {\n  @Post()\n  @???(\'User cree avec succes\', { type: User })\n  @ApiResponse({ status: 400, description: 'Donnees invalides' })\n  create(@Body() dto: CreateUserDto) {\n    return this.usersService.create(dto);\n  }\n}",
+        options: ["@ApiSuccess", "@ApiResponse", "@SwaggerResponse", "@DocResponse"],
+        answer: 1,
+        explanation: "@ApiTags() groupe les endpoints par categorie. @ApiResponse() documente les reponses possibles avec le code HTTP, la description et le type de retour. Le premier @ApiResponse documente le succes (201), le second l'erreur (400). Les DTOs avec @ApiProperty() documentent automatiquement les schemas."
+      },
+      {
+        label: "Pourquoi ?",
+        text: "Pourquoi valider les variables d'environnement au demarrage de l'application ?",
+        code: null,
+        options: [
+          "Pour accelerer le demarrage de l'application",
+          "Pour detecter immediatement les erreurs de configuration avant que l'application ne traite des requetes",
+          "Parce que Node.js ne peut pas lire les fichiers .env",
+          "Pour generer automatiquement le fichier .env"
+        ],
+        answer: 1,
+        explanation: "Valider les variables d'environnement au demarrage (fail-fast) evite les erreurs en production. Sans validation, l'application pourrait demarrer correctement mais echouer a la premiere requete DB (DATABASE_URL manquant) ou au premier login (JWT_SECRET manquant). Mieux vaut echouer tot avec un message clair."
+      }
+    ];
+
+    let currentQuestion = 0, score = 0, answered = false;
+
+    function renderQuestion() {
+      if (currentQuestion >= questions.length) { showScore(); return; }
+      const q = questions[currentQuestion];
+      const pct = (currentQuestion / questions.length) * 100;
+      document.getElementById('progressBar').style.width = pct + '%';
+      document.getElementById('progressText').textContent = 'Question ' + (currentQuestion + 1) + ' / ' + questions.length;
+      let html = '<div class="card">';
+      html += '<div class="question-label">' + q.label + '</div>';
+      html += '<div class="question-text">' + q.text + '</div>';
+      if (q.code) html += '<pre><code>' + q.code + '</code></pre>';
+      html += '<ul class="options">';
+      q.options.forEach(function(opt, i) {
+        html += '<li><label><input type="radio" name="q" value="' + i + '"> ' + opt + '</label></li>';
+      });
+      html += '</ul>';
+      html += '<button class="btn btn-primary" id="validateBtn" onclick="validate()" disabled>Valider</button>';
+      html += '<div class="feedback" id="feedback"></div>';
+      html += '</div>';
+      document.getElementById('quizContainer').innerHTML = html;
+      document.getElementById('scoreContainer').classList.add('hidden');
+      answered = false;
+      document.querySelectorAll('input[name="q"]').forEach(function(input) {
+        input.addEventListener('change', function() {
+          document.getElementById('validateBtn').disabled = false;
+        });
+      });
+    }
+
+    function validate() {
+      if (answered) return;
+      answered = true;
+      const selected = document.querySelector('input[name="q"]:checked');
+      if (!selected) return;
+      const val = parseInt(selected.value);
+      const q = questions[currentQuestion];
+      const fb = document.getElementById('feedback');
+      if (val === q.answer) {
+        score++;
+        fb.className = 'feedback correct';
+        fb.innerHTML = '<strong>Correct !</strong> ' + q.explanation;
+      } else {
+        fb.className = 'feedback wrong';
+        fb.innerHTML = '<strong>Incorrect.</strong> ' + q.explanation;
+      }
+      document.getElementById('validateBtn').disabled = true;
+      setTimeout(function() { currentQuestion++; renderQuestion(); }, 3000);
+    }
+
+    function showScore() {
+      document.getElementById('quizContainer').innerHTML = '';
+      document.getElementById('progressBar').style.width = '100%';
+      document.getElementById('progressText').textContent = 'Termine !';
+      const sc = document.getElementById('scoreContainer');
+      sc.classList.remove('hidden');
+      const pct = Math.round((score / questions.length) * 100);
+      let msg = pct >= 80 ? 'Excellent travail !' : pct >= 60 ? 'Bon travail, quelques points a revoir.' : 'Continuez a etudier, vous progresserez !';
+      sc.innerHTML = '<div class="score">' + score + ' / ' + questions.length + '</div><div class="score-label">' + pct + '% — ' + msg + '</div><button class="btn-restart" onclick="restart()">Recommencer</button>';
+    }
+
+    function restart() { currentQuestion = 0; score = 0; answered = false; renderQuestion(); }
+    renderQuestion();
+  </script>
+</body>
+</html>
