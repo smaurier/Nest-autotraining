@@ -17,9 +17,9 @@
 ## Instructions
 
 1. Installez les dependances : `npm install`
-2. Ouvrez le fichier `exercise.js`
+2. Ouvrez le fichier `exercise.ts`
 3. Completez chaque section marquee `TODO`
-4. Lancez le fichier avec `node exercise.js`
+4. Lancez le fichier avec `npx tsx exercise.ts`
 5. Verifiez que tous les tests passent (10/10)
 
 ## TODOs
@@ -37,7 +37,7 @@
 ## Aide
 
 ### bcryptjs
-```js
+```typescript
 import bcrypt from 'bcryptjs';
 
 // Hacher un mot de passe
@@ -48,7 +48,7 @@ const match = await bcrypt.compare('password', hash);
 ```
 
 ### jsonwebtoken
-```js
+```typescript
 import jwt from 'jsonwebtoken';
 
 const SECRET = 'my-secret-key';

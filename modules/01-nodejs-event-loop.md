@@ -30,7 +30,7 @@ Node.js execute ton code JavaScript dans un **seul thread** (thread principal). 
 
 L'avantage du modele mono-thread de Node.js est que les operations I/O (lecture fichier, requete base de donnees, appel reseau) sont **non-bloquantes** :
 
-```javascript
+```typescript
 // BLOQUANT (mauvais) — imagine ca dans un serveur qui recoit 1000 requetes
 const data = fs.readFileSync('gros-fichier.txt'); // Le thread est bloque pendant la lecture
 console.log(data); // On ne peut rien faire d'autre en attendant
@@ -76,7 +76,7 @@ console.log('Je peux faire autre chose en attendant !');
 
 Le **call stack** est une pile LIFO (Last In, First Out) qui garde trace des fonctions en cours d'execution :
 
-```javascript
+```typescript
 function multiplier(a, b) {
   return a * b;
 }
@@ -141,7 +141,7 @@ Il y a en realite **deux files d'attente** importantes :
 | **Microtask Queue** | Callbacks de `Promise.then/catch/finally`, `process.nextTick`, `queueMicrotask` | **Haute** — traitee entre chaque phase de l'event loop |
 | **Macrotask Queue** (Callback Queue) | `setTimeout`, `setInterval`, `setImmediate`, I/O callbacks | **Normale** — traitee a la phase correspondante |
 
-```javascript
+```typescript
 // Demonstration de l'ordre de priorite
 console.log('1. Synchrone');
 
@@ -187,7 +187,7 @@ console.log('5. Synchrone');
 | Serveur TCP/HTTP | | Oui (epoll/kqueue/IOCP) |
 | `dns.resolve` | | Oui (c-ares) |
 
-```javascript
+```typescript
 // Le thread pool a 4 threads par defaut
 // Tu peux l'augmenter via une variable d'environnement :
 process.env.UV_THREADPOOL_SIZE = 8; // Doit etre defini AVANT tout require
@@ -225,7 +225,7 @@ for (let i = 0; i < 4; i++) {
 
 ### 4.2 Ordre d'execution detaille
 
-```javascript
+```typescript
 // Exercice d'ordre d'execution — essaie de predire AVANT d'executer
 console.log('A: synchrone debut');
 
@@ -265,7 +265,7 @@ console.log('H: synchrone fin');
 
 > **Piege classique** : L'ordre entre `setTimeout(fn, 0)` et `setImmediate(fn)` n'est PAS garanti quand ils sont appeles dans le scope global (en dehors d'un callback I/O). Par contre, a l'interieur d'un callback I/O (comme `fs.readFile`), `setImmediate` s'execute TOUJOURS avant `setTimeout`.
 
-```javascript
+```typescript
 const fs = require('fs');
 
 // A l'interieur d'un callback I/O, l'ordre EST garanti
@@ -298,7 +298,7 @@ fs.readFile(__filename, () => {
 
 Le pattern original de Node.js est le **error-first callback** :
 
-```javascript
+```typescript
 const fs = require('fs');
 
 // Convention : le premier argument du callback est TOUJOURS l'erreur
@@ -313,7 +313,7 @@ fs.readFile('fichier.txt', 'utf-8', (err, data) => {
 
 Le probleme : le **callback hell** (ou pyramide of doom) :
 
-```javascript
+```typescript
 // Callback hell — code illisible et difficile a maintenir
 fs.readFile('config.json', 'utf-8', (err, configStr) => {
   if (err) return handleError(err);
@@ -340,7 +340,7 @@ fs.readFile('config.json', 'utf-8', (err, configStr) => {
 
 Les Promises permettent de chainer les operations et d'eviter le callback hell :
 
-```javascript
+```typescript
 // Une Promise represente une valeur future
 const maPromise = new Promise((resolve, reject) => {
   // Operation asynchrone
@@ -379,7 +379,7 @@ Les 3 etats d'une Promise :
 
 Refactoring du callback hell en Promises :
 
-```javascript
+```typescript
 const fsPromises = require('fs/promises');
 
 fsPromises.readFile('config.json', 'utf-8')
@@ -397,7 +397,7 @@ fsPromises.readFile('config.json', 'utf-8')
 
 `async/await` est du sucre syntaxique au-dessus des Promises. Le code ressemble a du code synchrone mais reste asynchrone :
 
-```javascript
+```typescript
 const fsPromises = require('fs/promises');
 
 async function envoyerEmails() {
@@ -426,7 +426,7 @@ envoyerEmails();
 
 ### 5.4 Comparaison cote a cote
 
-```javascript
+```typescript
 // === Callbacks ===
 function getUser_callback(id, callback) {
   db.query(`SELECT * FROM users WHERE id = ${id}`, (err, user) => {
@@ -452,7 +452,7 @@ async function getUser_async(id) {
 
 ### 6.1 try/catch avec async/await
 
-```javascript
+```typescript
 async function risque() {
   try {
     const result = await operationDangereuse();
@@ -469,7 +469,7 @@ async function risque() {
 
 ### 6.2 .catch() avec les Promises
 
-```javascript
+```typescript
 // Si tu n'utilises pas async/await :
 fetchData()
   .then(data => processData(data))
@@ -482,7 +482,7 @@ fetchData()
 
 ### 6.3 Unhandled Rejections
 
-```javascript
+```typescript
 // DANGER : Promise sans catch ni await dans un try/catch
 async function mauvais() {
   fetchData(); // Promise non attendue et non geree !
@@ -515,7 +515,7 @@ process.on('uncaughtException', (err) => {
 
 ### 7.1 Promise.all — Tout ou rien
 
-```javascript
+```typescript
 // Execute toutes les Promises en parallele
 // Rejette des que l'UNE d'entre elles rejette
 
@@ -532,7 +532,7 @@ const [users, posts, comments] = await Promise.all([
 
 ### 7.2 Promise.allSettled — Tout le monde termine
 
-```javascript
+```typescript
 // Attend que TOUTES les Promises soient terminees (fulfilled ou rejected)
 // Ne rejette JAMAIS
 
@@ -556,7 +556,7 @@ results.forEach((result, i) => {
 
 ### 7.3 Promise.race — Le premier qui finit
 
-```javascript
+```typescript
 // Renvoie le resultat de la PREMIERE Promise qui se resout (ou rejette)
 
 // Cas d'usage : timeout sur une requete
@@ -579,7 +579,7 @@ try {
 
 ### 7.4 Promise.any — Le premier qui reussit
 
-```javascript
+```typescript
 // Renvoie le resultat de la PREMIERE Promise qui se RESOUT (fulfilled)
 // Ignore les rejections tant qu'au moins une reussit
 // Rejette uniquement si TOUTES echouent (AggregateError)
@@ -610,7 +610,7 @@ const data = await Promise.any([
 
 Node.js utilise massivement le pattern **Observer** via la classe `EventEmitter`. Beaucoup de modules natifs (streams, http, fs) heritent d'EventEmitter.
 
-```javascript
+```typescript
 const EventEmitter = require('events');
 
 // Creer un emetteur d'evenements
@@ -643,7 +643,7 @@ emitter.emit('message', { type: 'info', text: 'Test' });
 
 ### 8.3 Exemple pratique : Logger avec EventEmitter
 
-```javascript
+```typescript
 const EventEmitter = require('events');
 
 class Logger extends EventEmitter {
@@ -686,7 +686,7 @@ logger.error('Connexion base de donnees perdue');
 
 ### 8.4 once — Ecouter une seule fois
 
-```javascript
+```typescript
 const EventEmitter = require('events');
 const emitter = new EventEmitter();
 
@@ -701,7 +701,7 @@ emitter.emit('ready'); // Rien — le listener a ete supprime
 
 ### 8.5 Gestion des erreurs EventEmitter
 
-```javascript
+```typescript
 const EventEmitter = require('events');
 const emitter = new EventEmitter();
 
@@ -728,7 +728,7 @@ emitter.emit('error', new Error('Boom'));
 
 Predis la sortie AVANT d'executer :
 
-```javascript
+```typescript
 console.log('1');
 
 setTimeout(() => {
@@ -764,7 +764,7 @@ console.log('4');
 
 ### Exercice 2 — Niveau intermediaire
 
-```javascript
+```typescript
 console.log('A');
 
 setTimeout(() => console.log('B'), 0);
@@ -814,7 +814,7 @@ C
 
 ### Exercice 3 — Niveau avance
 
-```javascript
+```typescript
 async function async1() {
   console.log('async1 start');
   await async2();
@@ -872,7 +872,7 @@ setTimeout
 
 ### Exercice 4 — Niveau expert
 
-```javascript
+```typescript
 setTimeout(() => {
   console.log('timeout1');
   Promise.resolve().then(() => console.log('promise inside timeout'));

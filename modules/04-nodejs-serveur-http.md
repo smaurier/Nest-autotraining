@@ -10,7 +10,7 @@
 
 ### 1.1 Creer un serveur minimal
 
-```javascript
+```typescript
 import http from 'http';
 
 // Creer un serveur HTTP
@@ -34,7 +34,7 @@ server.listen(3000, () => {
 
 Le callback de `createServer` recoit deux objets fondamentaux :
 
-```javascript
+```typescript
 const server = http.createServer((req, res) => {
   // === req (IncomingMessage) — Ce que le client envoie ===
   console.log(req.method);          // 'GET', 'POST', 'PUT', etc.
@@ -64,7 +64,7 @@ const server = http.createServer((req, res) => {
 
 ### 2.1 Router selon l'URL et la methode
 
-```javascript
+```typescript
 import http from 'http';
 
 const server = http.createServer((req, res) => {
@@ -100,7 +100,7 @@ server.listen(3000, () => {
 
 ### 2.2 Extraire les parametres d'URL
 
-```javascript
+```typescript
 import http from 'http';
 
 const server = http.createServer((req, res) => {
@@ -156,7 +156,7 @@ server.listen(3000);
 
 En HTTP natif, le body n'est PAS disponible directement sur `req.body`. Il arrive sous forme de **chunks** (morceaux) via les evenements du stream `req` :
 
-```javascript
+```typescript
 import http from 'http';
 
 function parseJSON(req) {
@@ -224,7 +224,7 @@ server.listen(3000);
 
 ### 4.1 Definir les headers correctement
 
-```javascript
+```typescript
 const server = http.createServer((req, res) => {
   // Methode 1 : setHeader (un par un)
   res.setHeader('Content-Type', 'application/json');
@@ -245,7 +245,7 @@ const server = http.createServer((req, res) => {
 
 ### 4.2 Headers CORS
 
-```javascript
+```typescript
 function setCORSHeaders(res) {
   res.setHeader('Access-Control-Allow-Origin', 'http://localhost:4200');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
@@ -271,7 +271,7 @@ const server = http.createServer((req, res) => {
 
 ## 5. Servir des fichiers statiques
 
-```javascript
+```typescript
 import http from 'http';
 import { createReadStream, existsSync, statSync } from 'fs';
 import path from 'path';
@@ -334,7 +334,7 @@ server.listen(3000, () => {
 
 ### 6.1 Le projet : API de gestion de taches (Todo)
 
-```javascript
+```typescript
 import http from 'http';
 import crypto from 'crypto';
 
@@ -568,7 +568,7 @@ curl "http://localhost:3000/api/todos?completed=true"
 
 ### 7.1 Erreurs dans le handler
 
-```javascript
+```typescript
 const server = http.createServer(async (req, res) => {
   try {
     // ... routing et logique
@@ -590,7 +590,7 @@ const server = http.createServer(async (req, res) => {
 
 ### 7.2 Erreurs du serveur
 
-```javascript
+```typescript
 // Erreur au niveau du serveur (pas une requete specifique)
 server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
@@ -624,7 +624,7 @@ Maintenant que tu as construit une API complete avec le module HTTP natif, voici
 | Error handling try/catch partout | Error-handling middleware |
 | Pas de middleware | `app.use(middleware)` chainable |
 
-```javascript
+```typescript
 // === HTTP natif : 80+ lignes pour un CRUD basique ===
 if (method === 'GET' && pathname === '/api/todos') {
   res.writeHead(200, { 'Content-Type': 'application/json' });

@@ -4,8 +4,8 @@
   "type": "module",
   "description": "Lab 06 — Express Middleware",
   "scripts": {
-    "exercise": "node exercise.js",
-    "solution": "node solution.js"
+    "exercise": "npx tsx exercise.ts",
+    "solution": "npx tsx solution.ts"
   },
   "dependencies": {
     "express": "^4.21.0"

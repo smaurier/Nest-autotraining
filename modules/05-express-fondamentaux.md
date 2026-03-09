@@ -64,7 +64,7 @@ Ajouter les scripts dans `package.json` :
 
 ### 2.1 Hello World
 
-```javascript
+```typescript
 // src/index.js
 import express from 'express';
 
@@ -90,7 +90,7 @@ npm run dev
 
 ### 2.2 Comprendre express()
 
-```javascript
+```typescript
 import express from 'express';
 
 // express() cree une application Express
@@ -113,7 +113,7 @@ const app = express();
 
 ### 3.1 Les methodes HTTP
 
-```javascript
+```typescript
 import express from 'express';
 const app = express();
 
@@ -150,7 +150,7 @@ app.all('/api/health', (req, res) => {
 
 ### 3.2 Parametres de route
 
-```javascript
+```typescript
 // :id est un parametre de route → disponible dans req.params
 app.get('/api/users/:id', (req, res) => {
   console.log(req.params.id); // '42'
@@ -187,7 +187,7 @@ app.get('/api/docs/*', (req, res) => {
 
 L'objet `req` est une version enrichie de `http.IncomingMessage` :
 
-```javascript
+```typescript
 app.post('/api/users', (req, res) => {
   // === Parametres de route ===
   // Definis par la route : '/api/users/:id'
@@ -230,7 +230,7 @@ app.post('/api/users', (req, res) => {
 
 L'objet `res` est une version enrichie de `http.ServerResponse` :
 
-```javascript
+```typescript
 app.get('/api/demo', (req, res) => {
   // === Envoyer du JSON ===
   res.json({ message: 'Hello' });
@@ -282,7 +282,7 @@ app.get('/api/demo', (req, res) => {
 
 > **Piege classique** : Tu ne peux envoyer qu'UNE SEULE reponse par requete. Si tu appelles `res.json()` ou `res.send()` deux fois, Express leve une erreur `Error: Cannot set headers after they are sent`. Utilise `return` pour arreter la fonction apres avoir envoye la reponse.
 
-```javascript
+```typescript
 app.get('/api/users/:id', (req, res) => {
   const user = findUser(req.params.id);
 
@@ -301,7 +301,7 @@ app.get('/api/users/:id', (req, res) => {
 
 ### 6.1 express.json() — Parser le body JSON
 
-```javascript
+```typescript
 import express from 'express';
 const app = express();
 
@@ -319,7 +319,7 @@ app.post('/api/users', (req, res) => {
 
 ### 6.2 express.urlencoded() — Parser les formulaires HTML
 
-```javascript
+```typescript
 // Pour les formulaires HTML classiques (Content-Type: application/x-www-form-urlencoded)
 app.use(express.urlencoded({ extended: true }));
 
@@ -331,7 +331,7 @@ app.post('/login', (req, res) => {
 
 ### 6.3 express.static() — Servir des fichiers statiques
 
-```javascript
+```typescript
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -384,7 +384,7 @@ Ou avec un fichier `nodemon.json` pour plus d'options :
 
 ## 8. Variables d'environnement
 
-```javascript
+```typescript
 // src/index.js
 import 'dotenv/config'; // Charge les variables depuis .env
 import express from 'express';
@@ -422,7 +422,7 @@ node_modules/
 
 ### 9.1 API de gestion de livres
 
-```javascript
+```typescript
 // src/index.js
 import express from 'express';
 import crypto from 'crypto';

@@ -502,7 +502,7 @@ export class BooksModule {}
 
 ### 7.1 Routing
 
-```javascript
+```typescript
 // === Express ===
 const router = express.Router();
 

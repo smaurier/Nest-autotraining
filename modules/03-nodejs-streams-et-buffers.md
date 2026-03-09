@@ -14,7 +14,7 @@ En JavaScript navigateur, tu travailles avec des strings, des nombres et des obj
 
 > **Analogie** : Un Buffer, c'est comme un casier de consigne a la gare. Chaque case (octet) contient un nombre entre 0 et 255. Le casier a une taille fixe — tu ne peux pas ajouter de cases apres sa creation. Tu peux lire et ecrire dans chaque case individuellement.
 
-```javascript
+```typescript
 // Un Buffer est une zone de memoire brute contenant des octets
 const buf = Buffer.from('Bonjour');
 console.log(buf);
@@ -28,7 +28,7 @@ console.log(buf.toString());  // 'Bonjour'
 
 ### 1.2 Creer des Buffers
 
-```javascript
+```typescript
 // === Buffer.from — Creer a partir de donnees existantes ===
 
 // A partir d'une string
@@ -70,7 +70,7 @@ const buf6 = Buffer.allocUnsafe(10);
 | `binary` (latin1) | 1 octet par caractere | Legacy, deconseille |
 | `utf-16le` | Unicode 16 bits little-endian | Fichiers Windows, BMP |
 
-```javascript
+```typescript
 const original = 'Bonjour le monde';
 
 // Convertir entre encodages
@@ -91,7 +91,7 @@ const dataUrl = `data:image/jpeg;base64,${base64Image}`;
 
 ### 1.4 Manipuler les Buffers
 
-```javascript
+```typescript
 const buf = Buffer.alloc(10);
 
 // Ecrire dans un buffer
@@ -137,7 +137,7 @@ console.log(a.compare(c));   // -1 (a < c)
 
 Imagine que tu doives traiter un fichier de 2 Go. Deux approches :
 
-```javascript
+```typescript
 import { readFile } from 'fs/promises';
 import { createReadStream } from 'fs';
 
@@ -190,7 +190,7 @@ Un Readable Stream a deux modes de lecture :
 | **Flowing** | Les donnees arrivent automatiquement via l'evenement `data` | `.on('data')`, `.pipe()`, `.resume()` |
 | **Paused** | Tu demandes les donnees explicitement avec `.read()` | `.pause()`, `.read()` |
 
-```javascript
+```typescript
 import { createReadStream } from 'fs';
 
 // === Mode Flowing (le plus courant) ===
@@ -224,7 +224,7 @@ stream2.on('readable', () => {
 
 ### 2.4 Writable Streams
 
-```javascript
+```typescript
 import { createWriteStream } from 'fs';
 
 // Creer un stream d'ecriture
@@ -250,7 +250,7 @@ ws.on('error', (err) => {
 
 #### L'evenement drain — Gestion de la pression
 
-```javascript
+```typescript
 import { createWriteStream } from 'fs';
 
 const ws = createWriteStream('gros-fichier.txt');
@@ -288,7 +288,7 @@ ecrireBeaucoup();
 
 Un Transform Stream recoit des donnees, les transforme, et les passe au stream suivant :
 
-```javascript
+```typescript
 import { Transform } from 'stream';
 
 // Transform personnalise : mettre en majuscules
@@ -311,7 +311,7 @@ process.stdin
 // Tape du texte → il s'affiche en MAJUSCULES
 ```
 
-```javascript
+```typescript
 import { Transform } from 'stream';
 
 // Transform : filtrer les lignes contenant un mot
@@ -357,7 +357,7 @@ createReadStream('app.log')
 
 Un Duplex Stream est a la fois Readable et Writable, mais les deux cotes sont **independants** :
 
-```javascript
+```typescript
 import { Duplex } from 'stream';
 
 const duplex = new Duplex({
@@ -391,7 +391,7 @@ duplex.end();
 
 `pipe()` connecte un Readable a un Writable (avec gestion automatique de la backpressure) :
 
-```javascript
+```typescript
 import { createReadStream, createWriteStream } from 'fs';
 import zlib from 'zlib';
 
@@ -412,7 +412,7 @@ createReadStream('fichier.txt.gz')
 
 ### 3.2 Le probleme de pipe() — Gestion des erreurs
 
-```javascript
+```typescript
 // PROBLEME : pipe() ne propage PAS les erreurs automatiquement
 createReadStream('source.txt')
   .pipe(transform1)    // Si transform1 echoue, les streams suivants restent ouverts
@@ -424,7 +424,7 @@ createReadStream('source.txt')
 
 ### 3.3 La solution : pipeline() (recommande)
 
-```javascript
+```typescript
 import { pipeline } from 'stream/promises';
 import { createReadStream, createWriteStream } from 'fs';
 import zlib from 'zlib';
@@ -475,7 +475,7 @@ La **backpressure** (contre-pression) est le mecanisme qui empeche un producteur
 
 ### 4.2 Comment ca fonctionne internement
 
-```javascript
+```typescript
 // pipe() fait essentiellement ceci en interne :
 readable.on('data', (chunk) => {
   const canContinue = writable.write(chunk);
@@ -499,7 +499,7 @@ readable.on('end', () => {
 
 Le `highWaterMark` est la taille du buffer interne de chaque stream (en octets). C'est le seuil a partir duquel la backpressure s'active :
 
-```javascript
+```typescript
 import { createReadStream, createWriteStream } from 'fs';
 
 // Buffer de 16 Ko pour le readable (defaut : 64 Ko)
@@ -521,7 +521,7 @@ reader.pipe(writer);
 
 ### 5.1 Copie de fichier avec progression
 
-```javascript
+```typescript
 import { createReadStream, createWriteStream, statSync } from 'fs';
 
 function copyWithProgress(source, destination) {
@@ -553,7 +553,7 @@ copyWithProgress('video.mp4', 'video-copie.mp4');
 
 ### 5.2 Traitement CSV ligne par ligne
 
-```javascript
+```typescript
 import { createReadStream } from 'fs';
 import { pipeline } from 'stream/promises';
 import { Transform } from 'stream';
@@ -636,7 +636,7 @@ await pipeline(
 
 ### 5.3 Serveur HTTP avec streaming
 
-```javascript
+```typescript
 import http from 'http';
 import { createReadStream, statSync } from 'fs';
 import path from 'path';
@@ -667,7 +667,7 @@ server.listen(3000, () => {
 
 ### 5.4 Compression a la volee
 
-```javascript
+```typescript
 import http from 'http';
 import { createReadStream } from 'fs';
 import zlib from 'zlib';
@@ -730,7 +730,7 @@ Les Streams sont partout dans Node.js :
 | **crypto** | | Transform (cipher, hash) |
 | **child_process** | `child.stdout`, `child.stderr` | `child.stdin` |
 
-```javascript
+```typescript
 // process.stdin est un Readable Stream
 // process.stdout est un Writable Stream
 
@@ -748,7 +748,7 @@ process.stdin.pipe(createWriteStream('input-capture.txt'));
 
 Depuis Node.js 10+, les Readable Streams sont des **iterables asynchrones** :
 
-```javascript
+```typescript
 import { createReadStream } from 'fs';
 
 // Ancienne facon (evenements)
@@ -764,7 +764,7 @@ for await (const chunk of stream2) {
 console.log('Fin du fichier');
 ```
 
-```javascript
+```typescript
 // Creer un Readable a partir d'un iterable
 import { Readable } from 'stream';
 
@@ -804,7 +804,7 @@ Ecris un serveur HTTP qui sert des fichiers statiques en utilisant des streams (
 
 Cree un Transform Stream qui ajoute un numero de ligne au debut de chaque ligne.
 
-```javascript
+```typescript
 // Resultat attendu :
 // 1: Premiere ligne
 // 2: Deuxieme ligne

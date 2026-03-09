@@ -727,7 +727,7 @@ PM2 est un gestionnaire de processus pour Node.js en production.
 npm install -g pm2
 ```
 
-```javascript
+```typescript
 // ecosystem.config.js
 module.exports = {
   apps: [

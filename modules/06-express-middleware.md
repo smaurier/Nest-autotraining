@@ -12,7 +12,7 @@
 
 Un **middleware** est une fonction qui a acces a l'objet `req`, l'objet `res`, et la fonction `next()`. Les middleware forment une **chaine** (pipeline) — chaque requete traverse les middleware dans l'ordre ou ils sont declares.
 
-```javascript
+```typescript
 function monMiddleware(req, res, next) {
   // 1. Faire quelque chose avec req et/ou res
   console.log(`${req.method} ${req.url}`);
@@ -60,7 +60,7 @@ function monMiddleware(req, res, next) {
 
 L'ordre des `app.use()` est **crucial** — les middleware sont executes dans l'ordre de declaration :
 
-```javascript
+```typescript
 import express from 'express';
 const app = express();
 
@@ -90,7 +90,7 @@ app.get('/', (req, res) => {
 
 > **Piege classique** : Si tu mets `express.json()` APRES tes routes, `req.body` sera `undefined` dans ces routes car le body n'aura pas encore ete parse. L'ordre des middleware est fondamental.
 
-```javascript
+```typescript
 // MAUVAIS — express.json() trop tard
 app.post('/api/users', (req, res) => {
   console.log(req.body); // undefined !
@@ -110,7 +110,7 @@ app.post('/api/users', (req, res) => {
 
 ### 2.1 Middleware d'application (app-level)
 
-```javascript
+```typescript
 // S'execute sur TOUTES les routes
 app.use(express.json());
 
@@ -132,7 +132,7 @@ app.get('/api/users', (req, res, next) => {
 
 ### 2.2 Middleware de routeur (router-level)
 
-```javascript
+```typescript
 import express from 'express';
 const router = express.Router();
 
@@ -152,7 +152,7 @@ app.use('/api/users', router);
 
 ### 2.3 Middleware d'erreur (4 arguments)
 
-```javascript
+```typescript
 // Un middleware d'erreur a EXACTEMENT 4 arguments
 // C'est le nombre d'arguments qui le distingue d'un middleware normal
 app.use((err, req, res, next) => {
@@ -169,7 +169,7 @@ app.use((err, req, res, next) => {
 
 ### 3.1 express.json()
 
-```javascript
+```typescript
 // Parse le body au format JSON
 app.use(express.json({
   limit: '10mb',          // Taille maximale du body (defaut: 100kb)
@@ -180,7 +180,7 @@ app.use(express.json({
 
 ### 3.2 express.urlencoded()
 
-```javascript
+```typescript
 // Parse le body au format URL-encoded (formulaires HTML)
 app.use(express.urlencoded({
   extended: true,  // Utilise la librairie qs (objets imbriques)
@@ -190,7 +190,7 @@ app.use(express.urlencoded({
 
 ### 3.3 express.static()
 
-```javascript
+```typescript
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -214,7 +214,7 @@ app.use(express.static(path.join(__dirname, 'public'), {
 npm install cors
 ```
 
-```javascript
+```typescript
 import cors from 'cors';
 
 // Autoriser toutes les origines (developpement uniquement)
@@ -236,7 +236,7 @@ app.use(cors({
 npm install helmet
 ```
 
-```javascript
+```typescript
 import helmet from 'helmet';
 
 // Ajoute automatiquement des headers de securite
@@ -257,7 +257,7 @@ app.use(helmet());
 npm install morgan
 ```
 
-```javascript
+```typescript
 import morgan from 'morgan';
 
 // Formats predefinies
@@ -280,7 +280,7 @@ app.use(morgan(':method :url :status :res[content-length] - :response-time ms'))
 npm install compression
 ```
 
-```javascript
+```typescript
 import compression from 'compression';
 
 // Compresse automatiquement les reponses > 1 Ko
@@ -310,7 +310,7 @@ app.use(compression({
 
 ### 5.1 Logger avec timestamps
 
-```javascript
+```typescript
 function logger(req, res, next) {
   const start = Date.now();
 
@@ -331,7 +331,7 @@ app.use(logger);
 
 ### 5.2 Timer de requete
 
-```javascript
+```typescript
 function requestTimer(req, res, next) {
   req.startTime = Date.now();
 
@@ -351,7 +351,7 @@ app.use(requestTimer);
 
 ### 5.3 Verification d'authentification
 
-```javascript
+```typescript
 function requireAuth(req, res, next) {
   const authHeader = req.get('Authorization');
 
@@ -389,7 +389,7 @@ app.get('/api/admin/dashboard', (req, res) => {
 
 ### 5.4 Validation des query params
 
-```javascript
+```typescript
 function validatePagination(req, res, next) {
   const page = parseInt(req.query.page, 10);
   const limit = parseInt(req.query.limit, 10);
@@ -420,7 +420,7 @@ app.get('/api/users', validatePagination, (req, res) => {
 
 ### 5.5 Request ID
 
-```javascript
+```typescript
 import crypto from 'crypto';
 
 function requestId(req, res, next) {
@@ -441,7 +441,7 @@ app.use(requestId);
 
 Quand ton API grandit, mettre toutes les routes dans un seul fichier devient ingerable. `express.Router()` permet de **decouper les routes en modules** :
 
-```javascript
+```typescript
 // routes/books.js
 import { Router } from 'express';
 const router = Router();
@@ -469,7 +469,7 @@ router.delete('/:id', (req, res) => {
 export default router;
 ```
 
-```javascript
+```typescript
 // routes/users.js
 import { Router } from 'express';
 const router = Router();
@@ -481,7 +481,7 @@ router.post('/', (req, res) => res.status(201).json({ message: 'Utilisateur cree
 export default router;
 ```
 
-```javascript
+```typescript
 // src/index.js
 import express from 'express';
 import booksRouter from './routes/books.js';
@@ -503,7 +503,7 @@ app.listen(3000);
 
 ### 6.2 Middleware specifique a un routeur
 
-```javascript
+```typescript
 // routes/admin.js
 import { Router } from 'express';
 const router = Router();
@@ -570,7 +570,7 @@ src/
 
 ### 7.3 Exemple complet MVC
 
-```javascript
+```typescript
 // src/services/books.service.js
 import crypto from 'crypto';
 
@@ -610,7 +610,7 @@ export function deleteBook(id) {
 }
 ```
 
-```javascript
+```typescript
 // src/controllers/books.controller.js
 import * as booksService from '../services/books.service.js';
 
@@ -649,7 +649,7 @@ export function remove(req, res) {
 }
 ```
 
-```javascript
+```typescript
 // src/routes/books.routes.js
 import { Router } from 'express';
 import * as booksController from '../controllers/books.controller.js';
@@ -665,7 +665,7 @@ router.delete('/:id', booksController.remove);
 export default router;
 ```
 
-```javascript
+```typescript
 // src/routes/index.js
 import { Router } from 'express';
 import booksRouter from './books.routes.js';
@@ -679,7 +679,7 @@ router.use('/books', booksRouter);
 export default router;
 ```
 
-```javascript
+```typescript
 // src/index.js
 import express from 'express';
 import cors from 'cors';
@@ -726,7 +726,7 @@ app.listen(PORT, () => {
 
 ### 8.1 Le middleware d'erreur (4 arguments)
 
-```javascript
+```typescript
 // middleware/error-handler.js
 export function errorHandler(err, req, res, next) {
   // Log l'erreur
@@ -748,7 +748,7 @@ export function errorHandler(err, req, res, next) {
 
 ### 8.2 Propager les erreurs avec next(err)
 
-```javascript
+```typescript
 app.get('/api/users/:id', (req, res, next) => {
   try {
     const user = getUserById(req.params.id);
@@ -777,7 +777,7 @@ app.get('/api/users/:id', (req, res, next) => {
 | **Routeur** | `router.use(fn)` | S'applique uniquement aux routes de ce routeur |
 | **Route specifique** | `app.get('/path', fn, handler)` | S'applique a cette route uniquement |
 
-```javascript
+```typescript
 // Middleware global (toutes les routes)
 app.use(express.json());
 app.use(cors());

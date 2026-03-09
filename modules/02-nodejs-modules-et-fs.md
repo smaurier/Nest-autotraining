@@ -18,7 +18,7 @@ En JavaScript navigateur, tout code charge partage un scope global unique. Cela 
 
 CommonJS est le systeme de modules historique de Node.js. Il utilise `require()` et `module.exports` :
 
-```javascript
+```typescript
 // math.js — Exporter des fonctions
 function additionner(a, b) {
   return a + b;
@@ -36,7 +36,7 @@ module.exports = { additionner, multiplier };
 // exports.multiplier = multiplier;
 ```
 
-```javascript
+```typescript
 // main.js — Importer des fonctions
 const { additionner, multiplier } = require('./math');
 
@@ -52,7 +52,7 @@ console.log(math.additionner(2, 3));
 
 ESM est le systeme de modules standard du langage JavaScript. Il utilise `import` et `export` :
 
-```javascript
+```typescript
 // math.mjs (ou .js avec "type": "module" dans package.json)
 
 // Export nomme
@@ -71,7 +71,7 @@ export default class Calculator {
 }
 ```
 
-```javascript
+```typescript
 // main.mjs
 import Calculator, { additionner, multiplier } from './math.mjs';
 
@@ -153,7 +153,7 @@ Quand tu fais `require('express')` ou `import express from 'express'`, Node.js c
 
 Le module `path` permet de manipuler les chemins de fichiers de maniere cross-platform (Windows utilise `\`, Linux/Mac utilise `/`).
 
-```javascript
+```typescript
 import path from 'path';
 // ou en CJS : const path = require('path');
 
@@ -216,7 +216,7 @@ path.normalize('/home//user/../user/./projet');
 
 > **Bonne pratique** : Utilise TOUJOURS `path.join()` ou `path.resolve()` pour construire des chemins. Ne concatene JAMAIS des chemins avec `+` ou des template literals — ca ne marchera pas sur tous les OS.
 
-```javascript
+```typescript
 // MAUVAIS — ne fonctionne pas sur Windows
 const filePath = __dirname + '/data/' + filename;
 
@@ -238,7 +238,7 @@ Node.js fournit **trois API** differentes pour manipuler les fichiers :
 | **Callback** | `fs.readFile(path, callback)` | Code legacy, compatibilite |
 | **Promises** | `fs.promises.readFile()` ou `import { readFile } from 'fs/promises'` | **Recommande** — code moderne async/await |
 
-```javascript
+```typescript
 import fs from 'fs';
 import { readFile, writeFile } from 'fs/promises';
 
@@ -267,7 +267,7 @@ lire();
 
 ### 3.2 Lire des fichiers
 
-```javascript
+```typescript
 import { readFile, readdir, stat } from 'fs/promises';
 import path from 'path';
 
@@ -318,7 +318,7 @@ listerDossier('.');
 
 ### 3.3 Ecrire des fichiers
 
-```javascript
+```typescript
 import { writeFile, appendFile, copyFile, rename } from 'fs/promises';
 
 // Ecrire un fichier (cree ou ecrase)
@@ -360,7 +360,7 @@ async function deplacer() {
 
 ### 3.4 Creer et supprimer des dossiers
 
-```javascript
+```typescript
 import { mkdir, rmdir, rm, access, constants } from 'fs/promises';
 
 // Creer un dossier
@@ -416,7 +416,7 @@ if (await existe('config.json')) {
 | `EMFILE` | Too many open files | Trop de fichiers ouverts simultanement |
 | `ENOSPC` | No space left on device | Disque plein |
 
-```javascript
+```typescript
 import { readFile } from 'fs/promises';
 
 try {
@@ -441,7 +441,7 @@ try {
 
 ### 4.1 En CommonJS
 
-```javascript
+```typescript
 // En CJS, __dirname et __filename sont disponibles directement
 console.log(__dirname);   // '/home/user/projet'
 console.log(__filename);  // '/home/user/projet/main.js'
@@ -454,7 +454,7 @@ const configPath = path.join(__dirname, 'config.json');
 
 En ESM, `__dirname` et `__filename` n'existent pas. Il faut utiliser `import.meta.url` :
 
-```javascript
+```typescript
 import { fileURLToPath } from 'url';
 import path from 'path';
 
@@ -485,7 +485,7 @@ const config = JSON.parse(await readFile(configPath, 'utf-8'));
 
 ### 5.2 process.env — Variables d'environnement
 
-```javascript
+```typescript
 // Lire les variables d'environnement
 console.log(process.env.NODE_ENV);  // 'development' ou 'production'
 console.log(process.env.PORT);      // '3000' (toujours une string !)
@@ -503,7 +503,7 @@ process.env.MY_VAR = 'valeur';
 // npm install dotenv
 ```
 
-```javascript
+```typescript
 // Fichier .env (a la racine du projet)
 // PORT=3000
 // DATABASE_URL=postgres://user:pass@localhost:5432/mydb
@@ -521,7 +521,7 @@ const dbUrl = process.env.DATABASE_URL;
 
 ### 5.3 process.argv — Arguments de la ligne de commande
 
-```javascript
+```typescript
 // node script.js hello world --verbose
 console.log(process.argv);
 // [
@@ -537,7 +537,7 @@ const args = process.argv.slice(2);
 console.log(args); // ['hello', 'world', '--verbose']
 ```
 
-```javascript
+```typescript
 // Exemple : script CLI simple
 const args = process.argv.slice(2);
 const command = args[0];
@@ -563,7 +563,7 @@ switch (command) {
 
 ### 5.4 process.exit — Arreter le processus
 
-```javascript
+```typescript
 // Quitter avec succes (code 0)
 process.exit(0);
 
@@ -593,7 +593,7 @@ process.on('SIGTERM', () => {
 
 ### 5.5 process.cwd() et process.chdir()
 
-```javascript
+```typescript
 // Repertoire de travail courant
 console.log(process.cwd()); // '/home/user/projet'
 
@@ -606,7 +606,7 @@ console.log(process.cwd()); // '/tmp'
 
 ### 5.6 process.stdin et process.stdout
 
-```javascript
+```typescript
 // Ecrire sur la sortie standard
 process.stdout.write('Pas de saut de ligne a la fin');
 // Equivalent de console.log mais sans le \n automatique
@@ -624,7 +624,7 @@ console.log('Tape quelque chose (ou "quit" pour quitter) :');
 
 ### 5.7 Informations utiles de process
 
-```javascript
+```typescript
 // Version de Node.js
 console.log(process.version);    // 'v20.11.0'
 console.log(process.versions);   // { v8: '...', uv: '...', ... }
@@ -654,7 +654,7 @@ console.log(process.uptime());   // 12.345
 
 ## 6. Le module os
 
-```javascript
+```typescript
 import os from 'os';
 
 // Informations systeme
@@ -829,7 +829,7 @@ npx ts-node script.ts
 
 ### 8.1 Un module utilitaire
 
-```javascript
+```typescript
 // utils/string-utils.js
 
 /**
@@ -868,7 +868,7 @@ export function truncate(str, maxLength = 100) {
 }
 ```
 
-```javascript
+```typescript
 // main.js — Utilisation
 import { capitalize, slugify, truncate } from './utils/string-utils.js';
 
@@ -909,7 +909,7 @@ mon-projet/
 
 Ecris un script qui liste recursivement le contenu d'un dossier avec l'arborescence :
 
-```javascript
+```typescript
 // tree.js
 import { readdir, stat } from 'fs/promises';
 import path from 'path';

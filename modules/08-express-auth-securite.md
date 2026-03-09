@@ -68,7 +68,7 @@
 npm install bcrypt
 ```
 
-```javascript
+```typescript
 import bcrypt from 'bcrypt';
 
 // === Hacher un mot de passe ===
@@ -121,7 +121,7 @@ Un **JWT** (prononce "jot") est un token d'authentification au format JSON, sign
 npm install jsonwebtoken
 ```
 
-```javascript
+```typescript
 import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'mon-secret-ultra-long-minimum-32-caracteres';
@@ -181,7 +181,7 @@ const decoded = jwt.decode(token);
 
 ### 4.1 Register (inscription)
 
-```javascript
+```typescript
 // services/auth.service.js
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
@@ -235,7 +235,7 @@ function generateToken(user) {
 
 ### 4.2 Login (connexion)
 
-```javascript
+```typescript
 // services/auth.service.js (suite)
 import { UnauthorizedError } from '../utils/errors.js';
 
@@ -265,7 +265,7 @@ export async function login({ email, password }) {
 
 ### 4.3 Routes et controller
 
-```javascript
+```typescript
 // routes/auth.routes.js
 import { Router } from 'express';
 import { z } from 'zod';
@@ -311,7 +311,7 @@ export default router;
 
 ### 5.1 Extraire et verifier le token
 
-```javascript
+```typescript
 // middleware/auth.js
 import jwt from 'jsonwebtoken';
 import { UnauthorizedError } from '../utils/errors.js';
@@ -355,7 +355,7 @@ export function authenticate(req, res, next) {
 
 ### 5.2 Utilisation dans les routes
 
-```javascript
+```typescript
 import { authenticate } from '../middleware/auth.js';
 
 // Route protegee — necessite un token valide
@@ -375,7 +375,7 @@ app.use('/api/admin', authenticate);
 
 Au lieu d'envoyer le token dans le body JSON et de le stocker dans le localStorage (vulnerable au XSS), tu peux utiliser un **cookie httpOnly** :
 
-```javascript
+```typescript
 // A la connexion
 router.post('/login', asyncHandler(async (req, res) => {
   const { user, token } = await authService.login(req.body);
@@ -409,7 +409,7 @@ router.post('/logout', (req, res) => {
 npm install cookie-parser
 ```
 
-```javascript
+```typescript
 import cookieParser from 'cookie-parser';
 app.use(cookieParser());
 
@@ -489,7 +489,7 @@ Un access token avec une duree de vie courte (15 min) est plus sur — s'il est 
     │◀──────────────────────────────│
 ```
 
-```javascript
+```typescript
 // services/auth.service.js
 const ACCESS_TOKEN_EXPIRY = '15m';
 const REFRESH_TOKEN_EXPIRY = '7d';
@@ -560,7 +560,7 @@ export function revokeRefreshToken(refreshToken) {
 
 ### 8.1 Middleware d'autorisation par role
 
-```javascript
+```typescript
 // middleware/authorize.js
 import { ForbiddenError } from '../utils/errors.js';
 
@@ -588,7 +588,7 @@ export function authorize(...allowedRoles) {
 
 ### 8.2 Utilisation dans les routes
 
-```javascript
+```typescript
 import { authenticate } from '../middleware/auth.js';
 import { authorize } from '../middleware/authorize.js';
 
@@ -626,7 +626,7 @@ router.patch('/api/posts/:id/moderate',
 npm install express-rate-limit
 ```
 
-```javascript
+```typescript
 import rateLimit from 'express-rate-limit';
 
 // Limiteur global : 100 requetes par fenetre de 15 minutes
@@ -659,7 +659,7 @@ app.use('/auth/register', authLimiter);
 
 ## 10. Helmet — Headers de securite
 
-```javascript
+```typescript
 import helmet from 'helmet';
 
 app.use(helmet());
@@ -682,7 +682,7 @@ app.use(helmet({
 
 ## 11. CORS — Configuration detaillee
 
-```javascript
+```typescript
 import cors from 'cors';
 
 const corsOptions = {

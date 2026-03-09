@@ -17,7 +17,7 @@ Le client (navigateur, application mobile, Postman) peut envoyer **n'importe quo
 - Injecter du code malveillant (SQL injection, XSS)
 - Envoyer des donnees manquantes ou supplementaires
 
-```javascript
+```typescript
 // Ce que tu esperes recevoir :
 { "email": "alice@example.com", "age": 28 }
 
@@ -62,7 +62,7 @@ npm install zod
 
 ### 2.2 Schemas de base
 
-```javascript
+```typescript
 import { z } from 'zod';
 
 // === Types primitifs ===
@@ -87,7 +87,7 @@ if (result.success) {
 
 ### 2.3 Validations sur les strings
 
-```javascript
+```typescript
 import { z } from 'zod';
 
 const emailSchema = z.string()
@@ -115,7 +115,7 @@ emailSchema.parse('pas-un-email');          // ERREUR
 
 ### 2.4 Validations sur les nombres
 
-```javascript
+```typescript
 import { z } from 'zod';
 
 const ageSchema = z.number()
@@ -140,7 +140,7 @@ coercedNumber.parse('abc'); // ERREUR: NaN n'est pas un nombre valide
 
 ### 2.5 Schemas d'objets
 
-```javascript
+```typescript
 import { z } from 'zod';
 
 // Schema pour creer un utilisateur
@@ -177,7 +177,7 @@ const userData = createUserSchema.parse({
 
 ### 2.6 Schema pour les mises a jour (PATCH)
 
-```javascript
+```typescript
 // Pour un PATCH, tous les champs sont optionnels
 const updateUserSchema = createUserSchema.partial();
 // Equivalent de rendre chaque champ .optional()
@@ -190,7 +190,7 @@ const updateUserSchema2 = createUserSchema
 
 ### 2.7 Tableaux et enums
 
-```javascript
+```typescript
 import { z } from 'zod';
 
 // Tableau de strings
@@ -216,7 +216,7 @@ idSchema.parse('pas-un-uuid');                             // ERREUR
 
 ### 2.8 Nullable et optional
 
-```javascript
+```typescript
 import { z } from 'zod';
 
 // optional : le champ peut etre absent (undefined)
@@ -242,7 +242,7 @@ const schema = z.object({
 
 ### 2.9 Messages d'erreur personnalises
 
-```javascript
+```typescript
 import { z } from 'zod';
 
 const schema = z.object({
@@ -281,7 +281,7 @@ if (!result.success) {
 
 ### 3.1 Un middleware reutilisable
 
-```javascript
+```typescript
 // middleware/validate.js
 import { ZodError } from 'zod';
 
@@ -316,7 +316,7 @@ export function validate(schema, source = 'body') {
 
 ### 3.2 Utilisation dans les routes
 
-```javascript
+```typescript
 // routes/users.routes.js
 import { Router } from 'express';
 import { z } from 'zod';
@@ -377,7 +377,7 @@ export default router;
 
 ### 4.1 Classes d'erreurs personnalisees
 
-```javascript
+```typescript
 // utils/errors.js
 
 export class AppError extends Error {
@@ -427,7 +427,7 @@ export class ConflictError extends AppError {
 
 ### 4.2 Middleware de gestion d'erreurs centralise
 
-```javascript
+```typescript
 // middleware/error-handler.js
 import { AppError } from '../utils/errors.js';
 import { ZodError } from 'zod';
@@ -480,7 +480,7 @@ export function errorHandler(err, req, res, next) {
 
 ### 4.3 Utilisation dans les controllers
 
-```javascript
+```typescript
 // controllers/books.controller.js
 import * as booksService from '../services/books.service.js';
 import { NotFoundError, ConflictError } from '../utils/errors.js';
@@ -516,7 +516,7 @@ export function create(req, res) {
 
 ### 5.1 Le probleme du try/catch repetitif
 
-```javascript
+```typescript
 // SANS wrapper — try/catch dans CHAQUE handler async
 app.get('/api/books/:id', async (req, res, next) => {
   try {
@@ -542,7 +542,7 @@ app.post('/api/books', async (req, res, next) => {
 
 ### 5.2 La solution : asyncHandler
 
-```javascript
+```typescript
 // utils/async-handler.js
 
 /**
@@ -558,7 +558,7 @@ export function asyncHandler(fn) {
 
 ### 5.3 Utilisation — Code propre sans try/catch
 
-```javascript
+```typescript
 import { asyncHandler } from '../utils/async-handler.js';
 import { NotFoundError } from '../utils/errors.js';
 
@@ -586,7 +586,7 @@ router.post('/', asyncHandler(async (req, res) => {
 
 ### 6.1 Filets de securite globaux
 
-```javascript
+```typescript
 // A mettre au debut de ton fichier principal (src/index.js)
 
 // Promise rejection non geree
@@ -621,7 +621,7 @@ process.on('SIGTERM', () => {
 | **Operationnelle** | Situation prevue (404, validation, timeout) | Renvoyer une erreur au client |
 | **Bug (programmation)** | Erreur dans le code (TypeError, ReferenceError) | Logger, alerter, possiblement redemarrer |
 
-```javascript
+```typescript
 // middleware/error-handler.js
 export function errorHandler(err, req, res, next) {
   if (err.isOperational) {
@@ -643,7 +643,7 @@ export function errorHandler(err, req, res, next) {
 
 ### 7.1 Pattern : Validation + Controller + Service
 
-```javascript
+```typescript
 // Le flux complet d'une requete validee :
 
 // 1. Le middleware validate() verifie les donnees
@@ -674,7 +674,7 @@ export async function create(data) {
 
 ### 7.2 Piege : Oublier next(err) avec les erreurs async
 
-```javascript
+```typescript
 // MAUVAIS — l'erreur est perdue, le client attend indefiniment
 app.get('/api/data', async (req, res) => {
   const data = await fetchData(); // Si ca rejette → crash silencieux
@@ -700,7 +700,7 @@ app.get('/api/data', async (req, res, next) => {
 
 ### 7.3 Piege : Envoyer deux reponses
 
-```javascript
+```typescript
 // MAUVAIS — res.json() est appele deux fois
 app.get('/api/users/:id', (req, res) => {
   const user = findUser(req.params.id);
@@ -770,7 +770,7 @@ Ameliore le error handler pour :
 
 Cree un middleware qui valide body, params ET query en une seule declaration :
 
-```javascript
+```typescript
 router.post('/:id',
   validate({ body: bodySchema, params: paramsSchema, query: querySchema }),
   handler

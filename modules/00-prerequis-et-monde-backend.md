@@ -231,7 +231,7 @@ Le CORS est un mecanisme de securite du **navigateur** (pas du serveur). Il empe
 
 ### 3.7 Le body : JSON et form-data
 
-```javascript
+```typescript
 // Format JSON (le plus courant pour les API)
 {
   "nom": "Alice Dupont",
@@ -284,7 +284,7 @@ REST est un style d'architecture pour les API. Il repose sur des conventions :
 | Modifier | PATCH | `/api/users/:id` | Modifier partiellement un utilisateur |
 | Supprimer | DELETE | `/api/users/:id` | Supprimer un utilisateur |
 
-```javascript
+```typescript
 // Exemple de reponse pour GET /api/users
 {
   "data": [
@@ -431,7 +431,7 @@ Pour tester tes API, tu auras besoin d'un outil pour envoyer des requetes HTTP :
 
 Cree un fichier `hello.js` :
 
-```javascript
+```typescript
 // hello.js
 console.log('Hello, World !');
 console.log('Bienvenue dans le monde du backend.');
@@ -453,7 +453,7 @@ node hello.js
 
 ### 6.2 Un script plus interessant
 
-```javascript
+```typescript
 // info.js
 const os = require('os');
 
@@ -469,7 +469,7 @@ console.log(`Uptime      : ${(os.uptime() / 3600).toFixed(1)} heures`);
 
 ### 6.3 Comprendre la difference avec le navigateur
 
-```javascript
+```typescript
 // Ceci fonctionne dans le navigateur mais PAS dans Node.js :
 // document.getElementById('app');  // Erreur : document n'existe pas
 // window.alert('test');            // Erreur : window n'existe pas
@@ -626,7 +626,7 @@ Pour le POST, utilise ce body :
 
 ### Exercice 3 : Premier script avec arguments
 
-```javascript
+```typescript
 // exercice3.js
 // Ecris un script qui :
 // 1. Lit les arguments de la ligne de commande (process.argv)

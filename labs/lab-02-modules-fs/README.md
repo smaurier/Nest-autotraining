@@ -15,9 +15,9 @@
 
 ## Instructions
 
-1. Ouvrez le fichier `exercise.js`
+1. Ouvrez le fichier `exercise.ts`
 2. Completez chaque section marquee `TODO`
-3. Lancez le fichier avec `node exercise.js`
+3. Lancez le fichier avec `npx tsx exercise.ts`
 4. Verifiez que tous les tests passent (8/8)
 
 ## TODOs
@@ -39,7 +39,7 @@ Le dossier `data/` contient :
 
 ## Aide
 
-```js
+```typescript
 import { readFile, writeFile, readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 

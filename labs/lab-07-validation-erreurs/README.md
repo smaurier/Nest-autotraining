@@ -16,9 +16,9 @@
 ## Instructions
 
 1. Installez les dependances : `npm install`
-2. Ouvrez le fichier `exercise.js`
+2. Ouvrez le fichier `exercise.ts`
 3. Completez chaque section marquee `TODO`
-4. Lancez le fichier avec `node exercise.js`
+4. Lancez le fichier avec `npx tsx exercise.ts`
 5. Verifiez que tous les tests passent (8/8)
 
 ## TODOs
@@ -36,7 +36,7 @@
 ## Aide
 
 ### Zod
-```js
+```typescript
 import { z } from 'zod';
 
 const schema = z.object({
@@ -53,7 +53,7 @@ if (!result.success) {
 ```
 
 ### Classes d'erreur
-```js
+```typescript
 class AppError extends Error {
   constructor(message, statusCode) {
     super(message);
@@ -63,7 +63,7 @@ class AppError extends Error {
 ```
 
 ### asyncHandler
-```js
+```typescript
 // Wrapper pour les routes async
 const asyncHandler = (fn) => (req, res, next) => {
   Promise.resolve(fn(req, res, next)).catch(next);

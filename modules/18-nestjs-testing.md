@@ -44,7 +44,7 @@ NestJS utilise Jest comme framework de test par defaut. La configuration est dej
 
 Ou dans un fichier separe :
 
-```javascript
+```typescript
 // jest.config.js
 module.exports = {
   moduleFileExtensions: ['js', 'json', 'ts'],
@@ -1102,7 +1102,7 @@ npm run test:cov
 
 Configuration des seuils de couverture dans `jest.config.js` :
 
-```javascript
+```typescript
 coverageThresholds: {
   global: {
     branches: 80,    // 80% des branches conditionnelles couvertes

@@ -14,9 +14,9 @@
 
 ## Instructions
 
-1. Ouvrez le fichier `exercise.js`
+1. Ouvrez le fichier `exercise.ts`
 2. Completez chaque section marquee `TODO`
-3. Lancez le fichier avec `node exercise.js`
+3. Lancez le fichier avec `npx tsx exercise.ts`
 4. Verifiez que tous les tests passent (6/6)
 
 ## TODOs
@@ -37,7 +37,7 @@ Le lab cree automatiquement les fichiers de test suivants :
 
 ## Aide
 
-```js
+```typescript
 import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { createReadStream, createWriteStream } from 'node:fs';
