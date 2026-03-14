@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quiz 25 — MongoDB & Mongoose</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1a1a2e; color: #e0e0e0; min-height: 100vh; padding: 2rem 1rem; }
+    .container { max-width: 800px; margin: 0 auto; }
+    h1 { text-align: center; margin-bottom: 0.5rem; font-size: 1.8rem; color: #ffffff; }
+    .subtitle { text-align: center; color: #8892b0; margin-bottom: 2rem; font-size: 1rem; }
+    .progress-bar-container { background: #0d1117; border-radius: 10px; height: 14px; margin-bottom: 2rem; overflow: hidden; }
+    .progress-bar { background: linear-gradient(90deg, #0d6efd, #4dabf7); height: 100%; width: 0%; border-radius: 10px; transition: width 0.4s ease; }
+    .progress-text { text-align: center; color: #8892b0; margin-bottom: 1rem; font-size: 0.9rem; }
+    .card { background: #16213e; border-radius: 12px; padding: 2rem; margin-bottom: 1.5rem; box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
+    .question-label { font-size: 0.85rem; color: #4dabf7; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 0.5rem; }
+    .question-text { font-size: 1.15rem; margin-bottom: 1.2rem; line-height: 1.5; color: #ffffff; }
+    pre { background: #0d1117; border: 1px solid #30363d; border-radius: 8px; padding: 1rem; margin-bottom: 1.2rem; overflow-x: auto; font-size: 0.95rem; }
+    code { font-family: 'Consolas', 'Fira Code', 'Courier New', monospace; color: #c9d1d9; }
+    .options { list-style: none; }
+    .options li { margin-bottom: 0.5rem; }
+    .options label { display: flex; align-items: center; gap: 0.75rem; padding: 0.8rem 1rem; background: #0d1117; border: 2px solid #30363d; border-radius: 8px; cursor: pointer; transition: border-color 0.2s, background 0.2s; font-size: 1rem; }
+    .options label:hover { border-color: #4dabf7; background: #1c2a4a; }
+    .options input[type="radio"] { accent-color: #0d6efd; width: 18px; height: 18px; flex-shrink: 0; }
+    .btn { display: inline-block; padding: 0.7rem 2rem; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: background 0.2s, transform 0.1s; }
+    .btn-primary { background: #0d6efd; color: #fff; }
+    .btn-primary:hover { background: #3b82f6; }
+    .btn-primary:disabled { background: #374151; cursor: not-allowed; }
+    .btn-restart { background: #238636; color: #fff; margin-top: 1rem; padding: 0.7rem 2rem; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; }
+    .btn-restart:hover { background: #2ea043; }
+    .feedback { margin-top: 1rem; padding: 1rem 1.2rem; border-radius: 8px; font-size: 0.95rem; line-height: 1.5; display: none; }
+    .feedback.correct { background: #0f5132; border: 1px solid #198754; color: #d1fae5; display: block; }
+    .feedback.wrong { background: #842029; border: 1px solid #dc3545; color: #fdd; display: block; }
+    .score-card { text-align: center; padding: 3rem 2rem; }
+    .score-card .score { font-size: 3rem; font-weight: 700; color: #4dabf7; margin-bottom: 0.5rem; }
+    .score-card .score-label { font-size: 1.2rem; color: #8892b0; margin-bottom: 1.5rem; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Quiz 25 — MongoDB & Mongoose</h1>
+    <p class="subtitle">schemas, @Prop, CRUD, aggregation, indexes</p>
+    <div class="progress-bar-container"><div class="progress-bar" id="progressBar"></div></div>
+    <p class="progress-text" id="progressText">Question 1 / 5</p>
+    <div id="quizContainer"></div>
+    <div id="scoreContainer" class="card score-card hidden"></div>
+  </div>
+  <script>
+    const questions = [
+      {
+        label: "Question 1 — Schemas",
+        text: "Quel est le bon moyen de definir un schema Mongoose dans NestJS avec l'approche code-first ?",
+        code: "@Schema()\nexport class Cat {\n  @Prop({ required: true })\n  name: string;\n\n  @Prop()\n  age: number;\n\n  @Prop({ type: String, ref: 'Owner' })\n  owner: Owner;\n}\n\nexport const CatSchema = SchemaFactory.createForClass(Cat);",
+        options: [
+          "On utilise @Schema() sur la classe et @Prop() sur chaque champ, puis SchemaFactory.createForClass()",
+          "On cree un fichier .schema.json que Mongoose parse automatiquement",
+          "On utilise new mongoose.Schema({}) directement dans le module NestJS",
+          "On definit le schema dans le decorateur @Module() avec la cle schemas"
+        ],
+        answer: 0,
+        explanation: "Dans NestJS, l'approche recommandee utilise les decorateurs @Schema() et @Prop() sur une classe TypeScript, puis SchemaFactory.createForClass() pour generer le schema Mongoose correspondant. Cela permet une integration type-safe avec le reste de l'application."
+      },
+      {
+        label: "Question 2 — Embedding vs Referencing",
+        text: "Quelle est la difference principale entre l'embedding (imbrication) et le referencing (reference) de documents dans MongoDB ?",
+        code: null,
+        options: [
+          "L'embedding stocke les donnees dans un document separé, le referencing les imbrique",
+          "L'embedding imbrique les donnees dans le document parent, le referencing stocke un ObjectId pointant vers un autre document",
+          "L'embedding est reserve aux relations many-to-many, le referencing aux relations one-to-one",
+          "Il n'y a aucune difference, les deux approches sont equivalentes en performance"
+        ],
+        answer: 1,
+        explanation: "L'embedding (sous-document) place les donnees directement dans le document parent, ce qui est performant pour les lectures mais peut poser probleme si les donnees imbriquees grandissent beaucoup. Le referencing stocke un ObjectId et necessite un populate() ou un $lookup pour recuperer les donnees liees, ce qui est plus flexible pour les relations complexes."
+      },
+      {
+        label: "Question 3 — Aggregation",
+        text: "Que produit le pipeline d'aggregation suivant ?",
+        code: "db.orders.aggregate([\n  { $match: { status: 'completed' } },\n  { $group: {\n      _id: '$customerId',\n      totalSpent: { $sum: '$amount' },\n      orderCount: { $sum: 1 }\n  }},\n  { $sort: { totalSpent: -1 } }\n]);",
+        options: [
+          "Il supprime toutes les commandes completees et les regroupe par montant",
+          "Il filtre les commandes completees, puis groupe par client en calculant le total depense et le nombre de commandes, trie par total decroissant",
+          "Il met a jour le statut de toutes les commandes en 'completed'",
+          "Il cree un index sur le champ customerId pour les commandes completees"
+        ],
+        answer: 1,
+        explanation: "Le pipeline d'aggregation fonctionne en 3 etapes : $match filtre les documents avec status 'completed', $group regroupe par customerId en calculant la somme des montants (totalSpent) et le nombre de commandes (orderCount), puis $sort trie les resultats par totalSpent en ordre decroissant (-1)."
+      },
+      {
+        label: "Question 4 — MongoDB vs PostgreSQL",
+        text: "Dans quel scenario MongoDB est-il generalement plus adapte que PostgreSQL ?",
+        code: null,
+        options: [
+          "Quand on a besoin de transactions ACID complexes impliquant plusieurs tables avec des jointures frequentes",
+          "Quand les donnees ont un schema rigide et hautement relationnel avec des contraintes d'integrite referentielle",
+          "Quand les donnees ont une structure flexible et variable, avec des besoins de scalabilite horizontale et des lectures rapides sur des documents auto-contenus",
+          "Quand on veut utiliser SQL comme langage de requete principal"
+        ],
+        answer: 2,
+        explanation: "MongoDB excelle quand les donnees ont un schema flexible (documents JSON), quand la scalabilite horizontale (sharding) est necessaire, et quand les documents sont auto-contenus (peu de jointures). PostgreSQL est preferable pour les schemas relationnels stricts, les transactions ACID complexes et les jointures frequentes."
+      },
+      {
+        label: "Question 5 — Index",
+        text: "Quel est le role principal des index dans MongoDB ?",
+        code: null,
+        options: [
+          "Les index servent uniquement a valider le format des donnees inserees",
+          "Les index permettent de compresser les documents pour economiser de l'espace disque",
+          "Les index accelerent les requetes en permettant a MongoDB de localiser les documents sans scanner toute la collection",
+          "Les index sont obligatoires pour chaque champ d'un document MongoDB"
+        ],
+        answer: 2,
+        explanation: "Les index dans MongoDB fonctionnent comme un index de livre : ils creent une structure de donnees (B-tree) qui permet de localiser rapidement les documents correspondant a une requete sans parcourir (full collection scan) tous les documents. Sans index sur un champ requete, MongoDB doit examiner chaque document de la collection, ce qui est tres lent sur de grandes collections."
+      }
+    ];
+    let currentQuestion = 0, score = 0, answered = false;
+    function renderQuestion() {
+      const q = questions[currentQuestion]; const total = questions.length;
+      document.getElementById('progressBar').style.width = ((currentQuestion / total) * 100) + '%';
+      document.getElementById('progressText').textContent = `Question ${currentQuestion + 1} / ${total}`;
+      let html = `<div class="card"><p class="question-label">${q.label}</p><p class="question-text">${q.text}</p>`;
+      if (q.code) html += `<pre><code>${q.code}</code></pre>`;
+      html += `<ul class="options">`;
+      q.options.forEach((opt, i) => { html += `<li><label><input type="radio" name="q" value="${i}"> ${opt}</label></li>`; });
+      html += `</ul><button class="btn btn-primary" id="validateBtn" onclick="validate()" disabled>Valider</button><div class="feedback" id="feedback"></div></div>`;
+      document.getElementById('quizContainer').innerHTML = html;
+      document.querySelectorAll('input[name="q"]').forEach(r => { r.addEventListener('change', () => { document.getElementById('validateBtn').disabled = false; }); });
+      answered = false;
+    }
+    function validate() {
+      if (answered) { currentQuestion++; if (currentQuestion < questions.length) renderQuestion(); else showScore(); return; }
+      answered = true;
+      const selected = document.querySelector('input[name="q"]:checked'); if (!selected) return;
+      const val = parseInt(selected.value); const q = questions[currentQuestion];
+      const fb = document.getElementById('feedback'); const btn = document.getElementById('validateBtn');
+      document.querySelectorAll('input[name="q"]').forEach(r => r.disabled = true);
+      if (val === q.answer) { score++; fb.className = 'feedback correct'; fb.innerHTML = `<strong>Correct !</strong> ${q.explanation}`; }
+      else { fb.className = 'feedback wrong'; fb.innerHTML = `<strong>Incorrect.</strong> ${q.explanation}`; }
+      btn.textContent = currentQuestion < questions.length - 1 ? 'Suivant' : 'Voir le score';
+    }
+    function showScore() {
+      document.getElementById('quizContainer').classList.add('hidden');
+      document.getElementById('progressBar').style.width = '100%';
+      document.getElementById('progressText').textContent = 'Termine !';
+      const sc = document.getElementById('scoreContainer'); sc.classList.remove('hidden');
+      const pct = Math.round((score / questions.length) * 100);
+      let msg = pct === 100 ? 'Parfait !' : pct >= 60 ? 'Bien joue !' : 'Continuez a reviser !';
+      sc.innerHTML = `<div class="score">${score} / ${questions.length}</div><div class="score-label">${msg} (${pct}%)</div><button class="btn-restart" onclick="restart()">Recommencer</button>`;
+    }
+    function restart() { currentQuestion = 0; score = 0; answered = false; document.getElementById('scoreContainer').classList.add('hidden'); document.getElementById('quizContainer').classList.remove('hidden'); renderQuestion(); }
+    renderQuestion();
+  </script>
+</body>
+</html>

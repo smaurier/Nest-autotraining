@@ -46,7 +46,9 @@ export default defineConfig({
             { text: '21 — NestJS — WebSockets, Fichiers & Temps reel', link: '/modules/21-nestjs-websockets-fichiers' },
             { text: '22 — NestJS — Taches planifiees & Files d\'attente', link: '/modules/22-nestjs-jobs-queues' },
             { text: '23 — Performance & Deploiement', link: '/modules/23-performance-deploiement' },
-            { text: '24 — Projet Final — API E-commerce complete', link: '/modules/24-projet-final' }
+            { text: '24 — Projet Final — API E-commerce complete', link: '/modules/24-projet-final' },
+            { text: '25 — MongoDB & Mongoose', link: '/modules/25-mongodb-mongoose' },
+            { text: '26 — GraphQL avec NestJS', link: '/modules/26-graphql-nestjs' }
           ]
         }
       ],
@@ -79,7 +81,9 @@ export default defineConfig({
             { text: 'Quiz 21 — WebSockets', link: '/quizzes/quiz-21-websockets' },
             { text: 'Quiz 22 — Queues', link: '/quizzes/quiz-22-queues' },
             { text: 'Quiz 23 — Performance', link: '/quizzes/quiz-23-performance' },
-            { text: 'Quiz 24 — Projet Final', link: '/quizzes/quiz-24-projet-final' }
+            { text: 'Quiz 24 — Projet Final', link: '/quizzes/quiz-24-projet-final' },
+            { text: 'Quiz 25 — MongoDB & Mongoose', link: '/quizzes/quiz-25-mongodb-mongoose' },
+            { text: 'Quiz 26 — GraphQL', link: '/quizzes/quiz-26-graphql' }
           ]
         }
       ],

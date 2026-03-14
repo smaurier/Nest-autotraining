@@ -32,6 +32,8 @@
     "lab:22": "cd labs/lab-22-queues && npm test",
     "lab:23": "cd labs/lab-23-docker-deploy && npm test",
     "lab:24": "cd labs/lab-24-projet-final && npm test",
+    "lab:25": "cd labs/lab-25-mongodb-mongoose && npm test",
+    "lab:26": "cd labs/lab-26-graphql && npm test",
     "solution:01": "npx tsx labs/lab-01-event-loop/solution.ts",
     "solution:02": "npx tsx labs/lab-02-modules-fs/solution.ts",
     "solution:03": "npx tsx labs/lab-03-streams/solution.ts",
@@ -55,7 +57,9 @@
     "solution:21": "cd labs/lab-21-websockets && npm run test:solution",
     "solution:22": "cd labs/lab-22-queues && npm run test:solution",
     "solution:23": "cd labs/lab-23-docker-deploy && npm run test:solution",
-    "solution:24": "cd labs/lab-24-projet-final && npm run test:solution"
+    "solution:24": "cd labs/lab-24-projet-final && npm run test:solution",
+    "solution:25": "cd labs/lab-25-mongodb-mongoose && npm run test:solution",
+    "solution:26": "cd labs/lab-26-graphql && npm run test:solution"
   },
   "engines": {
     "node": ">=20.0.0"
