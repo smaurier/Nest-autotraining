@@ -24,11 +24,11 @@ Le fichier `.env` contient les variables suivantes :
 
 ## Endpoints
 
-| Methode | Route          | Description              |
+| Méthode | Route          | Description              |
 |---------|---------------|--------------------------|
 | GET     | /products      | Lister les produits      |
 | GET     | /products/:id  | Obtenir un produit       |
-| POST    | /products      | Creer un produit         |
+| POST    | /products      | Créer un produit         |
 | PATCH   | /products/:id  | Modifier un produit      |
 | DELETE  | /products/:id  | Supprimer un produit     |
 | GET     | /api           | Documentation Swagger    |
@@ -51,7 +51,7 @@ Le fichier `.env` contient les variables suivantes :
 
 4. **ProductsController** (`src/products/products.controller.ts`)
    - Ajoutez les decorateurs Swagger
-   - Utilisez le ConfigService pour acceder a la config
+   - Utilisez le ConfigService pour acceder à la config
 
 5. **CreateProductDto** (`src/products/dto/create-product.dto.ts`)
    - Ajoutez @ApiProperty et les validations class-validator

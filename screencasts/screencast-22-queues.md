@@ -4,12 +4,12 @@
 - **Duree estimee** : 15-20 min
 - **Module** : `modules/22-nestjs-jobs-queues.md`
 - **Lab associe** : `labs/lab-22-queues/`
-- **Prerequis** : Screencast 21 (WebSockets & Fichiers)
+- **Prérequis** : Screencast 21 (WebSockets & Fichiers)
 
 ## Setup
 - [ ] Node.js 20+ installe
 - [ ] Terminal ouvert dans `nest-course/`
-- [ ] Redis installe et demarre (ou Docker avec Redis)
+- [ ] Redis installe et demarre (où Docker avec Redis)
 - [ ] Editeur de code ouvert
 - [ ] Port 3000 disponible
 
@@ -17,13 +17,13 @@
 
 ### [00:00-03:00] Introduction — Pourquoi les queues ?
 
-> Salut ! Certaines operations sont trop longues ou trop lourdes pour etre executees dans le cycle requete-reponse : envoyer un email, generer un PDF, traiter une image, synchroniser des donnees. Les queues permettent de les executer en arriere-plan.
+> Salut ! Certaines operations sont trop longues ou trop lourdes pour etre executees dans le cycle requête-réponse : envoyer un email, générer un PDF, traiter une image, synchroniser des donnees. Les queues permettent de les exécuter en arriere-plan.
 
 **Action** : Afficher le slide de titre "Module 22 — Queues & Taches".
 
-> Le principe est simple : au lieu d'executer le travail immediatement, on le place dans une file d'attente. Un worker (processeur) le recupere et l'execute de maniere asynchrone. Le client recoit une reponse instantanee : "votre demande est en cours de traitement".
+> Le principe est simple : au lieu d'exécuter le travail immediatement, on le place dans une file d'attente. Un worker (processeur) le récupéré et l'exécuté de manière asynchrone. Le client recoit une réponse instantanee : "votre demandé est en cours de traitement".
 
-**Action** : Demarrer Redis (prerequis pour Bull).
+**Action** : Démarrer Redis (prérequis pour Bull).
 
 ```bash
 # Avec Docker
@@ -35,7 +35,7 @@ docker exec -it redis redis-cli ping
 
 ### [03:00-08:00] Bull Queue — Files d'attente dans NestJS
 
-**Action** : Installer les dependances.
+**Action** : Installer les dépendances.
 
 ```bash
 npm install @nestjs/bull bull
@@ -62,7 +62,7 @@ import { BullModule } from '@nestjs/bull';
 export class AppModule {}
 ```
 
-**Action** : Creer un module de queue pour l'envoi d'emails.
+**Action** : Créer un module de queue pour l'envoi d'emails.
 
 ```typescript
 // src/mail/mail.module.ts
@@ -133,7 +133,7 @@ export class MailService {
 
 ### [08:00-13:00] Processor — Traiter les jobs
 
-**Action** : Creer le processeur de la queue.
+**Action** : Créer le processeur de la queue.
 
 ```typescript
 // src/mail/mail.processor.ts
@@ -189,7 +189,7 @@ export class MailProcessor {
 }
 ```
 
-**Action** : Creer un controller pour tester.
+**Action** : Créer un controller pour tester.
 
 ```typescript
 // src/mail/mail.controller.ts
@@ -224,7 +224,7 @@ curl -X POST -H "Content-Type: application/json" \
 curl http://localhost:3000/mail/status/1
 ```
 
-> Regardez les logs du serveur : le job est traite en arriere-plan avec la progression qui s'affiche. Le client a recu sa reponse immediatement avec le jobId. Il peut verifier le statut quand il veut.
+> Regardez les logs du serveur : le job est traite en arriere-plan avec la progression qui s'affiche. Le client a recu sa réponse immediatement avec le jobId. Il peut vérifier le statut quand il veut.
 
 ### [13:00-16:00] Cron Jobs — Taches planifiees
 
@@ -247,7 +247,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 export class AppModule {}
 ```
 
-**Action** : Creer des taches planifiees.
+**Action** : Créer des taches planifiees.
 
 ```typescript
 // src/tasks/tasks.scheduler.ts
@@ -290,7 +290,7 @@ export class TasksScheduler {
 }
 ```
 
-> `@Cron` accepte des expressions cron standard. `@Interval` execute a intervalle regulier. `@Timeout` execute une seule fois apres un delai.
+> `@Cron` accepte des expressions cron standard. `@Interval` exécuté a intervalle regulier. `@Timeout` exécuté une seule fois après un delai.
 
 ### [16:00-18:30] Retry et monitoring
 
@@ -306,10 +306,10 @@ export class TasksScheduler {
 
 **Action** : Afficher le slide recap.
 
-> Le lab est dans `labs/lab-22-queues/`. Vous allez creer une queue avec processeur, des cron jobs, et gerer les erreurs avec retry. Au prochain screencast, performance et deploiement !
+> Le lab est dans `labs/lab-22-queues/`. Vous allez créer une queue avec processeur, des cron jobs, et gérer les erreurs avec retry. Au prochain screencast, performance et déploiement !
 
 ## Points d'attention pour l'enregistrement
-- S'assurer que Redis tourne avant de demarrer l'application
-- Montrer les logs en temps reel pour voir les jobs se traiter
+- S'assurer que Redis tourne avant de démarrer l'application
+- Montrer les logs en temps réel pour voir les jobs se traiter
 - La progression du job (0%, 20%, 40%...) doit etre visible dans les logs
 - Expliquer le backoff exponentiel avec un exemple concret

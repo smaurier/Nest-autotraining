@@ -3,7 +3,7 @@
 ## Objectifs
 
 - Installer et configurer Prisma avec SQLite
-- Creer un `PrismaService` reutilisable
+- Créer un `PrismaService` réutilisable
 - Implementer des operations CRUD pour les produits et les categories
 - Utiliser les relations Prisma (Product -> Category)
 
@@ -34,11 +34,11 @@ npm run test:solution
 3. **`src/categories/categories.controller.ts`** — Endpoints CRUD pour `/categories`
 4. **`src/categories/categories.service.ts`** — Operations CRUD utilisant `PrismaService`
 5. **`src/products/products.controller.ts`** — Endpoints CRUD pour `/products`
-6. **`src/products/products.service.ts`** — Operations CRUD avec inclusion de la categorie dans les reponses
+6. **`src/products/products.service.ts`** — Operations CRUD avec inclusion de la categorie dans les réponses
 
 ## Schema Prisma
 
-Le schema est deja configure dans `prisma/schema.prisma` avec deux modeles :
+Le schema est déjà configure dans `prisma/schema.prisma` avec deux modèles :
 
 - **Product** : id, name, description, price, stock, categoryId, createdAt, updatedAt
 - **Category** : id, name (unique), description, products[], createdAt
@@ -46,13 +46,13 @@ Le schema est deja configure dans `prisma/schema.prisma` avec deux modeles :
 ## Endpoints attendus
 
 ### Categories
-- `POST /categories` — Creer une categorie
+- `POST /categories` — Créer une categorie
 - `GET /categories` — Lister toutes les categories (avec produits)
 - `GET /categories/:id` — Obtenir une categorie (avec produits)
 - `DELETE /categories/:id` — Supprimer une categorie
 
 ### Products
-- `POST /products` — Creer un produit
+- `POST /products` — Créer un produit
 - `GET /products` — Lister tous les produits (avec categorie)
 - `GET /products/:id` — Obtenir un produit (avec categorie)
 - `PATCH /products/:id` — Mettre a jour un produit

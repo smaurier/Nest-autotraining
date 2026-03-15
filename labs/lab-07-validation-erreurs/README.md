@@ -2,20 +2,20 @@
 
 ## Objectifs
 
-- Definir des schemas de validation avec Zod
-- Creer un middleware generique de validation
-- Creer des classes d'erreur personnalisees
+- Définir des schemas de validation avec Zod
+- Créer un middleware générique de validation
+- Créer des classes d'erreur personnalisees
 - Implementer un wrapper asyncHandler
 - Centraliser la gestion d'erreurs avec un middleware d'erreur
 
 ## Pre-requis
 
 - Node.js >= 18 installe
-- Installer les dependances : `npm install` dans ce repertoire
+- Installer les dépendances : `npm install` dans ce répertoire
 
 ## Instructions
 
-1. Installez les dependances : `npm install`
+1. Installez les dépendances : `npm install`
 2. Ouvrez le fichier `exercise.ts`
 3. Completez chaque section marquee `TODO`
 4. Lancez le fichier avec `npx tsx exercise.ts`
@@ -25,12 +25,12 @@
 
 | # | Description |
 |---|-------------|
-| 1 | Definir le schema Zod `UserSchema` (name, email, age optionnel) |
-| 2 | Creer le middleware `validate(schema)` qui valide `req.body` avec Zod |
-| 3 | Creer la classe `AppError` (message, statusCode) |
-| 4 | Creer les classes `NotFoundError` et `ValidationError` qui etendent `AppError` |
-| 5 | Creer le wrapper `asyncHandler(fn)` pour capturer les erreurs async |
-| 6 | Creer le middleware d'erreur centralise `errorHandler` |
+| 1 | Définir le schema Zod `UserSchema` (name, email, age optionnel) |
+| 2 | Créer le middleware `validate(schema)` qui valide `req.body` avec Zod |
+| 3 | Créer la classe `AppError` (message, statusCode) |
+| 4 | Créer les classes `NotFoundError` et `ValidationError` qui etendent `AppError` |
+| 5 | Créer le wrapper `asyncHandler(fn)` pour capturer les erreurs async |
+| 6 | Créer le middleware d'erreur centralise `errorHandler` |
 | 7 | Construire l'API avec validation sur POST/PUT |
 
 ## Aide

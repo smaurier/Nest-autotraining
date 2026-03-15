@@ -4,12 +4,12 @@
 - **Duree estimee** : 12-15 min
 - **Module** : `modules/12-nestjs-modules.md`
 - **Lab associe** : `labs/lab-12-modules-architecture/`
-- **Prerequis** : Screencast 11 (Providers & DI)
+- **Prérequis** : Screencast 11 (Providers & DI)
 
 ## Setup
 - [ ] Node.js 20+ installe
 - [ ] Terminal ouvert dans `nest-course/`
-- [ ] Projet NestJS du screencast precedent disponible
+- [ ] Projet NestJS du screencast précédent disponible
 - [ ] Editeur de code ouvert
 - [ ] Port 3000 disponible
 
@@ -17,7 +17,7 @@
 
 ### [00:00-02:30] Introduction — Les modules NestJS
 
-> Salut ! On a vu les controllers et les providers. Aujourd'hui on va voir comment tout ca s'organise avec les modules. Les modules, c'est le systeme d'organisation de NestJS. Chaque fonctionnalite a son module.
+> Salut ! On a vu les controllers et les providers. Aujourd'hui on va voir comment tout ça s'organise avec les modules. Les modules, c'est le système d'organisation de NestJS. Chaque fonctionnalite a son module.
 
 **Action** : Afficher le slide de titre "Module 12 — Modules & Architecture".
 
@@ -27,7 +27,7 @@
 
 > On va construire une application avec plusieurs modules qui collaborent.
 
-**Action** : Generer les modules avec le CLI.
+**Action** : Générer les modules avec le CLI.
 
 ```bash
 nest g module users
@@ -113,13 +113,13 @@ export class NotificationsService {
 }
 ```
 
-> Le module Notifications importe le module Users. Grace a l'export de UsersService dans UsersModule, il peut l'injecter dans NotificationsService. C'est l'encapsulation des modules.
+> Le module Notifications importe le module Users. Grâce à l'export de UsersService dans UsersModule, il peut l'injecter dans NotificationsService. C'est l'encapsulation des modules.
 
 ### [06:00-09:00] Module partage — Shared module
 
 > Certains services sont utilises partout dans l'application. On les met dans un module partage.
 
-**Action** : Creer un module partage.
+**Action** : Créer un module partage.
 
 ```bash
 nest g module shared
@@ -161,7 +161,7 @@ export class LoggerService {
 }
 ```
 
-> Le decorateur `@Global()` rend le module disponible partout sans avoir besoin de l'importer explicitement. A utiliser avec moderation — la plupart des modules doivent etre importes explicitement pour garder les dependances claires.
+> Le decorateur `@Global()` rend le module disponible partout sans avoir besoin de l'importer explicitement. A utiliser avec moderation — la plupart des modules doivent etre importes explicitement pour garder les dépendances claires.
 
 **Action** : Utiliser le LoggerService dans un autre service.
 
@@ -184,9 +184,9 @@ export class TasksService {
 
 ### [09:00-12:00] Module dynamique — Configuration
 
-> Les modules dynamiques sont crees avec une methode statique qui accepte des options de configuration.
+> Les modules dynamiques sont crees avec une méthode statique qui accepte des options de configuration.
 
-**Action** : Creer un module dynamique.
+**Action** : Créer un module dynamique.
 
 ```typescript
 // src/database/database.module.ts
@@ -252,7 +252,7 @@ export class AppModule {}
 > Le lab est dans `labs/lab-12-modules-architecture/`. Vous allez construire une application multi-module avec des modules partages et dynamiques. C'est la base de toute application NestJS serieuse. Au prochain screencast, on attaque les pipes, guards et interceptors !
 
 ## Points d'attention pour l'enregistrement
-- Montrer clairement le graphe de dependances entre les modules
+- Montrer clairement le graphe de dépendances entre les modules
 - Insister sur le fait que sans export, un provider est prive au module
 - Montrer l'erreur quand on essaie d'injecter un provider non exporte
 - Le pattern forRoot/forRootAsync est essentiel pour la suite de la formation

@@ -1,6 +1,6 @@
 # Module 11 — NestJS — Providers & Injection de Dependances
 
-> **Objectif** : Comprendre en profondeur l'injection de dependances (DI) de NestJS, maitriser les differents types de providers (useClass, useValue, useFactory, useExisting), les scopes, les tokens d'injection, et comprendre pourquoi la DI est essentielle pour les applications maintenables et testables.
+> **Objectif** : Comprendre en profondeur l'injection de dépendances (DI) de NestJS, maîtriser les différents types de providers (useClass, useValue, useFactory, useExisting), les scopes, les tokens d'injection, et comprendre pourquoi la DI est essentielle pour les applications maintenables et testables.
 >
 > **Difficulte** : ⭐⭐⭐ (avance)
 
@@ -8,9 +8,9 @@
 
 ## 1. Qu'est-ce que l'Injection de Dependances
 
-### 1.1 Le probleme sans DI
+### 1.1 Le problème sans DI
 
-Sans injection de dependances, chaque classe cree elle-meme ses dependances :
+Sans injection de dépendances, chaque classe créé elle-même ses dépendances :
 
 ```typescript
 // SANS DI — couplage fort
@@ -30,14 +30,14 @@ class BooksController {
 ```
 
 **Problemes** :
-- **Couplage fort** : Le controller est lie a une implementation specifique
+- **Couplage fort** : Le controller est lie à une implementation spécifique
 - **Pas testable** : Impossible de remplacer BooksService par un mock
 - **Pas flexible** : Si tu veux changer l'implementation, tu modifies le controller
 - **Cascade** : Si BooksService change de constructeur, tous les consommateurs cassent
 
 ### 1.2 La solution : Injection de Dependances
 
-Avec la DI, les dependances sont **fournies de l'exterieur** par un conteneur :
+Avec la DI, les dépendances sont **fournies de l'exterieur** par un conteneur :
 
 ```typescript
 // AVEC DI — couplage faible
@@ -54,15 +54,15 @@ class BooksController {
 }
 ```
 
-> **Analogie** : Sans DI, c'est comme si chaque employe d'une entreprise devait fabriquer lui-meme ses outils. Avec DI, il y a un service d'approvisionnement (le conteneur DI) qui fournit les outils necessaires a chaque employe. L'employe dit "j'ai besoin d'une perceuse" et le service lui en donne une — sans qu'il sache d'ou elle vient ni comment elle est fabriquee.
+> **Analogie** : Sans DI, c'est comme si chaque employe d'une entreprise devait fabriquer lui-même ses outils. Avec DI, il y à un service d'approvisionnement (le conteneur DI) qui fournit les outils nécessaires à chaque employe. L'employe dit "j'ai besoin d'une perceuse" et le service lui en donne une — sans qu'il sache d'où elle vient ni comment elle est fabriquee.
 
 ### 1.3 Les 3 acteurs de la DI
 
 | Acteur | Role | En NestJS |
 |---|---|---|
-| **Consumer** (consommateur) | La classe qui a besoin d'une dependance | Controller, Service |
+| **Consumer** (consommateur) | La classe qui a besoin d'une dépendance | Controller, Service |
 | **Provider** (fournisseur) | La classe ou valeur qui est injectee | `@Injectable()` service |
-| **Container** (conteneur) | Le systeme qui gere les dependances | Le conteneur IoC de NestJS |
+| **Container** (conteneur) | Le système qui géré les dépendances | Le conteneur IoC de NestJS |
 
 ```
   Container DI (NestJS IoC)
@@ -89,7 +89,7 @@ class BooksController {
 
 ### 2.1 Definition
 
-`@Injectable()` marque une classe comme pouvant etre **geree par le conteneur DI** de NestJS. Sans ce decorateur, NestJS ne peut pas injecter ni fournir la classe.
+`@Injectable()` marque une classe comme pouvant etre **gérée par le conteneur DI** de NestJS. Sans ce decorateur, NestJS ne peut pas injecter ni fournir la classe.
 
 ```typescript
 import { Injectable } from '@nestjs/common';
@@ -127,13 +127,13 @@ export class BooksService {
 }
 ```
 
-> **A retenir** : Toute classe qui a besoin d'etre injectee OU qui a des dependances a injecter doit avoir `@Injectable()`. C'est le decorateur qui dit a NestJS "gere cette classe pour moi".
+> **A retenir** : Toute classe qui a besoin d'etre injectee OU qui a des dépendances a injecter doit avoir `@Injectable()`. C'est le decorateur qui dit a NestJS "géré cette classe pour moi".
 
 ---
 
 ## 3. Injection par constructeur
 
-### 3.1 Le mecanisme standard
+### 3.1 Le mécanisme standard
 
 ```typescript
 @Controller('books')
@@ -150,14 +150,14 @@ export class BooksController {
 }
 ```
 
-**Comment ca fonctionne en interne** :
+**Comment ça fonctionne en interne** :
 
-1. NestJS lit les metadonnees TypeScript du constructeur (grace a `emitDecoratorMetadata` dans tsconfig)
+1. NestJS lit les metadonnees TypeScript du constructeur (grâce à `emitDecoratorMetadata` dans tsconfig)
 2. Il voit que `BooksController` a besoin de `BooksService`
 3. Il cherche un provider de type `BooksService` dans le module
-4. Il cree l'instance (ou reutilise l'existante) et l'injecte
+4. Il créé l'instance (où reutilise l'existante) et l'injecte
 
-### 3.2 Le mot-cle private readonly
+### 3.2 Le mot-clé private readonly
 
 ```typescript
 // Raccourci TypeScript : declare ET initialise en une seule ligne
@@ -170,13 +170,13 @@ constructor(booksService: BooksService) {
 }
 ```
 
-> **Bonne pratique** : Utilise TOUJOURS `private readonly` pour les dependances injectees. `private` empeche l'acces depuis l'exterieur, et `readonly` empeche la reassignation accidentelle.
+> **Bonne pratique** : Utilise TOUJOURS `private readonly` pour les dépendances injectees. `private` empeche l'acces depuis l'exterieur, et `readonly` empeche la reassignation accidentelle.
 
 ---
 
 ## 4. Custom Providers
 
-Par defaut, quand tu mets une classe dans le tableau `providers`, NestJS utilise la classe elle-meme comme token ET comme implementation. Mais tu peux personnaliser cela.
+Par defaut, quand tu mets une classe dans le tableau `providers`, NestJS utilise la classe elle-même comme token ET comme implementation. Mais tu peux personnaliser cela.
 
 ### 4.1 Le provider standard (syntaxe courte)
 
@@ -238,7 +238,7 @@ export class OrdersController {
 }
 ```
 
-> **Analogie** : `useClass` c'est comme dire au service d'approvisionnement : "Quand quelqu'un demande une voiture, donne-lui une Tesla". Le demandeur sait conduire une voiture, il se fiche de la marque.
+> **Analogie** : `useClass` c'est comme dire au service d'approvisionnement : "Quand quelqu'un demandé une voiture, donne-lui une Tesla". Le demandeur sait conduire une voiture, il se fiche de la marque.
 
 ### 4.3 useValue — Injecter une valeur fixe
 
@@ -285,7 +285,7 @@ export class DatabaseService {
 export class TestModule {}
 ```
 
-### 4.4 useFactory — Creation dynamique
+### 4.4 useFactory — Création dynamique
 
 ```typescript
 // useFactory permet de creer un provider avec une logique complexe
@@ -335,7 +335,7 @@ export class DatabaseModule {}
 export class PaymentModule {}
 ```
 
-> **A retenir** : `useFactory` est la facon la plus flexible de creer des providers. Tu l'utilises quand la creation necessite de la logique, des operations async (connexion DB), ou des decisions conditionnelles.
+> **A retenir** : `useFactory` est la façon la plus flexible de créer des providers. Tu l'utilises quand la création nécessité de la logique, des operations async (connexion DB), ou des decisions conditionnelles.
 
 ### 4.5 useExisting — Alias de provider
 
@@ -355,13 +355,13 @@ export class AppModule {}
 // Les deux tokens referent a la MEME instance
 ```
 
-### 4.6 Tableau recapitulatif
+### 4.6 Tableau récapitulatif
 
 | Type | Utilisation | Quand l'utiliser |
 |---|---|---|
 | **useClass** | `{ provide: Token, useClass: Impl }` | Remplacer une implementation (patterns Strategy, tests) |
 | **useValue** | `{ provide: Token, useValue: value }` | Constantes, configurations, mocks |
-| **useFactory** | `{ provide: Token, useFactory: fn, inject: [...] }` | Creation dynamique, async, conditionnelle |
+| **useFactory** | `{ provide: Token, useFactory: fn, inject: [...] }` | Création dynamique, async, conditionnelle |
 | **useExisting** | `{ provide: Token, useExisting: ExistingToken }` | Alias, retro-compatibilite |
 
 ---
@@ -463,8 +463,8 @@ Par defaut, tous les providers sont des **singletons** (une seule instance pour 
 | Scope | Comportement | Cas d'usage |
 |---|---|---|
 | **DEFAULT** (singleton) | Une instance pour toute l'application | 95% des cas |
-| **REQUEST** | Une nouvelle instance par requete HTTP | Logger avec request ID, tenant multi-client |
-| **TRANSIENT** | Une nouvelle instance a chaque injection | Objets avec etat mutable |
+| **REQUEST** | Une nouvelle instance par requête HTTP | Logger avec request ID, tenant multi-client |
+| **TRANSIENT** | Une nouvelle instance à chaque injection | Objets avec état mutable |
 
 ### 7.2 Scope DEFAULT (singleton)
 
@@ -479,7 +479,7 @@ export class BooksService {
 }
 ```
 
-> **Piege classique** : Avec le scope singleton, l'etat du service est partage entre TOUTES les requetes. Ne stocke pas de donnees specifiques a une requete dans un service singleton. Pour des donnees par requete (comme l'utilisateur courant), utilise le scope REQUEST.
+> **Piege classique** : Avec le scope singleton, l'état du service est partage entre TOUTES les requêtes. Ne stocke pas de donnees spécifiques à une requête dans un service singleton. Pour des donnees par requête (comme l'utilisateur courant), utilise le scope REQUEST.
 
 ### 7.3 Scope REQUEST
 
@@ -517,7 +517,7 @@ export class CounterService {
 // recoit sa propre instance avec son propre compteur
 ```
 
-> **Bonne pratique** : Utilise le scope DEFAULT (singleton) pour presque tout. Les scopes REQUEST et TRANSIENT ont un impact sur les performances car NestJS doit creer de nouvelles instances. N'utilise REQUEST que quand tu as vraiment besoin de donnees par requete (multi-tenant, request logging).
+> **Bonne pratique** : Utilise le scope DEFAULT (singleton) pour presque tout. Les scopes REQUEST et TRANSIENT ont un impact sur les performances car NestJS doit créer de nouvelles instances. N'utilise REQUEST que quand tu as vraiment besoin de donnees par requête (multi-tenant, request logging).
 
 ---
 
@@ -762,31 +762,31 @@ Cree un `StorageService` avec deux implementations : `LocalStorageService` (fich
 
 ### Exercice 2 — Service avec hooks de cycle de vie
 
-Cree un `CacheService` qui initialise un cache en memoire dans `onModuleInit` et le nettoie dans `onModuleDestroy`.
+Cree un `CacheService` qui initialise un cache en mémoire dans `onModuleInit` et le nettoie dans `onModuleDestroy`.
 
 ### Exercice 3 — Tester avec des mocks DI
 
-Ecris un test unitaire pour un `BooksController` en mockant le `BooksService` via l'injection de dependances de NestJS (`Test.createTestingModule`).
+Ecris un test unitaire pour un `BooksController` en mockant le `BooksService` via l'injection de dépendances de NestJS (`Test.createTestingModule`).
 
 ---
 
-## 12. Resume — Les concepts cles
+## 12. Résumé — Les concepts clés
 
 | Concept | Definition |
 |---|---|
-| **DI** | Les dependances sont fournies par un conteneur, pas creees manuellement |
-| **@Injectable** | Marque une classe comme geree par le conteneur DI |
+| **DI** | Les dépendances sont fournies par un conteneur, pas creees manuellement |
+| **@Injectable** | Marque une classe comme gérée par le conteneur DI |
 | **Provider** | Tout ce qui peut etre injecte (classe, valeur, factory) |
 | **useClass** | Remplacer l'implementation d'un token |
 | **useValue** | Injecter une valeur constante |
-| **useFactory** | Creer un provider dynamiquement |
-| **useExisting** | Creer un alias pour un provider |
+| **useFactory** | Créer un provider dynamiquement |
+| **useExisting** | Créer un alias pour un provider |
 | **Token** | Identifiant unique d'un provider (classe, string, Symbol) |
 | **@Inject** | Injection explicite avec un token personnalise |
 | **@Optional** | Dependance facultative (pas d'erreur si absente) |
 | **Scope** | DEFAULT (singleton), REQUEST, TRANSIENT |
 
-> **A retenir** : L'injection de dependances est le mecanisme central de NestJS. Elle rend ton code testable (mocks faciles), decouple (changement d'implementation transparent) et flexible (configuration par environnement). Maitrise les custom providers (useClass, useValue, useFactory) — ils sont la cle pour des architectures propres et modulaires.
+> **A retenir** : L'injection de dépendances est le mécanisme central de NestJS. Elle rend ton code testable (mocks faciles), decouple (changement d'implementation transparent) et flexible (configuration par environnement). Maîtrise les custom providers (useClass, useValue, useFactory) — ils sont la clé pour des architectures propres et modulaires.
 
 ---
 
@@ -794,11 +794,22 @@ Ecris un test unitaire pour un `BooksController` en mockant le `BooksService` vi
 
 | | Lien |
 |---|---|
-| Module precedent | [Module 10 — NestJS — Controllers & Routing](./10-nestjs-controllers.md) |
+| Module précédent | [Module 10 — NestJS — Controllers & Routing](./10-nestjs-controllers.md) |
 | Module suivant | [Module 12 — NestJS — Modules & Architecture](./12-nestjs-modules.md) |
 | Quiz | [Quiz Module 11](../quizzes/11-nestjs-providers-di.quiz.md) |
 | Lab | [Lab 11 — Providers et DI](../labs/11-nestjs-providers-di.lab.md) |
 
 ---
 
-> **A retenir** : L'injection de dependances n'est pas qu'un outil technique — c'est une philosophie de conception. En declarant tes dependances dans le constructeur plutot qu'en les creant toi-meme, tu respectes le principe d'Inversion de Dependance (le D de SOLID) : tes modules de haut niveau ne dependent pas de modules de bas niveau, les deux dependent d'abstractions. C'est la base d'une architecture propre et evolutive.
+> **A retenir** : L'injection de dépendances n'est pas qu'un outil technique — c'est une philosophie de conception. En declarant tes dépendances dans le constructeur plutot qu'en les creant toi-même, tu respectes le principe d'Inversion de Dependance (le D de SOLID) : tes modules de haut niveau ne dependent pas de modules de bas niveau, les deux dependent d'abstractions. C'est la base d'une architecture propre et evolutive.
+
+---
+
+<!-- parcours-recommande -->
+
+::: tip Parcours recommandé
+1. **Screencast** : [screencast 11 providers di](../screencasts/screencast-11-providers-di.md)
+2. **Lab** : [lab-11-providers-di](../labs/lab-11-providers-di/README)
+3. **Visualisation** : [Dependency Injection](../visualizations/dependency-injection.html)
+4. **Quiz** : [quiz 11 providers di](../quizzes/quiz-11-providers-di.html)
+:::

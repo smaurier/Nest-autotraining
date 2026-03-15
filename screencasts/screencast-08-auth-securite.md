@@ -1,10 +1,10 @@
-# Screencast 08 — Auth & Securite
+# Screencast 08 — Auth & Sécurité
 
 ## Informations
 - **Duree estimee** : 18-22 min
 - **Module** : `modules/08-express-auth-securite.md`
 - **Lab associe** : `labs/lab-08-auth-jwt/`
-- **Prerequis** : Screencast 07 (Validation & Erreurs)
+- **Prérequis** : Screencast 07 (Validation & Erreurs)
 
 ## Setup
 - [ ] Node.js 20+ installe
@@ -16,11 +16,11 @@
 
 ### [00:00-03:00] Introduction — Pourquoi l'authentification ?
 
-> Salut ! Aujourd'hui on va implementer un systeme d'authentification complet avec bcrypt et JWT. C'est un sujet fondamental : sans auth, n'importe qui peut acceder a vos donnees.
+> Salut ! Aujourd'hui on va implementer un système d'authentification complet avec bcrypt et JWT. C'est un sujet fondamental : sans auth, n'importe qui peut acceder a vos donnees.
 
-**Action** : Afficher le slide de titre "Module 08 — Auth & Securite".
+**Action** : Afficher le slide de titre "Module 08 — Auth & Sécurité".
 
-> Le flux est simple : l'utilisateur s'inscrit avec un email et un mot de passe. On hash le mot de passe avec bcrypt. Ensuite il se connecte, on verifie le mot de passe, et on lui donne un token JWT. Ce token, il le renvoie a chaque requete pour prouver son identite.
+> Le flux est simple : l'utilisateur s'inscrit avec un email et un mot de passe. On hash le mot de passe avec bcrypt. Ensuite il se connecte, on vérifié le mot de passe, et on lui donne un token JWT. Ce token, il le renvoie à chaque requête pour prouver son identite.
 
 **Action** : Initialiser le projet.
 
@@ -32,7 +32,7 @@ npm install express bcryptjs jsonwebtoken zod
 
 ### [03:00-07:00] bcrypt — Hasher les mots de passe
 
-> Regle numero un : ne jamais stocker un mot de passe en clair. Jamais. On utilise bcrypt pour le hasher.
+> Regle numéro un : ne jamais stocker un mot de passe en clair. Jamais. On utilise bcrypt pour le hasher.
 
 **Action** : Demontrer bcrypt.
 
@@ -63,13 +63,13 @@ demo();
 node bcrypt-demo.js
 ```
 
-> Le hash est different a chaque execution grace au salt. Meme si deux utilisateurs ont le meme mot de passe, leurs hash seront differents. Et c'est a sens unique : impossible de retrouver le mot de passe a partir du hash.
+> Le hash est différent à chaque exécution grace au salt. Même si deux utilisateurs ont le même mot de passe, leurs hash seront différents. Et c'est a sens unique : impossible de retrouver le mot de passe à partir du hash.
 
 ### [07:00-12:00] JWT — JSON Web Tokens
 
 > Le JWT, c'est un token signe qui contient des informations sur l'utilisateur. Il est compose de trois parties : le header, le payload, et la signature.
 
-**Action** : Demontrer la creation et la verification de JWT.
+**Action** : Demontrer la création et la vérification de JWT.
 
 ```javascript
 // jwt-demo.js
@@ -100,7 +100,7 @@ try {
 
 > Maintenant, assemblons tout dans une API complete avec register, login et routes protegees.
 
-**Action** : Creer l'API d'authentification.
+**Action** : Créer l'API d'authentification.
 
 ```javascript
 // app.js
@@ -227,13 +227,13 @@ curl -H "Authorization: Bearer <VOTRE_TOKEN>" \
 curl http://localhost:3000/api/profile
 ```
 
-> Le flux est complet : register hash le mot de passe, login verifie et renvoie un JWT, le middleware extrait le user du token. On retrouvera exactement ce pattern dans NestJS avec Passport.
+> Le flux est complet : register hash le mot de passe, login vérifié et renvoie un JWT, le middleware extrait le user du token. On retrouvera exactement ce pattern dans NestJS avec Passport.
 
-### [16:00-19:00] Bonnes pratiques de securite
+### [16:00-19:00] Bonnes pratiques de sécurité
 
-> Quelques regles essentielles pour la securite.
+> Quelques regles essentielles pour la sécurité.
 
-**Action** : Afficher la checklist de securite.
+**Action** : Afficher la checklist de sécurité.
 
 > Premierement, le secret JWT doit etre dans une variable d'environnement, jamais dans le code. Deuxiemement, les tokens doivent expirer. Une heure c'est bien, une semaine c'est dangereux. Troisiemement, utilisez HTTPS en production. Le token passe dans les headers, sans HTTPS il est visible en clair.
 
@@ -250,14 +250,14 @@ if (!SECRET) {
 
 ### [19:00-20:30] Recap
 
-> On a implemente un systeme d'authentification complet : bcrypt pour hasher les mots de passe, JWT pour les tokens, middleware pour proteger les routes. Ce pattern est la fondation de l'auth dans NestJS.
+> On a implemente un système d'authentification complet : bcrypt pour hasher les mots de passe, JWT pour les tokens, middleware pour proteger les routes. Ce pattern est la fondation de l'auth dans NestJS.
 
 **Action** : Mentionner le lab.
 
-> Le lab est dans `labs/lab-08-auth-jwt/`. Vous allez construire votre propre systeme d'auth avec register, login et routes protegees. Au prochain screencast, on attaque NestJS !
+> Le lab est dans `labs/lab-08-auth-jwt/`. Vous allez construire votre propre système d'auth avec register, login et routes protegees. Au prochain screencast, on attaque NestJS !
 
 ## Points d'attention pour l'enregistrement
 - Ne pas montrer de vrais secrets a l'ecran, utiliser des valeurs d'exemple
-- Copier-coller le token JWT depuis la reponse login pour la requete profile
+- Copier-coller le token JWT depuis la réponse login pour la requête profile
 - Montrer ce qui se passe quand le token expire (changer expiresIn a quelques secondes)
 - Insister sur le fait que JWT encode != chiffre

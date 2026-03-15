@@ -1,17 +1,17 @@
-# Lab 02 — Modules et Systeme de Fichiers
+# Lab 02 — Modules et Système de Fichiers
 
 ## Objectifs
 
-- Lire et ecrire des fichiers JSON avec `fs/promises`
+- Lire et écrire des fichiers JSON avec `fs/promises`
 - Parser du CSV en objets JavaScript
-- Parcourir un repertoire recursivement
+- Parcourir un répertoire recursivement
 - Lire des variables d'environnement avec des valeurs par defaut
-- Creer et exporter des modules ESM
+- Créer et exporter des modules ESM
 
 ## Pre-requis
 
 - Node.js >= 18 installe
-- Aucune dependance externe (pure Node.js)
+- Aucune dépendance externe (pure Node.js)
 
 ## Instructions
 
@@ -25,7 +25,7 @@
 | # | Description |
 |---|-------------|
 | 1 | Implementer `readJsonFile(filePath)` — lire et parser un fichier JSON |
-| 2 | Implementer `writeJsonFile(filePath, data)` — ecrire un objet en JSON (formate) |
+| 2 | Implementer `writeJsonFile(filePath, data)` — écrire un objet en JSON (formate) |
 | 3 | Implementer `parseCsv(csvString)` — parser une chaine CSV en tableau d'objets |
 | 4 | Implementer `findJsFiles(dirPath)` — lister recursivement les fichiers .js |
 | 5 | Implementer `getConfig(defaults)` — lire des variables d'environnement avec defauts |

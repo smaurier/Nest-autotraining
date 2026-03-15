@@ -3,13 +3,13 @@
 ## Objectifs
 
 - Structurer une application NestJS en plusieurs modules
-- Creer un SharedModule qui exporte des services reutilisables
+- Créer un SharedModule qui exporte des services réutilisables
 - Comprendre les imports/exports entre modules
-- Creer un module dynamique (DatabaseModule avec forRoot)
+- Créer un module dynamique (DatabaseModule avec forRoot)
 
 ## Description
 
-Vous allez creer une application multi-modules :
+Vous allez créer une application multi-modules :
 - **SharedModule** — exporte LoggerService et DateService
 - **UsersModule** — gestion des utilisateurs (importe SharedModule)
 - **ProductsModule** — gestion des produits (importe SharedModule)
@@ -17,12 +17,12 @@ Vous allez creer une application multi-modules :
 
 ## Endpoints
 
-| Methode | Route      | Description               |
+| Méthode | Route      | Description               |
 |---------|-----------|---------------------------|
 | GET     | /users     | Lister les utilisateurs   |
-| POST    | /users     | Creer un utilisateur      |
+| POST    | /users     | Créer un utilisateur      |
 | GET     | /products  | Lister les produits       |
-| POST    | /products  | Creer un produit          |
+| POST    | /products  | Créer un produit          |
 
 ## Instructions
 

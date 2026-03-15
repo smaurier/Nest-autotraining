@@ -4,7 +4,7 @@
 - **Duree estimee** : 15-20 min
 - **Module** : `modules/25-mongodb-mongoose.md`
 - **Lab associe** : `labs/lab-25-mongodb-mongoose/`
-- **Prerequis** : Screencasts 09-13 (NestJS fondamentaux), 14-17 (ORMs SQL)
+- **Prérequis** : Screencasts 09-13 (NestJS fondamentaux), 14-17 (ORMs SQL)
 
 ## Setup
 - [ ] Node.js 20+ installe
@@ -17,11 +17,11 @@
 
 ### [00:00-02:30] Introduction — Pourquoi MongoDB ?
 
-> Bienvenue dans le module 25. Jusqu'ici, on a travaille exclusivement avec des bases relationnelles : PostgreSQL via TypeORM et Prisma. Aujourd'hui, on decouvre MongoDB — une base de donnees orientee documents. Ce n'est pas un remplacement de PostgreSQL, c'est un outil complementaire pour des cas d'usage specifiques.
+> Bienvenue dans le module 25. Jusqu'ici, on a travaille exclusivement avec des bases relationnelles : PostgreSQL via TypeORM et Prisma. Aujourd'hui, on découvre MongoDB — une base de donnees orientee documents. Ce n'est pas un remplacement de PostgreSQL, c'est un outil complementaire pour des cas d'usage spécifiques.
 
 **Action** : Afficher le slide "SQL vs NoSQL — Quand choisir quoi ?".
 
-> Voici la regle simple : si vos donnees ont un schema fixe avec beaucoup de relations — utilisez PostgreSQL. Si vos donnees sont heterogenes, hierarchiques ou si le schema change souvent — MongoDB est un excellent choix. Par exemple : un catalogue de produits ou chaque categorie a des attributs differents, des logs d'evenements, des configurations utilisateur.
+> Voici la regle simple : si vos donnees ont un schema fixe avec beaucoup de relations — utilisez PostgreSQL. Si vos donnees sont heterogenes, hierarchiques ou si le schema change souvent — MongoDB est un excellent choix. Par exemple : un catalogue de produits ou chaque categorie a des attributs différents, des logs d'événements, des configurations utilisateur.
 
 **Action** : Lancer MongoDB avec Docker.
 
@@ -29,11 +29,11 @@
 docker run -d --name mongo-lab -p 27017:27017 mongo:7
 ```
 
-> MongoDB tourne. Contrairement a PostgreSQL, pas besoin de definir un schema avant d'inserer des donnees. Mais avec Mongoose, on va quand meme structurer nos donnees — c'est une bonne pratique.
+> MongoDB tourne. Contrairement a PostgreSQL, pas besoin de définir un schema avant d'inserer des donnees. Mais avec Mongoose, on va quand même structurer nos donnees — c'est une bonne pratique.
 
 ### [02:30-06:00] Schema Mongoose avec NestJS
 
-**Action** : Montrer la definition d'un schema avec les decorateurs NestJS/Mongoose.
+**Action** : Montrer la définition d'un schema avec les decorateurs NestJS/Mongoose.
 
 ```typescript
 // src/products/schemas/product.schema.ts
@@ -66,7 +66,7 @@ export class Product {
 export const ProductSchema = SchemaFactory.createForClass(Product);
 ```
 
-> Comparez avec TypeORM : au lieu de @Entity et @Column, on utilise @Schema et @Prop. Le concept est le meme : des decorateurs TypeScript qui decrivent la structure. La difference fondamentale, c'est que MongoDB stocke des documents JSON, pas des lignes dans des tables.
+> Comparez avec TypeORM : au lieu de @Entity et @Column, on utilise @Schema et @Prop. Le concept est le même : des decorateurs TypeScript qui decrivent la structure. La différence fondamentale, c'est que MongoDB stocke des documents JSON, pas des lignes dans des tables.
 
 > L'option `timestamps: true` ajoute automatiquement createdAt et updatedAt — exactement comme @CreateDateColumn dans TypeORM.
 
@@ -126,7 +126,7 @@ export class ProductsService {
 }
 ```
 
-> Notez les differences avec TypeORM/Prisma : `findById` au lieu de `findOne({ id })`, `findByIdAndUpdate` au lieu de `update` + `find`. Mongoose retourne directement le document ou null — pas besoin de `affected` ou de verifier le resultat.
+> Notez les différences avec TypeORM/Prisma : `findById` au lieu de `findOne({ id })`, `findByIdAndUpdate` au lieu de `update` + `find`. Mongoose retourne directement le document ou null — pas besoin de `affected` ou de vérifier le résultat.
 
 > L'option `{ new: true }` dans findByIdAndUpdate retourne le document APRES la modification. Sans cette option, vous obtenez l'ancien document — un piege classique.
 
@@ -167,11 +167,11 @@ async statsByCategory(): Promise<any[]> {
 }
 ```
 
-> L'aggregation pipeline de MongoDB est extremement puissante. Chaque stage transforme les donnees. $group est l'equivalent du GROUP BY en SQL, $sort du ORDER BY. Mais le pipeline peut aussi faire $lookup (JOIN), $unwind (decompression de tableaux), $facet (sous-pipelines paralleles).
+> L'aggregation pipeline de MongoDB est extremement puissante. Chaque stage transforme les donnees. $group est l'équivalent du GROUP BY en SQL, $sort du ORDER BY. Mais le pipeline peut aussi faire $lookup (JOIN), $unwind (decompression de tableaux), $facet (sous-pipelines paralleles).
 
 ### [14:00-17:00] Embedding vs Referencing
 
-**Action** : Montrer les deux strategies.
+**Action** : Montrer les deux stratégies.
 
 ```typescript
 // Strategie 1 : Embedding (denormalisation)
@@ -192,15 +192,15 @@ class Order {
 }
 ```
 
-> Embedding est la strategie par defaut en MongoDB. Si les donnees sont toujours lues ensemble, embeddez-les. Si elles sont partagees entre plusieurs documents ou si elles grandissent sans limite, referencez-les.
+> Embedding est la stratégie par defaut en MongoDB. Si les donnees sont toujours lues ensemble, embeddez-les. Si elles sont partagees entre plusieurs documents ou si elles grandissent sans limite, referencez-les.
 
-> Par exemple, les items d'une commande : on les embed car on veut figer le prix au moment de l'achat, et ils sont toujours lus avec la commande. Les produits du catalogue : on les reference car ils sont partages entre plusieurs commandes.
+> Par exemple, les items d'une commande : on les embed car on veut figer le prix au moment de l'achat, et ils sont toujours lus avec la commande. Les produits du catalogue : on les référence car ils sont partages entre plusieurs commandes.
 
-### [17:00-19:00] Recapitulatif
+### [17:00-19:00] Récapitulatif
 
-> MongoDB n'est pas meilleur ou pire que PostgreSQL — c'est un outil different pour des problemes differents. Utilisez PostgreSQL quand vous avez des relations complexes et des transactions ACID critiques. Utilisez MongoDB quand vos donnees sont hierarchiques, heterogenes ou quand le schema evolue souvent.
+> MongoDB n'est pas meilleur ou pire que PostgreSQL — c'est un outil différent pour des problèmes différents. Utilisez PostgreSQL quand vous avez des relations complexes et des transactions ACID critiques. Utilisez MongoDB quand vos donnees sont hierarchiques, heterogenes ou quand le schema evolue souvent.
 
-> Avec @nestjs/mongoose, l'integration dans NestJS est naturelle : memes patterns de modules, services et controllers. Si vous connaissez TypeORM ou Prisma avec NestJS, vous retrouverez vos reperes rapidement.
+> Avec @nestjs/mongoose, l'intégration dans NestJS est naturelle : memes patterns de modules, services et controllers. Si vous connaissez TypeORM ou Prisma avec NestJS, vous retrouverez vos reperes rapidement.
 
 > Faites le Lab 25 pour implementer un CRUD complet avec recherche et aggregation !
 

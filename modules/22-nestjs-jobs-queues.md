@@ -1,34 +1,34 @@
 # Module 22 — NestJS — Taches planifiees & Files d'attente
 
-> **Objectif** : Implementer des taches planifiees (cron jobs) avec @nestjs/schedule et des files d'attente (queues) avec Bull/BullMQ pour traiter des operations longues de maniere asynchrone.
+> **Objectif** : Implementer des taches planifiees (cron jobs) avec @nestjs/schedule et des files d'attente (queues) avec Bull/BullMQ pour traiter des operations longues de manière asynchrone.
 > **Difficulte** : ⭐⭐⭐⭐ (avance+)
-> **Prerequis** : Module 11 (Services), Module 12 (Modules), Redis installe
+> **Prérequis** : Module 11 (Services), Module 12 (Modules), Redis installe
 > **Duree estimee** : 5 heures
 
 ---
 
 ## 1. Introduction — Pourquoi les taches asynchrones ?
 
-### 1.1 Le probleme
+### 1.1 Le problème
 
-Certaines operations sont trop longues pour etre executees dans le cycle requete-reponse HTTP :
+Certaines operations sont trop longues pour etre executees dans le cycle requête-réponse HTTP :
 
 - Envoi d'emails (1-5 secondes)
-- Generation de rapports PDF (10-30 secondes)
+- Génération de rapports PDF (10-30 secondes)
 - Redimensionnement d'images (2-10 secondes)
 - Import de fichiers CSV (minutes)
 - Nettoyage de donnees (variable)
 
 Si vous executez ces operations directement dans un endpoint, l'utilisateur attend... et attend... et risque un timeout.
 
-> **Analogie** : Imaginez un restaurant. Le serveur (votre API) prend la commande et la transmet a la cuisine (la queue). Il ne reste pas plante devant le four a attendre que le plat soit pret. Il revient a sa table (reponse HTTP) et la cuisine le previent quand c'est fini (evenement).
+> **Analogie** : Imaginez un restaurant. Le serveur (votre API) prend la commande et la transmet à la cuisine (la queue). Il ne reste pas plante devant le four a attendre que le plat soit pret. Il revient a sa table (réponse HTTP) et la cuisine le previent quand c'est fini (événement).
 
 ### 1.2 Deux approches complementaires
 
 | Approche | Utilite | Exemple |
 |----------|---------|---------|
-| **Taches planifiees** (Cron) | Executer une tache a intervalle regulier | Nettoyage quotidien, rapport hebdomadaire |
-| **Files d'attente** (Queue) | Traiter une tache quand elle arrive | Envoi d'email, generation PDF |
+| **Taches planifiees** (Cron) | Exécuter une tache a intervalle regulier | Nettoyage quotidien, rapport hebdomadaire |
+| **Files d'attente** (Queue) | Traiter une tache quand elle arrive | Envoi d'email, génération PDF |
 
 ---
 
@@ -124,7 +124,7 @@ export class TasksService {
 |-----------|-------------|
 | `* * * * *` | Chaque minute |
 | `*/5 * * * *` | Toutes les 5 minutes |
-| `0 * * * *` | Chaque heure (a la minute 0) |
+| `0 * * * *` | Chaque heure (à la minute 0) |
 | `0 0 * * *` | Chaque jour a minuit |
 | `0 8 * * 1-5` | Du lundi au vendredi a 8h00 |
 | `0 0 1 * *` | Le 1er de chaque mois a minuit |
@@ -244,7 +244,7 @@ export class TasksService {
 
 **Bull** (et sa version modernisee **BullMQ**) est une bibliotheque de files d'attente robuste pour Node.js, basee sur Redis.
 
-> **Analogie** : Une file d'attente c'est comme la file a la poste. Chaque client (job) arrive avec sa demande, prend un ticket, et attend son tour. Les guichetiers (workers) traitent les demandes dans l'ordre. Si un guichetier tombe malade (crash), le client est remis dans la file.
+> **Analogie** : Une file d'attente c'est comme la file à la poste. Chaque client (job) arrive avec sa demandé, prend un ticket, et attend son tour. Les guichetiers (workers) traitent les demandes dans l'ordre. Si un guichetier tombe malade (crash), le client est remis dans la file.
 
 ### 3.2 Installation
 
@@ -257,7 +257,7 @@ npm install --save-dev @types/bull
 npm install @nestjs/bullmq bullmq
 ```
 
-Prerequis : **Redis** doit etre installe et accessible.
+Prérequis : **Redis** doit etre installe et accessible.
 
 ```bash
 # Installation locale de Redis
@@ -305,7 +305,7 @@ import { EmailModule } from './email/email.module';
 export class AppModule {}
 ```
 
-### 3.4 Definir une Queue
+### 3.4 Définir une Queue
 
 ```typescript
 // email/email.module.ts
@@ -332,7 +332,7 @@ import { EmailProcessor } from './email.processor';
 export class EmailModule {}
 ```
 
-### 3.5 Le Producer — Ajouter des jobs a la queue
+### 3.5 Le Producer — Ajouter des jobs à la queue
 
 ```typescript
 // email/email.service.ts
@@ -719,7 +719,7 @@ async function bootstrap() {
 
 ---
 
-## 6. Exemple complet — Generation de rapports
+## 6. Exemple complet — Génération de rapports
 
 ```typescript
 // reports/reports.module.ts
@@ -877,11 +877,11 @@ export class ReportsController {
 Implementez :
 1. Un nettoyage quotidien des tokens de refresh expires
 2. Un rapport hebdomadaire par email du nombre de nouveaux utilisateurs
-3. Une verification toutes les 5 minutes de la connectivite a la base de donnees
+3. Une vérification toutes les 5 minutes de la connectivite à la base de donnees
 
 ### Exercice 2 : Queue d'emails
 
-Implementez un systeme complet d'envoi d'emails avec :
+Implementez un système complet d'envoi d'emails avec :
 1. Queue pour les emails individuels
 2. Queue pour les emails en masse
 3. Retry avec backoff exponentiel
@@ -905,10 +905,20 @@ Creez une queue de traitement d'images qui :
 | Quiz Module 22 | `quiz/22-quiz.md` |
 | Lab Module 22 | `labs/22-lab-jobs-queues.md` |
 | Screencast | `screencasts/22-screencast.md` |
-| Module precedent | [Module 21 — WebSockets & Fichiers](21-nestjs-websockets-fichiers.md) |
-| Module suivant | [Module 23 — Performance & Deploiement](23-performance-deploiement.md) |
+| Module précédent | [Module 21 — WebSockets & Fichiers](21-nestjs-websockets-fichiers.md) |
+| Module suivant | [Module 23 — Performance & Déploiement](23-performance-deploiement.md) |
 | @nestjs/schedule | https://docs.nestjs.com/techniques/task-scheduling |
 | @nestjs/bull | https://docs.nestjs.com/techniques/queues |
 | Bull Documentation | https://optimalbits.github.io/bull/ |
 | BullMQ Documentation | https://docs.bullmq.io/ |
 | Bull Board | https://github.com/felixmosh/bull-board |
+
+---
+
+<!-- parcours-recommande -->
+
+::: tip Parcours recommandé
+1. **Screencast** : [screencast 22 queues](../screencasts/screencast-22-queues.md)
+2. **Lab** : [lab-22-queues](../labs/lab-22-queues/README)
+3. **Quiz** : [quiz 22 queues](../quizzes/quiz-22-queues.html)
+:::

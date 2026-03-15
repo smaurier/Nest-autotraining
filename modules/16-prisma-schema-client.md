@@ -1,8 +1,8 @@
 # Module 16 — Prisma — Schema, Client & Migrations
 
-> **Objectif** : Decouvrir Prisma, l'ORM moderne pour TypeScript, et apprendre a definir un schema, generer le client, effectuer des operations CRUD et gerer les migrations dans un projet NestJS.
+> **Objectif** : Decouvrir Prisma, l'ORM moderne pour TypeScript, et apprendre a définir un schema, générer le client, effectuer des operations CRUD et gérer les migrations dans un projet NestJS.
 > **Difficulte** : ⭐⭐⭐ (avance)
-> **Prerequis** : Module 11 (Services & Providers), Module 12 (Modules), notions SQL de base
+> **Prérequis** : Module 11 (Services & Providers), Module 12 (Modules), notions SQL de base
 > **Duree estimee** : 5 heures
 
 ---
@@ -11,17 +11,17 @@
 
 ### 1.1 Qu'est-ce que Prisma ?
 
-Prisma est un ORM de nouvelle generation pour Node.js et TypeScript. Contrairement a TypeORM qui utilise des decorateurs et le pattern Active Record/Data Mapper, Prisma adopte une approche **schema-first** : vous definissez votre schema dans un fichier declaratif, puis Prisma genere un client TypeScript entierement type.
+Prisma est un ORM de nouvelle génération pour Node.js et TypeScript. Contrairement a TypeORM qui utilise des decorateurs et le pattern Active Record/Data Mapper, Prisma adopte une approche **schema-first** : vous definissez votre schema dans un fichier declaratif, puis Prisma généré un client TypeScript entièrement type.
 
-> **Analogie** : Si TypeORM est comme un architecte qui dessine les plans au fur et a mesure de la construction (decorateurs dans le code), Prisma est comme un architecte qui fait d'abord un plan complet (schema.prisma), puis genere automatiquement les outils de construction (PrismaClient).
+> **Analogie** : Si TypeORM est comme un architecte qui dessine les plans au fur et à mesure de la construction (decorateurs dans le code), Prisma est comme un architecte qui fait d'abord un plan complet (schema.prisma), puis généré automatiquement les outils de construction (PrismaClient).
 
 ### 1.2 L'ecosysteme Prisma
 
 | Composant | Role |
 |-----------|------|
-| **Prisma Schema** | Fichier declaratif pour definir le modele de donnees |
-| **Prisma Client** | Client auto-genere avec types TypeScript complets |
-| **Prisma Migrate** | Systeme de migration declaratif |
+| **Prisma Schema** | Fichier declaratif pour définir le modèle de donnees |
+| **Prisma Client** | Client auto-généré avec types TypeScript complets |
+| **Prisma Migrate** | Système de migration declaratif |
 | **Prisma Studio** | Interface graphique pour explorer les donnees |
 | **Prisma CLI** | Outil en ligne de commande |
 
@@ -39,7 +39,7 @@ npx prisma init
 npx prisma init --datasource-provider postgresql
 ```
 
-Cette commande cree :
+Cette commande créé :
 
 ```
 projet/
@@ -136,7 +136,7 @@ model ExempleTypes {
 | `@db.xxx` | Type natif de la base | `@db.Text`, `@db.VarChar(100)` |
 | `@ignore` | Ignore le champ dans Prisma | Pour les colonnes legacy |
 
-### 2.4 Les attributs de modele
+### 2.4 Les attributs de modèle
 
 ```prisma
 model Article {
@@ -220,7 +220,7 @@ model Article {
 Regles :
 - Le cote "One" (`Article.auteur`) a le `@relation` avec `fields` et `references`
 - Le cote "Many" (`User.articles`) est un simple tableau `Article[]`
-- `auteurId` est la cle etrangere stockee en base
+- `auteurId` est la clé etrangere stockee en base
 
 ### 3.2 Relation One-to-One
 
@@ -246,11 +246,11 @@ model Profile {
 }
 ```
 
-> **A retenir** : La difference entre One-to-One et One-to-Many dans Prisma est le `@unique` sur la cle etrangere. Avec `@unique`, c'est une relation 1-1. Sans, c'est une relation 1-N.
+> **A retenir** : La différence entre One-to-One et One-to-Many dans Prisma est le `@unique` sur la clé etrangere. Avec `@unique`, c'est une relation 1-1. Sans, c'est une relation 1-N.
 
 ### 3.3 Relation Many-to-Many
 
-#### Implicite (Prisma gere la table de liaison)
+#### Implicite (Prisma géré la table de liaison)
 
 ```prisma
 model Article {
@@ -465,14 +465,14 @@ model Tag {
 
 ## 5. Prisma Generate et PrismaClient
 
-### 5.1 Generer le client
+### 5.1 Générer le client
 
 ```bash
 # Genere le PrismaClient a partir du schema
 npx prisma generate
 ```
 
-Cette commande lit `schema.prisma` et genere le code TypeScript dans `node_modules/@prisma/client/`. Le client est entierement type : chaque modele, chaque champ, chaque relation a ses types corrects.
+Cette commande lit `schema.prisma` et généré le code TypeScript dans `node_modules/@prisma/client/`. Le client est entièrement type : chaque modèle, chaque champ, chaque relation a ses types corrects.
 
 ### 5.2 PrismaClient — Operations CRUD
 
@@ -681,7 +681,7 @@ prisma/
 │   └── migration_lock.toml
 ```
 
-Exemple de fichier de migration genere :
+Exemple de fichier de migration généré :
 
 ```sql
 -- prisma/migrations/20240115100000_init/migration.sql
@@ -731,7 +731,7 @@ ALTER TABLE "articles" ADD CONSTRAINT "articles_auteur_id_fkey"
     FOREIGN KEY ("auteur_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ```
 
-> **Piege classique** : Ne modifiez **jamais** un fichier de migration deja applique. Si vous avez besoin de corriger quelque chose, creez une nouvelle migration. Les migrations appliquees sont immuables.
+> **Piege classique** : Ne modifiez **jamais** un fichier de migration déjà applique. Si vous avez besoin de corriger quelque chose, creez une nouvelle migration. Les migrations appliquees sont immuables.
 
 ### 6.3 Seeding (donnees initiales)
 
@@ -833,9 +833,9 @@ npx prisma migrate reset
 
 ---
 
-## 7. Integration avec NestJS
+## 7. Intégration avec NestJS
 
-### 7.1 Creer le PrismaService
+### 7.1 Créer le PrismaService
 
 ```typescript
 // prisma/prisma.service.ts
@@ -871,7 +871,7 @@ export class PrismaService
 }
 ```
 
-### 7.2 Creer le PrismaModule global
+### 7.2 Créer le PrismaModule global
 
 ```typescript
 // prisma/prisma.module.ts
@@ -1049,7 +1049,7 @@ export class ArticlesService {
 }
 ```
 
-> **Bonne pratique** : Utilisez `include` pour charger les relations dont vous avez besoin, et `select` pour limiter les champs retournes. Ne chargez jamais plus de donnees que necessaire.
+> **Bonne pratique** : Utilisez `include` pour charger les relations dont vous avez besoin, et `select` pour limiter les champs retournes. Ne chargez jamais plus de donnees que nécessaire.
 
 ---
 
@@ -1059,7 +1059,7 @@ export class ArticlesService {
 |-----------|---------|--------|
 | Trouver par ID | `repo.findOne({ where: { id } })` | `prisma.user.findUnique({ where: { id } })` |
 | Trouver tous | `repo.find()` | `prisma.user.findMany()` |
-| Creer | `repo.save(repo.create(data))` | `prisma.user.create({ data })` |
+| Créer | `repo.save(repo.create(data))` | `prisma.user.create({ data })` |
 | Mettre a jour | `repo.save({ id, ...data })` | `prisma.user.update({ where: { id }, data })` |
 | Supprimer | `repo.delete(id)` | `prisma.user.delete({ where: { id } })` |
 | Compter | `repo.count()` | `prisma.user.count()` |
@@ -1071,7 +1071,7 @@ export class ArticlesService {
 
 ### Exercice 1 : Schema e-commerce
 
-Creez un schema Prisma avec les modeles : `Category`, `Product`, `ProductImage`. Relations : une categorie a plusieurs produits, un produit a plusieurs images. Ajoutez les enums necessaires et les index pertinents.
+Creez un schema Prisma avec les modèles : `Category`, `Product`, `ProductImage`. Relations : une categorie a plusieurs produits, un produit a plusieurs images. Ajoutez les enums nécessaires et les index pertinents.
 
 ### Exercice 2 : CRUD complet
 
@@ -1090,8 +1090,19 @@ Creez un fichier seed qui insere 3 categories, 10 produits et 20 images de produ
 | Quiz Module 16 | `quiz/16-quiz.md` |
 | Lab Module 16 | `labs/16-lab-prisma-crud.md` |
 | Screencast | `screencasts/16-screencast.md` |
-| Module precedent | [Module 15 — TypeORM Requetes & Migrations](15-typeorm-requetes-migrations.md) |
+| Module précédent | [Module 15 — TypeORM Requetes & Migrations](15-typeorm-requetes-migrations.md) |
 | Module suivant | [Module 17 — Prisma Requetes avancees & Comparaison](17-prisma-avance-comparaison.md) |
 | Documentation Prisma | https://www.prisma.io/docs |
-| Prisma Schema Reference | https://www.prisma.io/docs/reference/api-reference/prisma-schema-reference |
-| Prisma Client API | https://www.prisma.io/docs/reference/api-reference/prisma-client-reference |
+| Prisma Schema Référence | https://www.prisma.io/docs/référence/api-référence/prisma-schema-référence |
+| Prisma Client API | https://www.prisma.io/docs/référence/api-référence/prisma-client-référence |
+
+---
+
+<!-- parcours-recommande -->
+
+::: tip Parcours recommandé
+1. **Screencast** : [screencast 16 prisma setup](../screencasts/screencast-16-prisma-setup.md)
+2. **Lab** : [lab-16-prisma-setup](../labs/lab-16-prisma-setup/README)
+3. **Visualisation** : [ORM Query Flow](../visualizations/orm-query-flow.html)
+4. **Quiz** : [quiz 16 prisma schema](../quizzes/quiz-16-prisma-schema.html)
+:::

@@ -3,15 +3,15 @@
 ## Objectifs
 
 - Implementer l'authentification avec Passport.js dans NestJS
-- Utiliser les strategies Local et JWT
-- Creer des guards pour proteger les routes
+- Utiliser les stratégies Local et JWT
+- Créer des guards pour proteger les routes
 - Implementer le RBAC (Role-Based Access Control)
-- Creer un decorateur @CurrentUser personnalise
-- Gerer les refresh tokens
+- Créer un decorateur @CurrentUser personnalise
+- Gérer les refresh tokens
 
 ## Description
 
-Vous allez creer un systeme d'authentification complet avec :
+Vous allez créer un système d'authentification complet avec :
 - Inscription et connexion
 - Tokens JWT (access + refresh)
 - Routes protegees
@@ -19,7 +19,7 @@ Vous allez creer un systeme d'authentification complet avec :
 
 ## Endpoints
 
-| Methode | Route          | Description                | Auth     |
+| Méthode | Route          | Description                | Auth     |
 |---------|---------------|----------------------------|----------|
 | POST    | /auth/register | Inscription                | Non      |
 | POST    | /auth/login    | Connexion (Local Strategy) | Non      |
@@ -29,14 +29,14 @@ Vous allez creer un systeme d'authentification complet avec :
 ## Instructions
 
 1. **UsersService** (`src/users/users.service.ts`)
-   - Implementez le stockage en memoire des utilisateurs
-   - `create(dto)` : creer un utilisateur
+   - Implementez le stockage en mémoire des utilisateurs
+   - `create(dto)` : créer un utilisateur
    - `findByUsername(username)` : trouver par nom d'utilisateur
 
 2. **AuthService** (`src/auth/auth.service.ts`)
-   - `register(dto)` : hasher le mot de passe et creer l'utilisateur
-   - `validateUser(username, password)` : verifier les credentials
-   - `login(user)` : generer les tokens JWT
+   - `register(dto)` : hasher le mot de passe et créer l'utilisateur
+   - `validateUser(username, password)` : vérifier les credentials
+   - `login(user)` : générer les tokens JWT
    - `refreshToken(token)` : valider et renouveler les tokens
 
 3. **LocalStrategy** (`src/auth/strategies/local.strategy.ts`)
@@ -48,10 +48,10 @@ Vous allez creer un systeme d'authentification complet avec :
    - Extraire le token du header Authorization Bearer
 
 5. **RolesGuard** (`src/auth/guards/roles.guard.ts`)
-   - Verifier les roles avec le Reflector
+   - Vérifier les roles avec le Reflector
 
 6. **CurrentUser decorator** (`src/auth/decorators/current-user.decorator.ts`)
-   - Creer un decorateur de parametre personnalise
+   - Créer un decorateur de paramètre personnalise
 
 7. **AuthController** (`src/auth/auth.controller.ts`)
    - Implementer les routes avec les guards

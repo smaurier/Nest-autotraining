@@ -1,19 +1,19 @@
-# Module 23 — Performance & Deploiement
+# Module 23 — Performance & Déploiement
 
-> **Objectif** : Optimiser les performances d'une application NestJS (caching, rate limiting, compression) et la deployer en production avec Docker, PM2 et les bonnes pratiques de monitoring.
+> **Objectif** : Optimiser les performances d'une application NestJS (caching, rate limiting, compression) et la déployer en production avec Docker, PM2 et les bonnes pratiques de monitoring.
 > **Difficulte** : ⭐⭐⭐⭐ (avance+)
-> **Prerequis** : Modules 10 a 22 (ensemble du parcours NestJS)
+> **Prérequis** : Modules 10 a 22 (ensemble du parcours NestJS)
 > **Duree estimee** : 6 heures
 
 ---
 
-## 1. Caching — Mise en cache des reponses
+## 1. Caching — Mise en cache des réponses
 
 ### 1.1 Pourquoi le cache ?
 
-Le cache evite de recalculer ou re-interroger la base de donnees pour des donnees qui changent rarement. Il peut reduire drastiquement les temps de reponse (de 200ms a 2ms).
+Le cache evite de recalculer ou re-interroger la base de donnees pour des donnees qui changent rarement. Il peut reduire drastiquement les temps de réponse (de 200ms a 2ms).
 
-> **Analogie** : Le cache c'est comme un post-it sur votre bureau. Au lieu d'aller chercher l'information dans le classeur a chaque fois (base de donnees), vous la notez sur un post-it (cache) et vous la consultez directement. De temps en temps, vous mettez a jour le post-it.
+> **Analogie** : Le cache c'est comme un post-it sur votre bureau. Au lieu d'aller chercher l'information dans le classeur à chaque fois (base de donnees), vous la notez sur un post-it (cache) et vous la consultez directement. De temps en temps, vous mettez a jour le post-it.
 
 ### 1.2 Installation
 
@@ -170,7 +170,7 @@ export class ProductsService {
 
 ### 1.5 CacheInterceptor automatique
 
-Pour les cas simples, NestJS fournit un interceptor qui cache automatiquement les reponses GET :
+Pour les cas simples, NestJS fournit un interceptor qui cache automatiquement les réponses GET :
 
 ```typescript
 import { Controller, Get, UseInterceptors } from '@nestjs/common';
@@ -194,7 +194,7 @@ export class CategoriesController {
 }
 ```
 
-> **Piege classique** : Le `CacheInterceptor` ne cache que les requetes GET. Il utilise l'URL comme cle de cache par defaut. Si vous avez des parametres de requete differents, chaque combinaison unique sera cachee separement.
+> **Piege classique** : Le `CacheInterceptor` ne cache que les requêtes GET. Il utilise l'URL comme clé de cache par defaut. Si vous avez des paramètres de requête différents, chaque combinaison unique sera cachee separement.
 
 ---
 
@@ -202,7 +202,7 @@ export class CategoriesController {
 
 ### 2.1 Configuration
 
-La compression reduit la taille des reponses HTTP, accelerant le transfert reseau.
+La compression reduit la taille des réponses HTTP, accelerant le transfert réseau.
 
 ```bash
 npm install compression
@@ -233,7 +233,7 @@ async function bootstrap() {
 }
 ```
 
-> **Bonne pratique** : En production, la compression est generalement geree par le reverse proxy (Nginx, CloudFlare) et pas par NestJS directement. Cela libere les ressources CPU de votre application.
+> **Bonne pratique** : En production, la compression est généralement gérée par le reverse proxy (Nginx, CloudFlare) et pas par NestJS directement. Cela libere les ressources CPU de votre application.
 
 ---
 
@@ -346,7 +346,7 @@ async function bootstrap() {
 }
 ```
 
-> **Piege classique** : `origin: '*'` est pratique en developpement mais dangereux en production. Specifiez toujours les origines exactes autorisees. Et `credentials: true` est incompatible avec `origin: '*'`.
+> **Piege classique** : `origin: '*'` est pratique en développement mais dangereux en production. Specifiez toujours les origines exactes autorisees. Et `credentials: true` est incompatible avec `origin: '*'`.
 
 ---
 
@@ -354,9 +354,9 @@ async function bootstrap() {
 
 ### 5.1 Pourquoi c'est important ?
 
-Quand l'application s'arrete (deploiement, redemarrage), il faut :
-1. Arreter d'accepter de nouvelles requetes
-2. Terminer les requetes en cours
+Quand l'application s'arrete (déploiement, redemarrage), il faut :
+1. Arreter d'accepter de nouvelles requêtes
+2. Terminer les requêtes en cours
 3. Fermer proprement les connexions (DB, Redis, WebSocket)
 
 ```typescript
@@ -429,7 +429,7 @@ Signal SIGTERM/SIGINT recu
 
 ---
 
-## 6. Health Checks — Verification de sante
+## 6. Health Checks — Vérification de sante
 
 ### 6.1 Installation
 
@@ -786,7 +786,7 @@ pm2 startup
 
 ## 9. Logging structure
 
-### 9.1 Integration avec Pino (recommande)
+### 9.1 Intégration avec Pino (recommande)
 
 ```bash
 npm install nestjs-pino pino-http pino pino-pretty
@@ -840,16 +840,16 @@ async function bootstrap() {
 
 ---
 
-## 10. Checklist de deploiement production
+## 10. Checklist de déploiement production
 
-| Etape | Fait ? | Details |
+| Étape | Fait ? | Details |
 |-------|--------|---------|
 | `synchronize: false` | | Utiliser les migrations |
 | Variables d'environnement | | Pas de secrets en dur |
-| Validation .env (Joi) | | Erreur au demarrage si manquant |
-| CORS configure | | Origines specifiques, pas `*` |
+| Validation .env (Joi) | | Erreur au démarrage si manquant |
+| CORS configure | | Origines spécifiques, pas `*` |
 | Rate limiting actif | | `@nestjs/throttler` |
-| Helmet actif | | Headers de securite |
+| Helmet actif | | Headers de sécurité |
 | Compression | | Gzip via Nginx ou app |
 | Health checks | | `/health`, `/health/live`, `/health/ready` |
 | Logging structure | | Pino ou Winston, JSON en prod |
@@ -859,7 +859,7 @@ async function bootstrap() {
 | Monitoring | | Metriques, alertes |
 | Sauvegarde DB | | Backup automatique quotidien |
 | HTTPS | | Certificat SSL via reverse proxy |
-| CI/CD | | Tests automatiques avant deploiement |
+| CI/CD | | Tests automatiques avant déploiement |
 
 ---
 
@@ -884,7 +884,7 @@ Creez un `docker-compose.yml` complet avec :
 ### Exercice 3 : Monitoring
 
 Configurez :
-1. Health checks avec Terminus (DB, Redis, memoire, disque)
+1. Health checks avec Terminus (DB, Redis, mémoire, disque)
 2. Logging structure avec Pino
 3. Rate limiting global et personnalise sur les routes sensibles
 
@@ -897,10 +897,20 @@ Configurez :
 | Quiz Module 23 | `quiz/23-quiz.md` |
 | Lab Module 23 | `labs/23-lab-performance-deploiement.md` |
 | Screencast | `screencasts/23-screencast.md` |
-| Module precedent | [Module 22 — Taches planifiees & Files d'attente](22-nestjs-jobs-queues.md) |
+| Module précédent | [Module 22 — Taches planifiees & Files d'attente](22-nestjs-jobs-queues.md) |
 | Module suivant | [Module 24 — Projet Final](24-projet-final.md) |
 | NestJS Caching | https://docs.nestjs.com/techniques/caching |
 | NestJS Rate Limiting | https://docs.nestjs.com/security/rate-limiting |
 | NestJS Health Checks | https://docs.nestjs.com/recipes/terminus |
 | Docker Node.js Best Practices | https://github.com/nodejs/docker-node/blob/main/docs/BestPractices.md |
 | PM2 Documentation | https://pm2.keymetrics.io/docs/ |
+
+---
+
+<!-- parcours-recommande -->
+
+::: tip Parcours recommandé
+1. **Screencast** : [screencast 23 performance](../screencasts/screencast-23-performance.md)
+2. **Lab** : [lab-23-docker-deploy](../labs/lab-23-docker-deploy/README)
+3. **Quiz** : [quiz 23 performance](../quizzes/quiz-23-performance.html)
+:::

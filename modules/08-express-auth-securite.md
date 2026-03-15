@@ -1,8 +1,10 @@
-# Module 08 — Express — Authentification & Securite
+# Module 08 — Express — Authentification & Sécurité
 
-> **Objectif** : Implementer un systeme d'authentification complet avec bcrypt et JWT, gerer les roles et permissions, configurer les cookies securises, et appliquer les bonnes pratiques de securite (helmet, CORS, rate limiting).
+> **Objectif** : Implementer un système d'authentification complet avec bcrypt et JWT, gérer les roles et permissions, configurer les cookies sécurisés, et appliquer les bonnes pratiques de sécurité (helmet, CORS, rate limiting).
 >
 > **Difficulte** : ⭐⭐⭐ (avance)
+
+> **Auth cross-cours** : l'authentification JWT est aussi couverte dans 03-Vue (module 11), 08-React (module 10), 09-Angular (module 11). Ici l'angle est cote serveur (Express). Le module 19 couvrira l'implementation NestJS complete.
 
 ---
 
@@ -13,7 +15,7 @@
 | Concept | Question | Exemple |
 |---|---|---|
 | **Authentification** (AuthN) | "Qui es-tu ?" | Login avec email + mot de passe |
-| **Autorisation** (AuthZ) | "As-tu le droit de faire ca ?" | Seuls les admins peuvent supprimer des utilisateurs |
+| **Autorisation** (AuthZ) | "As-tu le droit de faire ça ?" | Seuls les admins peuvent supprimer des utilisateurs |
 
 > **Analogie** : L'authentification, c'est montrer ta carte d'identite a l'entree d'un immeuble. L'autorisation, c'est le badge qui te donne acces au 3e etage mais pas au 5e. Tu peux etre identifie sans avoir tous les droits.
 
@@ -43,12 +45,12 @@
 
 **JAMAIS** stocker les mots de passe en clair. Si ta base de donnees est compromise, tous les mots de passe sont exposes.
 
-| Methode | Securite | Explication |
+| Méthode | Sécurité | Explication |
 |---|---|---|
 | En clair | Catastrophique | Un vol de BDD = tous les mots de passe |
 | MD5/SHA256 | Faible | Vulnerable aux rainbow tables et au brute force |
-| bcrypt | Forte | Lent par design, salt integre, resistant au GPU |
-| argon2 | Tres forte | Le plus moderne, vainqueur du PHC |
+| bcrypt | Forte | Lent par design, salt intégré, resistant au GPU |
+| argon2 | Très forte | Le plus moderne, vainqueur du PHC |
 
 ### 2.2 Comment fonctionne bcrypt
 
@@ -60,7 +62,7 @@
                                       └─ Version de bcrypt
 ```
 
-> **Analogie** : bcrypt c'est comme mettre ton mot de passe dans un mixeur industriel. Le salt (sel) rend chaque mixage unique — meme si deux personnes ont le meme mot de passe, le resultat est different. Le "cost factor" (10) c'est la puissance du mixeur — plus c'est eleve, plus c'est lent a casser.
+> **Analogie** : bcrypt c'est comme mettre ton mot de passe dans un mixeur industriel. Le salt (sel) rend chaque mixage unique — même si deux personnes ont le même mot de passe, le résultat est différent. Le "cost factor" (10) c'est la puissance du mixeur — plus c'est eleve, plus c'est lent a casser.
 
 ### 2.3 Implementation avec bcrypt
 
@@ -94,7 +96,7 @@ console.log(await verifyPassword('MonMotDePasse123', hash)); // true
 console.log(await verifyPassword('MauvaisMotDePasse', hash)); // false
 ```
 
-> **Piege classique** : Ne compare JAMAIS les hashes directement (`hash1 === hash2`). Utilise TOUJOURS `bcrypt.compare()`. A cause du salt aleatoire, le meme mot de passe produit un hash different a chaque fois.
+> **Piege classique** : Ne compare JAMAIS les hashes directement (`hash1 === hash2`). Utilise TOUJOURS `bcrypt.compare()`. A cause du salt aleatoire, le même mot de passe produit un hash différent à chaque fois.
 
 ---
 
@@ -173,7 +175,7 @@ const decoded = jwt.decode(token);
 // ATTENTION : ne jamais faire confiance a un token non verifie !
 ```
 
-> **Piege classique** : Le payload d'un JWT est encode en Base64, PAS chiffre. N'importe qui peut decoder et lire le contenu. Ne mets JAMAIS de donnees sensibles (mot de passe, numero de carte) dans un JWT. Le JWT garantit l'integrite (pas modifie) mais PAS la confidentialite.
+> **Piege classique** : Le payload d'un JWT est encode en Base64, PAS chiffre. N'importe qui peut decoder et lire le contenu. Ne mets JAMAIS de donnees sensibles (mot de passe, numéro de carte) dans un JWT. Le JWT garantit l'integrite (pas modifie) mais PAS la confidentialite.
 
 ---
 
@@ -261,7 +263,7 @@ export async function login({ email, password }) {
 }
 ```
 
-> **Bonne pratique** : Renvoie TOUJOURS le meme message d'erreur pour "email introuvable" et "mot de passe incorrect". Sinon, un attaquant peut deviner quels emails sont inscrits en observant les messages d'erreur.
+> **Bonne pratique** : Renvoie TOUJOURS le même message d'erreur pour "email introuvable" et "mot de passe incorrect". Sinon, un attaquant peut deviner quels emails sont inscrits en observant les messages d'erreur.
 
 ### 4.3 Routes et controller
 
@@ -309,7 +311,7 @@ export default router;
 
 ## 5. Middleware d'authentification
 
-### 5.1 Extraire et verifier le token
+### 5.1 Extraire et vérifier le token
 
 ```typescript
 // middleware/auth.js
@@ -433,13 +435,13 @@ export function authenticate(req, res, next) {
 }
 ```
 
-### 6.3 Attributs de securite des cookies
+### 6.3 Attributs de sécurité des cookies
 
 | Attribut | Valeur | Protection |
 |---|---|---|
 | `httpOnly` | `true` | Le cookie est inaccessible via `document.cookie` (anti-XSS) |
 | `secure` | `true` | Le cookie est envoye uniquement en HTTPS |
-| `sameSite` | `'strict'` | Le cookie n'est pas envoye sur les requetes cross-site (anti-CSRF) |
+| `sameSite` | `'strict'` | Le cookie n'est pas envoye sur les requêtes cross-site (anti-CSRF) |
 | `maxAge` | Millisecondes | Duree de vie du cookie |
 | `path` | `'/'` | Chemin sur lequel le cookie est envoye |
 | `domain` | `'.example.com'` | Domaine(s) sur lesquels le cookie est valide |
@@ -451,7 +453,7 @@ export function authenticate(req, res, next) {
 
 ## 7. Refresh Tokens
 
-### 7.1 Le probleme des tokens courts
+### 7.1 Le problème des tokens courts
 
 Un access token avec une duree de vie courte (15 min) est plus sur — s'il est vole, il expire rapidement. Mais l'utilisateur doit se reconnecter toutes les 15 minutes.
 
@@ -657,7 +659,7 @@ app.use('/auth/register', authLimiter);
 
 ---
 
-## 10. Helmet — Headers de securite
+## 10. Helmet — Headers de sécurité
 
 ```typescript
 import helmet from 'helmet';
@@ -715,7 +717,7 @@ app.use(cors(corsOptions));
 
 ---
 
-## 12. Checklist de securite
+## 12. Checklist de sécurité
 
 | Mesure | Implementation | Module |
 |---|---|---|
@@ -723,35 +725,35 @@ app.use(cors(corsOptions));
 | Tokens JWT signes | jsonwebtoken, secret long | Ce module |
 | Cookies httpOnly + secure | `res.cookie()` avec les bons flags | Ce module |
 | Rate limiting | express-rate-limit | Ce module |
-| Headers de securite | helmet | Ce module |
+| Headers de sécurité | helmet | Ce module |
 | CORS configure | cors avec origines explicites | Ce module |
 | Validation des entrees | Zod sur body/params/query | Module 07 |
 | Gestion d'erreurs | Error handler centralise | Module 07 |
 | Variables sensibles | .env + dotenv, JAMAIS dans le code | Module 02 |
-| HTTPS en production | Certificat SSL/TLS (Let's Encrypt) | Deploiement |
+| HTTPS en production | Certificat SSL/TLS (Let's Encrypt) | Déploiement |
 | Dependances a jour | `npm audit` regulierement | Maintenance |
 | Logging | morgan + logs structures | Module 06 |
 
-> **A retenir** : La securite n'est pas une feature optionnelle — c'est une exigence. Chaque mesure de cette checklist est un mur dans la forteresse de ton API. Un seul mur manquant et un attaquant peut entrer.
+> **A retenir** : La sécurité n'est pas une feature optionnelle — c'est une exigence. Chaque mesure de cette checklist est un mur dans la forteresse de ton API. Un seul mur manquant et un attaquant peut entrer.
 
 ---
 
 ## 13. Exercices pratiques
 
-### Exercice 1 — Systeme d'authentification complet
+### Exercice 1 — Système d'authentification complet
 
 Implemente le flux complet : register, login, logout, profile, refresh token.
 
 ### Exercice 2 — API multi-roles
 
 Cree une API de blog avec 3 roles :
-- `user` : peut lire et creer des posts
+- `user` : peut lire et créer des posts
 - `moderator` : peut aussi editer et moderer les posts
-- `admin` : peut tout faire + gerer les utilisateurs
+- `admin` : peut tout faire + gérer les utilisateurs
 
 ### Exercice 3 — Protection contre le brute force
 
-Implemente un systeme qui bloque un compte apres 5 tentatives de login echouees, avec un deblocage apres 30 minutes.
+Implemente un système qui bloque un compte après 5 tentatives de login echouees, avec un deblocage après 30 minutes.
 
 ---
 
@@ -759,11 +761,21 @@ Implemente un systeme qui bloque un compte apres 5 tentatives de login echouees,
 
 | | Lien |
 |---|---|
-| Module precedent | [Module 07 — Express — Validation & Gestion d'erreurs](./07-express-validation-erreurs.md) |
+| Module précédent | [Module 07 — Express — Validation & Gestion d'erreurs](./07-express-validation-erreurs.md) |
 | Module suivant | [Module 09 — NestJS — Introduction & Premiers pas](./09-nestjs-introduction.md) |
 | Quiz | [Quiz Module 08](../quizzes/08-express-auth-securite.quiz.md) |
-| Lab | [Lab 08 — Authentification et securite](../labs/08-express-auth-securite.lab.md) |
+| Lab | [Lab 08 — Authentification et sécurité](../labs/08-express-auth-securite.lab.md) |
 
 ---
 
-> **A retenir** : L'authentification (bcrypt + JWT) et la securite (helmet, CORS, rate limiting) sont les piliers de toute API de production. Hache toujours les mots de passe, signe tes tokens avec un secret robuste, utilise des cookies httpOnly, et protege tes endpoints sensibles avec des middleware d'autorisation. Ces concepts s'appliqueront directement dans NestJS avec les Guards et les Strategies Passport.
+> **A retenir** : L'authentification (bcrypt + JWT) et la sécurité (helmet, CORS, rate limiting) sont les piliers de toute API de production. Hache toujours les mots de passe, signe tes tokens avec un secret robuste, utilise des cookies httpOnly, et protege tes endpoints sensibles avec des middleware d'autorisation. Ces concepts s'appliqueront directement dans NestJS avec les Guards et les Stratégies Passport.
+
+---
+
+<!-- parcours-recommande -->
+
+::: tip Parcours recommandé
+1. **Screencast** : [screencast 08 auth sécurité](../screencasts/screencast-08-auth-securite.md)
+2. **Lab** : [lab-08-auth-jwt](../labs/lab-08-auth-jwt/README)
+3. **Quiz** : [quiz 08 auth sécurité](../quizzes/quiz-08-auth-securite.html)
+:::

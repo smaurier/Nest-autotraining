@@ -2,14 +2,14 @@
 
 ## Objectifs
 
-- Ecrire des tests unitaires pour un service NestJS
-- Ecrire des tests E2E (end-to-end) avec supertest
-- Comprendre la difference entre tests unitaires et tests d'integration
+- Écrire des tests unitaires pour un service NestJS
+- Écrire des tests E2E (end-to-end) avec supertest
+- Comprendre la différence entre tests unitaires et tests d'intégration
 - Utiliser le TestingModule de NestJS
 
 ## Description
 
-Dans ce lab, le service et le controller sont deja implementes. Votre travail consiste a ecrire les tests.
+Dans ce lab, le service et le controller sont déjà implementes. Votre travail consiste à écrire les tests.
 
 Vous allez tester un CRUD complet pour des utilisateurs (users) :
 - Tests unitaires : tester le service directement
@@ -42,7 +42,7 @@ Vous allez tester un CRUD complet pour des utilisateurs (users) :
 
 1. Creez une application de test avec supertest
 2. Implementez les tests suivants :
-   - POST /users cree un utilisateur
+   - POST /users créé un utilisateur
    - GET /users retourne tous les utilisateurs
    - GET /users/:id retourne un utilisateur
    - GET /users/:id retourne 404 pour un id inexistant

@@ -4,7 +4,7 @@
 - **Duree estimee** : 12-15 min
 - **Module** : `modules/07-express-validation-erreurs.md`
 - **Lab associe** : `labs/lab-07-validation-erreurs/`
-- **Prerequis** : Screencast 06 (Middleware & Architecture)
+- **Prérequis** : Screencast 06 (Middleware & Architecture)
 
 ## Setup
 - [ ] Node.js 20+ installe
@@ -16,11 +16,11 @@
 
 ### [00:00-02:30] Introduction — Pourquoi valider ?
 
-> Salut ! Aujourd'hui on va parler de deux sujets critiques : la validation des donnees et la gestion des erreurs. Parce que ne jamais faire confiance aux donnees du client, c'est la regle numero un du backend.
+> Salut ! Aujourd'hui on va parler de deux sujets critiques : la validation des donnees et la gestion des erreurs. Parce que ne jamais faire confiance aux donnees du client, c'est la regle numéro un du backend.
 
 **Action** : Afficher le slide de titre "Module 07 — Validation & Erreurs".
 
-> Un utilisateur peut envoyer n'importe quoi dans une requete : un email invalide, un nombre negatif, une chaine de 10000 caracteres. Si vous ne validez pas, vous risquez des bugs, des crashes, voire des failles de securite.
+> Un utilisateur peut envoyer n'importe quoi dans une requête : un email invalide, un nombre negatif, une chaine de 10000 caracteres. Si vous ne validez pas, vous risquez des bugs, des crashes, voire des failles de sécurité.
 
 **Action** : Initialiser le projet.
 
@@ -32,9 +32,9 @@ npm install express zod
 
 ### [02:30-06:00] Validation avec Zod
 
-> Zod est une librairie de validation TypeScript-first. Elle permet de definir des schemas et de valider les donnees entrantes de maniere declarative.
+> Zod est une librairie de validation TypeScript-first. Elle permet de définir des schemas et de valider les donnees entrantes de manière declarative.
 
-**Action** : Creer un schema de validation avec Zod.
+**Action** : Créer un schema de validation avec Zod.
 
 ```javascript
 // app.js
@@ -115,13 +115,13 @@ curl -X POST -H "Content-Type: application/json" \
   http://localhost:3000/api/users
 ```
 
-> Zod rejette les donnees invalides avec des messages clairs. Le middleware `validate` est reutilisable sur n'importe quelle route. On definit le schema une fois, on l'applique partout.
+> Zod rejette les donnees invalides avec des messages clairs. Le middleware `validate` est réutilisable sur n'importe quelle route. On définit le schema une fois, on l'applique partout.
 
 ### [06:00-09:00] Classes d'erreurs personnalisees
 
-> Maintenant, gerons les erreurs proprement. Au lieu de faire `res.status(404)` partout, on va creer des classes d'erreurs.
+> Maintenant, gerons les erreurs proprement. Au lieu de faire `res.status(404)` partout, on va créer des classes d'erreurs.
 
-**Action** : Creer des classes d'erreurs.
+**Action** : Créer des classes d'erreurs.
 
 ```javascript
 // errors.js
@@ -155,11 +155,11 @@ class UnauthorizedError extends AppError {
 module.exports = { AppError, NotFoundError, ValidationError, UnauthorizedError };
 ```
 
-> On a une hierarchie d'erreurs. `AppError` est la classe de base. `NotFoundError`, `ValidationError`, `UnauthorizedError` heritent d'elle. Chaque erreur sait quel code HTTP elle produit.
+> On à une hiérarchie d'erreurs. `AppError` est la classe de base. `NotFoundError`, `ValidationError`, `UnauthorizedError` heritent d'elle. Chaque erreur sait quel code HTTP elle produit.
 
 ### [09:00-12:00] Middleware de gestion d'erreurs centralise
 
-> Le vrai pouvoir, c'est le middleware d'erreur centralise. Express le reconnait grace a ses quatre parametres : `err, req, res, next`.
+> Le vrai pouvoir, c'est le middleware d'erreur centralise. Express le reconnait grâce à ses quatre paramètres : `err, req, res, next`.
 
 **Action** : Ajouter le error handler.
 
@@ -207,11 +207,11 @@ curl http://localhost:3000/api/users/999
 curl http://localhost:3000/api/inexistant
 ```
 
-> L'erreur est catchee par le middleware centralise. Un seul endroit pour formater les reponses d'erreur, logger, et eventuellement notifier un service de monitoring. C'est propre et maintenable.
+> L'erreur est catchee par le middleware centralise. Un seul endroit pour formater les réponses d'erreur, logger, et eventuellement notifier un service de monitoring. C'est propre et maintenable.
 
 ### [12:00-14:00] Recap
 
-> Resumons. Zod pour valider les donnees entrantes de maniere declarative. Des classes d'erreurs pour typer les erreurs. Un middleware centralise pour les gerer uniformement. Ce pattern est universel — on le retrouvera dans NestJS avec les Pipes et les ExceptionFilters.
+> Resumons. Zod pour valider les donnees entrantes de manière declarative. Des classes d'erreurs pour typer les erreurs. Un middleware centralise pour les gérer uniformement. Ce pattern est universel — on le retrouvera dans NestJS avec les Pipes et les ExceptionFilters.
 
 **Action** : Afficher le slide recap.
 
@@ -219,6 +219,6 @@ curl http://localhost:3000/api/inexistant
 
 ## Points d'attention pour l'enregistrement
 - Montrer les messages d'erreur Zod clairement dans le terminal
-- Insister sur les 4 parametres du error handler Express (err, req, res, next)
-- Bien montrer la difference entre erreur operationnelle et erreur imprevue
-- Faire le lien avec les Pipes NestJS qui feront la meme chose de maniere plus elegante
+- Insister sur les 4 paramètres du error handler Express (err, req, res, next)
+- Bien montrer la différence entre erreur operationnelle et erreur imprevue
+- Faire le lien avec les Pipes NestJS qui feront la même chose de manière plus elegante

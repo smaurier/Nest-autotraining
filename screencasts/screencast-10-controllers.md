@@ -4,7 +4,7 @@
 - **Duree estimee** : 12-15 min
 - **Module** : `modules/10-nestjs-controllers.md`
 - **Lab associe** : `labs/lab-10-controllers-dto/`
-- **Prerequis** : Screencast 09 (NestJS Introduction)
+- **Prérequis** : Screencast 09 (NestJS Introduction)
 
 ## Setup
 - [ ] Node.js 20+ installe
@@ -17,11 +17,11 @@
 
 ### [00:00-02:30] Introduction — Le controller en detail
 
-> Salut ! Dans le screencast precedent, on a decouvert NestJS et genere notre premier CRUD. Aujourd'hui on va approfondir les controllers : routing avance, DTOs, class-validator, et gestion fine des requetes et reponses.
+> Salut ! Dans le screencast précédent, on a decouvert NestJS et généré notre premier CRUD. Aujourd'hui on va approfondir les controllers : routing avance, DTOs, class-validator, et gestion fine des requêtes et réponses.
 
 **Action** : Afficher le slide de titre "Module 10 — Controllers & Routing".
 
-> Le controller est le point d'entree HTTP de votre API. Il recoit les requetes, delegue le travail au service, et renvoie les reponses. NestJS utilise des decorateurs pour decrire chaque aspect du controller.
+> Le controller est le point d'entree HTTP de votre API. Il recoit les requêtes, délégué le travail au service, et renvoie les réponses. NestJS utilise des decorateurs pour decrire chaque aspect du controller.
 
 ### [02:30-06:00] Decorateurs de routing avances
 
@@ -79,7 +79,7 @@ export class TasksController {
 }
 ```
 
-> `ParseIntPipe` convertit automatiquement le parametre string en nombre. `@Query` recupe les query parameters. `@HttpCode` definit le code de statut. `@Header` ajoute un header de reponse. Tout est declaratif.
+> `ParseIntPipe` convertit automatiquement le paramètre string en nombre. `@Query` recupe les query parameters. `@HttpCode` définit le code de statut. `@Header` ajoute un header de réponse. Tout est declaratif.
 
 **Action** : Tester les routes.
 
@@ -91,7 +91,7 @@ curl http://localhost:3000/api/v1/tasks/1
 
 ### [06:00-10:00] DTOs et class-validator
 
-> Les DTOs (Data Transfer Objects) definissent la forme des donnees entrantes. Avec class-validator, on ajoute la validation directement sur les proprietes.
+> Les DTOs (Data Transfer Objects) definissent la forme des donnees entrantes. Avec class-validator, on ajoute la validation directement sur les propriétés.
 
 **Action** : Installer class-validator et class-transformer.
 
@@ -99,7 +99,7 @@ curl http://localhost:3000/api/v1/tasks/1
 npm install class-validator class-transformer
 ```
 
-**Action** : Creer les DTOs avec validation.
+**Action** : Créer les DTOs avec validation.
 
 ```typescript
 // src/tasks/dto/create-task.dto.ts
@@ -180,13 +180,13 @@ curl -X POST -H "Content-Type: application/json" \
   http://localhost:3000/api/v1/tasks
 ```
 
-> `whitelist: true` supprime les proprietes non declarees dans le DTO. `forbidNonWhitelisted: true` renvoie une erreur si une propriete non declaree est envoyee. C'est une protection contre l'injection de donnees.
+> `whitelist: true` supprime les propriétés non declarees dans le DTO. `forbidNonWhitelisted: true` renvoie une erreur si une propriété non declaree est envoyee. C'est une protection contre l'injection de donnees.
 
 ### [10:00-13:00] Routes imbriquees et sous-ressources
 
-> On peut creer des routes imbriquees pour modeliser les relations entre ressources.
+> On peut créer des routes imbriquees pour modeliser les relations entre ressources.
 
-**Action** : Creer un controller pour les commentaires d'une tache.
+**Action** : Créer un controller pour les commentaires d'une tache.
 
 ```typescript
 // src/tasks/comments.controller.ts
@@ -218,18 +218,18 @@ curl -X POST -H "Content-Type: application/json" \
   http://localhost:3000/api/v1/tasks/1/comments
 ```
 
-> Les routes imbriquees refletent la hierarchie des ressources. `GET /tasks/1/comments` liste les commentaires de la tache 1. C'est du REST propre.
+> Les routes imbriquees refletent la hiérarchie des ressources. `GET /tasks/1/comments` liste les commentaires de la tache 1. C'est du REST propre.
 
 ### [13:00-14:30] Recap
 
-> Les controllers NestJS utilisent des decorateurs pour tout decrire : routes, parametres, codes de statut. Les DTOs avec class-validator gerent la validation de maniere declarative. Et le ValidationPipe global applique ces regles automatiquement.
+> Les controllers NestJS utilisent des decorateurs pour tout decrire : routes, paramètres, codes de statut. Les DTOs avec class-validator gerent la validation de manière declarative. Et le ValidationPipe global applique ces regles automatiquement.
 
 **Action** : Afficher le slide recap.
 
-> Le lab est dans `labs/lab-10-controllers-dto/`. Vous allez creer des controllers avec DTOs valides, des routes imbriquees et du filtrage par query parameters. A bientot pour les providers et l'injection de dependances !
+> Le lab est dans `labs/lab-10-controllers-dto/`. Vous allez créer des controllers avec DTOs valides, des routes imbriquees et du filtrage par query parameters. A bientot pour les providers et l'injection de dépendances !
 
 ## Points d'attention pour l'enregistrement
 - Montrer les messages d'erreur de validation — ils sont clairs et structures
-- Insister sur whitelist et forbidNonWhitelisted pour la securite
-- Bien montrer PartialType qui rend toutes les proprietes optionnelles
-- Le lien avec Zod vu precedemment : class-validator est l'equivalent NestJS
+- Insister sur whitelist et forbidNonWhitelisted pour la sécurité
+- Bien montrer PartialType qui rend toutes les propriétés optionnelles
+- Le lien avec Zod vu precedemment : class-validator est l'équivalent NestJS

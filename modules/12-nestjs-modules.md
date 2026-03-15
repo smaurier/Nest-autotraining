@@ -1,6 +1,6 @@
 # Module 12 — NestJS — Modules & Architecture
 
-> **Objectif** : Maitriser l'architecture modulaire de NestJS — modules feature, modules partages, modules globaux, modules dynamiques (forRoot/forRootAsync/forFeature), et concevoir une architecture d'application reelle, maintenable et evolutive.
+> **Objectif** : Maîtriser l'architecture modulaire de NestJS — modules feature, modules partages, modules globaux, modules dynamiques (forRoot/forRootAsync/forFeature), et concevoir une architecture d'application réelle, maintenable et evolutive.
 >
 > **Difficulte** : ⭐⭐⭐ (avance)
 
@@ -26,7 +26,7 @@ import { BooksService } from './books.service';
 export class BooksModule {}
 ```
 
-| Propriete | Role | Analogie |
+| Propriété | Role | Analogie |
 |---|---|---|
 | `imports` | Modules dont ce module depend | Les fournisseurs externes |
 | `controllers` | Classes qui gerent les routes HTTP | Les employes en contact avec le client |
@@ -64,7 +64,7 @@ export class OrdersService {
 }
 ```
 
-> **Piege classique** : Si tu importes un module mais que le provider dont tu as besoin n'est PAS dans `exports`, tu obtiendras une erreur au demarrage : `Nest can't resolve dependencies`. Verifie toujours que le provider est exporte.
+> **Piege classique** : Si tu importes un module mais que le provider dont tu as besoin n'est PAS dans `exports`, tu obtiendras une erreur au démarrage : `Nest can't resolve dependencies`. Verifie toujours que le provider est exporte.
 
 ---
 
@@ -72,7 +72,7 @@ export class OrdersService {
 
 ### 2.1 Qu'est-ce qu'un feature module
 
-Un **feature module** regroupe tout le code lie a une fonctionnalite metier. C'est l'unite d'organisation principale de NestJS.
+Un **feature module** regroupe tout le code lie à une fonctionnalite metier. C'est l'unite d'organisation principale de NestJS.
 
 ```
 src/
@@ -129,7 +129,7 @@ export class AppModule {}
 
 ### 3.1 Le concept
 
-Un **shared module** contient des providers reutilisables par plusieurs feature modules. Il est importe la ou il est necessaire.
+Un **shared module** contient des providers réutilisables par plusieurs feature modules. Il est importe la ou il est nécessaire.
 
 ```typescript
 // common/common.module.ts
@@ -164,7 +164,7 @@ export class UsersModule {}
 
 ### 3.2 Singleton garanti
 
-Meme si `CommonModule` est importe dans 5 modules differents, les providers restent des **singletons**. NestJS ne cree qu'une seule instance de `LoggerService`, partagee par tous les consommateurs.
+Même si `CommonModule` est importe dans 5 modules différents, les providers restent des **singletons**. NestJS ne créé qu'une seule instance de `LoggerService`, partagee par tous les consommateurs.
 
 ```
   AppModule
@@ -221,9 +221,9 @@ export class BooksService {
 | ConfigModule | Oui | Utilise partout |
 | LoggerModule | Oui | Utilise partout |
 | DatabaseModule | Oui | Utilise par la plupart des services |
-| BooksModule | Non | Feature specifique |
-| AuthModule | Non | Feature specifique |
-| UsersModule | Non | Feature specifique |
+| BooksModule | Non | Feature spécifique |
+| AuthModule | Non | Feature spécifique |
+| UsersModule | Non | Feature spécifique |
 
 ---
 
@@ -231,19 +231,19 @@ export class BooksService {
 
 ### 5.1 Qu'est-ce qu'un module dynamique
 
-Un **module dynamique** est un module dont la configuration est parametrable au moment de l'import. Au lieu d'un `@Module()` statique, il expose des methodes statiques (`forRoot`, `forFeature`, `register`) qui retournent un module configure.
+Un **module dynamique** est un module dont la configuration est parametrable au moment de l'import. Au lieu d'un `@Module()` statique, il expose des méthodes statiques (`forRoot`, `forFeature`, `register`) qui retournent un module configure.
 
-> **Analogie** : Un module statique, c'est comme un meuble deja monte — tu le prends tel quel. Un module dynamique, c'est comme un meuble IKEA configurable — tu choisis la couleur, la taille et les options au moment de la commande.
+> **Analogie** : Un module statique, c'est comme un meuble déjà monte — tu le prends tel quel. Un module dynamique, c'est comme un meuble IKEA configurable — tu choisis la couleur, la taille et les options au moment de la commande.
 
 ### 5.2 Le pattern forRoot / forFeature
 
 Ce pattern est utilise par de nombreux modules NestJS officiels (`TypeOrmModule`, `ConfigModule`, `JwtModule`, etc.) :
 
-| Methode | Usage | Quand l'utiliser |
+| Méthode | Usage | Quand l'utiliser |
 |---|---|---|
 | `forRoot()` | Configuration principale (une seule fois dans AppModule) | Connexion base de donnees, configuration globale |
-| `forRootAsync()` | Comme forRoot mais avec des dependances async | Quand la config depend d'un service (ConfigService) |
-| `forFeature()` | Configuration par feature module | Enregistrer des entites, des repositories specifiques |
+| `forRootAsync()` | Comme forRoot mais avec des dépendances async | Quand la config depend d'un service (ConfigService) |
+| `forFeature()` | Configuration par feature module | Enregistrer des entites, des repositories spécifiques |
 | `register()` | Configuration par module (pas de pattern root/feature) | Modules simples sans distinction root/feature |
 
 ### 5.3 Implementer un module dynamique
@@ -306,7 +306,7 @@ export class DatabaseModule {
 export class AppModule {}
 ```
 
-### 5.4 forRootAsync — Configuration avec dependances
+### 5.4 forRootAsync — Configuration avec dépendances
 
 ```typescript
 // database/database.module.ts (suite)
@@ -427,7 +427,7 @@ export class BooksModule {}
 
 ## 6. ConfigurableModuleBuilder
 
-NestJS 9+ fournit un utilitaire pour simplifier la creation de modules dynamiques :
+NestJS 9+ fournit un utilitaire pour simplifier la création de modules dynamiques :
 
 ```typescript
 import { ConfigurableModuleBuilder } from '@nestjs/common';
@@ -524,9 +524,9 @@ export class BooksModule {}
 
 ## 8. Dependances circulaires et forwardRef
 
-### 8.1 Le probleme
+### 8.1 Le problème
 
-Deux modules qui s'importent mutuellement creent une dependance circulaire :
+Deux modules qui s'importent mutuellement creent une dépendance circulaire :
 
 ```typescript
 // UsersModule importe OrdersModule
@@ -554,7 +554,7 @@ export class UsersModule {}
 export class OrdersModule {}
 ```
 
-Meme chose pour les services :
+Même chose pour les services :
 
 ```typescript
 @Injectable()
@@ -566,22 +566,22 @@ export class UsersService {
 }
 ```
 
-> **Piege classique** : Les dependances circulaires sont un signe d'architecture problematique. Avant d'utiliser `forwardRef`, demande-toi si tu ne devrais pas refactorer pour eliminer la circularite. Souvent, un module intermediaire ou une interface partagee resout le probleme plus proprement.
+> **Piege classique** : Les dépendances circulaires sont un signe d'architecture problematique. Avant d'utiliser `forwardRef`, demandé-toi si tu ne devrais pas refactorer pour eliminer la circularite. Souvent, un module intermédiaire ou une interface partagee resout le problème plus proprement.
 
 ### 8.3 Alternatives a forwardRef
 
 | Solution | Description |
 |---|---|
-| **Module intermediaire** | Cree un module C qui contient la logique partagee entre A et B |
+| **Module intermédiaire** | Cree un module C qui contient la logique partagee entre A et B |
 | **Events** | Utilise EventEmitter pour decouple la communication |
 | **Interface partagee** | Extrais l'interface dans un module common |
-| **Refactoring** | Restructure les dependances pour eliminer le cycle |
+| **Refactoring** | Restructure les dépendances pour eliminer le cycle |
 
 ---
 
 ## 9. Lazy-loaded modules
 
-NestJS 8+ supporte le chargement paresseux de modules (utile pour les tres grandes applications ou les micro-services) :
+NestJS 8+ supporte le chargement paresseux de modules (utile pour les très grandes applications ou les micro-services) :
 
 ```typescript
 import { Module } from '@nestjs/common';
@@ -603,7 +603,7 @@ export class AppService {
 }
 ```
 
-> **A retenir** : Le lazy loading est un pattern avance, utile pour les applications monolithiques tres grandes ou les modules rarement utilises (generation de rapports, import/export massif). Pour la plupart des applications, le chargement standard suffit.
+> **A retenir** : Le lazy loading est un pattern avance, utile pour les applications monolithiques très grandes ou les modules rarement utilises (génération de rapports, import/export massif). Pour la plupart des applications, le chargement standard suffit.
 
 ---
 
@@ -682,7 +682,7 @@ src/
         └── order.entity.ts
 ```
 
-### 10.2 Le graphe de dependances
+### 10.2 Le graphe de dépendances
 
 ```
                     AppModule
@@ -750,12 +750,12 @@ export class AppModule {}
 | **Un module par feature metier** | books, users, auth, orders — pas de mega-module |
 | **Module racine leger** | Seulement des imports, pas de controllers ni de providers |
 | **CoreModule global** | Pour config, logger, database — importe une seule fois |
-| **CommonModule partage** | Pour les utilitaires reutilisables — importe la ou necessaire |
+| **CommonModule partage** | Pour les utilitaires réutilisables — importe la ou nécessaire |
 | **Exporter explicitement** | Ne rend public que ce qui DOIT etre public |
-| **Eviter @Global** | Seulement pour les modules vraiment transversaux |
-| **Eviter forwardRef** | Refactore pour eliminer les dependances circulaires |
+| **Éviter @Global** | Seulement pour les modules vraiment transversaux |
+| **Éviter forwardRef** | Refactore pour eliminer les dépendances circulaires |
 | **Nommer avec convention** | `books.module.ts`, `books.controller.ts`, `books.service.ts` |
-| **Colocaliser** | Controller, service, DTOs et entities dans le meme dossier |
+| **Colocaliser** | Controller, service, DTOs et entities dans le même dossier |
 | **Modules dynamiques pour les libs** | forRoot/forRootAsync pour les modules configurables |
 
 ---
@@ -784,7 +784,7 @@ Dessine et implemente l'architecture d'une application de e-commerce avec les mo
 
 Definis les `imports` et `exports` de chaque module.
 
-### Exercice 3 — Eliminer une dependance circulaire
+### Exercice 3 — Eliminer une dépendance circulaire
 
 Tu as :
 - `UsersService` qui a besoin de `OrdersService` (pour lister les commandes d'un utilisateur)
@@ -794,23 +794,23 @@ Propose et implemente une solution sans `forwardRef`.
 
 ---
 
-## 13. Resume — Les concepts cles
+## 13. Résumé — Les concepts clés
 
 | Concept | Definition |
 |---|---|
 | **@Module** | Decorateur qui declare un module avec imports, controllers, providers, exports |
 | **Feature module** | Module qui encapsule une fonctionnalite metier |
-| **Shared module** | Module reutilisable importe par plusieurs feature modules |
+| **Shared module** | Module réutilisable importe par plusieurs feature modules |
 | **@Global** | Rend les exports d'un module disponibles partout |
-| **forRoot** | Methode statique pour la configuration principale d'un module dynamique |
-| **forRootAsync** | Comme forRoot mais avec des dependances injectables |
-| **forFeature** | Configuration par feature (entites, repositories specifiques) |
-| **ConfigurableModuleBuilder** | Utilitaire pour creer des modules dynamiques facilement |
+| **forRoot** | Méthode statique pour la configuration principale d'un module dynamique |
+| **forRootAsync** | Comme forRoot mais avec des dépendances injectables |
+| **forFeature** | Configuration par feature (entites, repositories spécifiques) |
+| **ConfigurableModuleBuilder** | Utilitaire pour créer des modules dynamiques facilement |
 | **exports** | Rend les providers accessibles aux modules importateurs |
-| **forwardRef** | Resout les dependances circulaires (a eviter si possible) |
+| **forwardRef** | Resout les dépendances circulaires (a éviter si possible) |
 | **Re-export** | Un module qui re-exporte les modules qu'il importe |
 
-> **A retenir** : L'architecture modulaire est la force de NestJS. Chaque module est une unite autonome avec des frontieres claires. Les modules communiquent via des imports/exports explicites, ce qui rend le graphe de dependances visible et controlable. Un bon decoupage en modules rend l'application maintenable a long terme, facilite le travail en equipe (chaque developpeur travaille sur un module) et prepare naturellement la migration vers des microservices si necessaire.
+> **A retenir** : L'architecture modulaire est la force de NestJS. Chaque module est une unite autonome avec des frontieres claires. Les modules communiquent via des imports/exports explicites, ce qui rend le graphe de dépendances visible et controlable. Un bon découpage en modules rend l'application maintenable a long terme, facilite le travail en équipe (chaque développeur travaille sur un module) et prepare naturellement la migration vers des microservices si nécessaire.
 
 ---
 
@@ -818,11 +818,21 @@ Propose et implemente une solution sans `forwardRef`.
 
 | | Lien |
 |---|---|
-| Module precedent | [Module 11 — NestJS — Providers & Injection de Dependances](./11-nestjs-providers-di.md) |
+| Module précédent | [Module 11 — NestJS — Providers & Injection de Dependances](./11-nestjs-providers-di.md) |
 | Module suivant | Fin du parcours — Bravo ! |
 | Quiz | [Quiz Module 12](../quizzes/12-nestjs-modules.quiz.md) |
 | Lab | [Lab 12 — Architecture NestJS](../labs/12-nestjs-modules.lab.md) |
 
 ---
 
-> **A retenir** : Tu as termine le parcours complet — de zero connaissance backend a la maitrise de l'architecture NestJS. Tu sais maintenant comment fonctionne Node.js (event loop, streams), comment construire des API avec Express (routing, middleware, validation, auth), et comment structurer des applications maintenables avec NestJS (modules, controllers, providers, DI). Ces competences sont directement applicables en entreprise. La prochaine etape : integrer une base de donnees (PostgreSQL avec TypeORM ou Prisma), ajouter du testing complet, et deployer en production.
+> **A retenir** : Tu as termine le parcours complet — de zero connaissance backend à la maîtrise de l'architecture NestJS. Tu sais maintenant comment fonctionne Node.js (event loop, streams), comment construire des API avec Express (routing, middleware, validation, auth), et comment structurer des applications maintenables avec NestJS (modules, controllers, providers, DI). Ces compétences sont directement applicables en entreprise. La prochaine étape : intégrer une base de donnees (PostgreSQL avec TypeORM ou Prisma), ajouter du testing complet, et déployer en production.
+
+---
+
+<!-- parcours-recommande -->
+
+::: tip Parcours recommandé
+1. **Screencast** : [screencast 12 modules](../screencasts/screencast-12-modules.md)
+2. **Lab** : [lab-12-modules-architecture](../labs/lab-12-modules-architecture/README)
+3. **Quiz** : [quiz 12 modules](../quizzes/quiz-12-modules.html)
+:::

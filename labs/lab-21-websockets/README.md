@@ -2,27 +2,27 @@
 
 ## Objectifs
 
-- Creer un serveur WebSocket avec NestJS
-- Implementer un chat en temps reel avec des salons (rooms)
+- Créer un serveur WebSocket avec NestJS
+- Implementer un chat en temps réel avec des salons (rooms)
 - Utiliser les decorateurs @WebSocketGateway, @SubscribeMessage
-- Gerer les connexions/deconnexions
+- Gérer les connexions/deconnexions
 - Envoyer des messages directs et en broadcast
 
 ## Description
 
-Vous allez creer un serveur de chat en temps reel. Les utilisateurs peuvent :
+Vous allez créer un serveur de chat en temps réel. Les utilisateurs peuvent :
 - Rejoindre et quitter des salons
-- Envoyer des messages a un salon
-- Envoyer des messages directs a un utilisateur
+- Envoyer des messages à un salon
+- Envoyer des messages directs à un utilisateur
 
-## Evenements WebSocket
+## Événements WebSocket
 
-| Evenement     | Direction     | Description                      |
+| Événement     | Direction     | Description                      |
 |--------------|--------------|----------------------------------|
 | joinRoom     | Client -> Server | Rejoindre un salon             |
 | leaveRoom    | Client -> Server | Quitter un salon               |
 | message      | Client -> Server | Envoyer un message au salon    |
-| directMessage| Client -> Server | Message direct a un client     |
+| directMessage| Client -> Server | Message direct à un client     |
 | newMessage   | Server -> Client | Nouveau message recu           |
 | userJoined   | Server -> Client | Un utilisateur a rejoint       |
 | userLeft     | Server -> Client | Un utilisateur a quitte        |

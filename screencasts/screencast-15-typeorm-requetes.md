@@ -4,12 +4,12 @@
 - **Duree estimee** : 15-20 min
 - **Module** : `modules/15-typeorm-requetes-migrations.md`
 - **Lab associe** : `labs/lab-15-typeorm-queries/`
-- **Prerequis** : Screencast 14 (TypeORM Entites & Relations)
+- **Prérequis** : Screencast 14 (TypeORM Entites & Relations)
 
 ## Setup
 - [ ] Node.js 20+ installe
 - [ ] Terminal ouvert dans `nest-course/`
-- [ ] Projet NestJS avec TypeORM du screencast precedent
+- [ ] Projet NestJS avec TypeORM du screencast précédent
 - [ ] PostgreSQL demarre avec des donnees de test
 - [ ] Editeur de code ouvert
 
@@ -21,11 +21,11 @@
 
 **Action** : Afficher le slide de titre "Module 15 — TypeORM Requetes & Migrations".
 
-> Le Repository est parfait pour les operations simples. Mais quand on a besoin de requetes complexes — jointures, sous-requetes, aggregations — on utilise le QueryBuilder.
+> Le Repository est parfait pour les operations simples. Mais quand on a besoin de requêtes complexes — jointures, sous-requêtes, aggregations — on utilise le QueryBuilder.
 
 ### [03:00-08:00] QueryBuilder — Requetes avancees
 
-**Action** : Creer des methodes avec QueryBuilder dans le service.
+**Action** : Créer des méthodes avec QueryBuilder dans le service.
 
 ```typescript
 // src/tasks/tasks.service.ts
@@ -94,7 +94,7 @@ export class TasksService {
 }
 ```
 
-**Action** : Tester les requetes.
+**Action** : Tester les requêtes.
 
 ```bash
 # Recherche avec filtres
@@ -104,7 +104,7 @@ curl "http://localhost:3000/tasks/search?keyword=learn&priority=high&page=1&limi
 curl http://localhost:3000/tasks/statistics
 ```
 
-> Le QueryBuilder construit la requete SQL de maniere fluide. `leftJoinAndSelect` charge les relations. `andWhere` ajoute des conditions. `skip/take` gere la pagination. `getManyAndCount` renvoie les donnees et le total.
+> Le QueryBuilder construit la requête SQL de manière fluide. `leftJoinAndSelect` charge les relations. `andWhere` ajoute des conditions. `skip/take` géré la pagination. `getManyAndCount` renvoie les donnees et le total.
 
 ### [08:00-12:00] Transactions — Integrite des donnees
 
@@ -169,7 +169,7 @@ curl -X POST -H "Content-Type: application/json" \
   http://localhost:3000/tasks/assign
 ```
 
-### [12:00-16:00] Migrations — Gerer l'evolution du schema
+### [12:00-16:00] Migrations — Gérer l'evolution du schema
 
 > En production, on ne peut pas utiliser `synchronize: true`. Les migrations permettent de versionner les changements de schema.
 
@@ -204,7 +204,7 @@ export default new DataSource({
 }
 ```
 
-**Action** : Generer et executer une migration.
+**Action** : Générer et exécuter une migration.
 
 ```bash
 # Generer une migration a partir des changements d'entites
@@ -214,9 +214,9 @@ npm run migration:generate -- src/migrations/InitialSchema
 npm run migration:run
 ```
 
-> La migration generee contient les requetes SQL `CREATE TABLE`, `ALTER TABLE`, etc. Elle a aussi une methode `down()` pour annuler les changements. C'est versionne avec git, reproductible, et securise.
+> La migration générée contient les requêtes SQL `CREATE TABLE`, `ALTER TABLE`, etc. Elle a aussi une méthode `down()` pour annuler les changements. C'est versionne avec git, reproductible, et sécurisé.
 
-**Action** : Montrer le contenu d'une migration generee.
+**Action** : Montrer le contenu d'une migration générée.
 
 ```typescript
 // src/migrations/xxxxx-InitialSchema.ts
@@ -237,14 +237,14 @@ export class InitialSchema1234567890 implements MigrationInterface {
 
 ### [16:00-18:30] Recap
 
-> Le QueryBuilder permet des requetes complexes avec filtres, pagination et aggregation. Les transactions garantissent l'atomicite des operations. Et les migrations versionnent l'evolution du schema.
+> Le QueryBuilder permet des requêtes complexes avec filtres, pagination et aggregation. Les transactions garantissent l'atomicite des operations. Et les migrations versionnent l'evolution du schema.
 
 **Action** : Afficher le slide recap.
 
-> Desactivez `synchronize: true` et utilisez les migrations pour tout projet serieux. Le lab est dans `labs/lab-15-typeorm-queries/`. Vous allez pratiquer le QueryBuilder, les transactions et les migrations. Au prochain screencast, on decouvre Prisma !
+> Desactivez `synchronize: true` et utilisez les migrations pour tout projet serieux. Le lab est dans `labs/lab-15-typeorm-queries/`. Vous allez pratiquer le QueryBuilder, les transactions et les migrations. Au prochain screencast, on découvre Prisma !
 
 ## Points d'attention pour l'enregistrement
-- Preparer des donnees de test dans la base avant de montrer les requetes
-- Montrer le SQL genere par le QueryBuilder avec logging: true dans la config
+- Preparer des donnees de test dans la base avant de montrer les requêtes
+- Montrer le SQL généré par le QueryBuilder avec logging: true dans la config
 - La demo de rollback doit clairement montrer que les donnees n'ont pas change
 - Insister sur le danger de synchronize:true en production

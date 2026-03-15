@@ -4,7 +4,7 @@
 - **Duree estimee** : 15-18 min
 - **Module** : `modules/20-nestjs-config-swagger.md`
 - **Lab associe** : `labs/lab-20-config-swagger/`
-- **Prerequis** : Screencast 19 (Auth NestJS)
+- **Prérequis** : Screencast 19 (Auth NestJS)
 
 ## Setup
 - [ ] Node.js 20+ installe
@@ -21,7 +21,7 @@
 
 **Action** : Afficher le slide de titre "Module 20 — Config & Swagger".
 
-> Jusqu'ici, on a code en dur les secrets, les ports, les URLs de base de donnees. En production, tout ca doit venir de variables d'environnement. ConfigModule gere ca proprement.
+> Jusqu'ici, on a code en dur les secrets, les ports, les URLs de base de donnees. En production, tout ça doit venir de variables d'environnement. ConfigModule géré ça proprement.
 
 ### [02:30-07:00] ConfigModule — Gestion de la configuration
 
@@ -31,7 +31,7 @@
 npm install @nestjs/config joi
 ```
 
-**Action** : Creer le fichier .env et la validation.
+**Action** : Créer le fichier .env et la validation.
 
 ```bash
 # .env
@@ -112,7 +112,7 @@ async function bootstrap() {
 }
 ```
 
-> ConfigService injecte les variables d'environnement de maniere type-safe. La validation Joi s'assure que toutes les variables requises sont presentes au demarrage. Si une variable manque, l'application refuse de demarrer.
+> ConfigService injecte les variables d'environnement de manière type-safe. La validation Joi s'assure que toutes les variables requises sont presentes au démarrage. Si une variable manque, l'application refuse de démarrer.
 
 **Action** : Tester en supprimant une variable requise.
 
@@ -121,7 +121,7 @@ async function bootstrap() {
 npm run start:dev
 ```
 
-> Vous voyez l'erreur ? "JWT_SECRET is required". L'application refuse de demarrer sans configuration complete. C'est exactement ce qu'on veut en production.
+> Vous voyez l'erreur ? "JWT_SECRET is required". L'application refuse de démarrer sans configuration complete. C'est exactement ce qu'on veut en production.
 
 ### [07:00-13:00] Swagger — Documentation API automatique
 
@@ -164,7 +164,7 @@ async function bootstrap() {
 bootstrap();
 ```
 
-> Swagger genere une documentation interactive a partir de votre code. Mais pour qu'elle soit vraiment utile, il faut ajouter des decorateurs sur les DTOs et les controllers.
+> Swagger généré une documentation interactive à partir de votre code. Mais pour qu'elle soit vraiment utile, il faut ajouter des decorateurs sur les DTOs et les controllers.
 
 **Action** : Enrichir les DTOs avec les decorateurs Swagger.
 
@@ -225,15 +225,15 @@ export class TasksController {
 # Ouvrir http://localhost:3000/api/docs
 ```
 
-> Swagger UI affiche toutes les routes, les schemas de requete et de reponse, et permet de tester les endpoints directement depuis le navigateur. Cliquez sur "Try it out", remplissez les champs, et "Execute". C'est comme Postman integre a votre documentation.
+> Swagger UI affiche toutes les routes, les schemas de requête et de réponse, et permet de tester les endpoints directement depuis le navigateur. Cliquez sur "Try it out", remplissez les champs, et "Execute". C'est comme Postman intégré a votre documentation.
 
 ### [13:00-16:00] Swagger avance — Auth et schemas
 
 **Action** : Tester l'authentification via Swagger.
 
-> Cliquez sur le bouton "Authorize" en haut. Collez votre token JWT. Maintenant toutes les requetes incluront le header Authorization automatiquement.
+> Cliquez sur le bouton "Authorize" en haut. Collez votre token JWT. Maintenant toutes les requêtes incluront le header Authorization automatiquement.
 
-**Action** : Ajouter un schema de reponse.
+**Action** : Ajouter un schema de réponse.
 
 ```typescript
 // src/tasks/dto/task-response.dto.ts
@@ -254,18 +254,18 @@ export class TaskResponseDto {
 }
 ```
 
-> Les schemas de reponse apparaissent dans la documentation. Les developpeurs frontend peuvent voir exactement ce que l'API renvoie sans lire le code backend.
+> Les schemas de réponse apparaissent dans la documentation. Les développeurs frontend peuvent voir exactement ce que l'API renvoie sans lire le code backend.
 
 ### [16:00-17:30] Recap
 
-> ConfigModule gere la configuration via les variables d'environnement avec validation. Swagger genere une documentation interactive automatiquement. Les decorateurs enrichissent la documentation avec des exemples et des descriptions.
+> ConfigModule géré la configuration via les variables d'environnement avec validation. Swagger généré une documentation interactive automatiquement. Les decorateurs enrichissent la documentation avec des exemples et des descriptions.
 
 **Action** : Afficher le slide recap.
 
 > Le lab est dans `labs/lab-20-config-swagger/`. Vous allez configurer ConfigModule, ajouter Swagger et documenter toute votre API. Au prochain screencast, les WebSockets et l'upload de fichiers !
 
 ## Points d'attention pour l'enregistrement
-- Montrer Swagger UI de maniere impressionnante — agrandir le navigateur
+- Montrer Swagger UI de manière impressionnante — agrandir le navigateur
 - Faire un "Try it out" en direct pour montrer l'interactivite
 - Le .env ne doit jamais etre commit — montrer le .env.example
 - Insister sur la validation Joi qui protege contre les erreurs de configuration

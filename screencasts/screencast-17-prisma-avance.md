@@ -4,12 +4,12 @@
 - **Duree estimee** : 15-18 min
 - **Module** : `modules/17-prisma-avance-comparaison.md`
 - **Lab associe** : `labs/lab-17-prisma-avance/`
-- **Prerequis** : Screencast 16 (Prisma Schema & Client)
+- **Prérequis** : Screencast 16 (Prisma Schema & Client)
 
 ## Setup
 - [ ] Node.js 20+ installe
 - [ ] Terminal ouvert dans `nest-course/`
-- [ ] Projet NestJS avec Prisma du screencast precedent
+- [ ] Projet NestJS avec Prisma du screencast précédent
 - [ ] PostgreSQL avec des donnees de test
 - [ ] Editeur de code ouvert
 
@@ -21,9 +21,9 @@
 
 **Action** : Afficher le slide de titre "Module 17 — Prisma Avance & Comparaison".
 
-### [02:30-06:00] Nested writes — Creer des relations en une requete
+### [02:30-06:00] Nested writes — Créer des relations en une requête
 
-> Les nested writes permettent de creer ou connecter des entites liees en une seule operation.
+> Les nested writes permettent de créer ou connecter des entites liees en une seule operation.
 
 **Action** : Demontrer les nested writes.
 
@@ -73,7 +73,7 @@ curl -X POST -H "Content-Type: application/json" \
   http://localhost:3000/tasks/with-tags
 ```
 
-> `connectOrCreate` est genial : si le tag existe, il le connecte. Sinon, il le cree. Tout ca en une seule requete, dans une seule transaction.
+> `connectOrCreate` est genial : si le tag existe, il le connecte. Sinon, il le créé. Tout ça en une seule requête, dans une seule transaction.
 
 ### [06:00-10:00] Pagination et filtrage avance
 
@@ -196,7 +196,7 @@ async bulkCreateTasks(tasks: CreateTaskDto[], authorId: number) {
 }
 ```
 
-> Prisma propose deux styles de transactions : les transactions interactives (avec un callback et `tx`) et les transactions batch (un tableau de requetes). Les deux sont atomiques.
+> Prisma propose deux styles de transactions : les transactions interactives (avec un callback et `tx`) et les transactions batch (un tableau de requêtes). Les deux sont atomiques.
 
 ### [13:00-16:00] Comparaison TypeORM vs Prisma
 
@@ -217,13 +217,13 @@ async bulkCreateTasks(tasks: CreateTaskDto[], authorId: number) {
 | Debug SQL            | logging: true              | $queryRaw, logs            |
 ```
 
-> TypeORM est ideal si vous venez du monde Java/Hibernate ou si vous avez besoin du pattern Active Record. Prisma est excellent pour les nouveaux projets grace a son type safety complet et sa DX (Developer Experience) superieure.
+> TypeORM est ideal si vous venez du monde Java/Hibernate ou si vous avez besoin du pattern Active Record. Prisma est excellent pour les nouveaux projets grâce à son type safety complet et sa DX (Developer Experience) superieure.
 
-> En pratique, les deux fonctionnent tres bien avec NestJS. Choisissez celui qui correspond le mieux a votre equipe et votre projet.
+> En pratique, les deux fonctionnent très bien avec NestJS. Choisissez celui qui correspond le mieux a votre équipe et votre projet.
 
 ### [16:00-17:30] Recap
 
-> Prisma offre des nested writes pour creer des relations en une requete, deux modes de pagination, des transactions interactives et batch. Compare a TypeORM, il est plus type-safe mais moins flexible pour le SQL brut.
+> Prisma offre des nested writes pour créer des relations en une requête, deux modes de pagination, des transactions interactives et batch. Compare a TypeORM, il est plus type-safe mais moins flexible pour le SQL brut.
 
 **Action** : Afficher le slide recap.
 

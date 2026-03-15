@@ -4,7 +4,7 @@
 - **Duree estimee** : 18-22 min
 - **Module** : `modules/14-typeorm-entites-relations.md`
 - **Lab associe** : `labs/lab-14-typeorm-entites/`
-- **Prerequis** : Screencast 13 (Pipes, Guards & Interceptors), PostgreSQL installe
+- **Prérequis** : Screencast 13 (Pipes, Guards & Interceptors), PostgreSQL installe
 
 ## Setup
 - [ ] Node.js 20+ installe
@@ -17,19 +17,19 @@
 
 ### [00:00-03:00] Introduction — TypeORM et NestJS
 
-> Salut ! Jusqu'a maintenant, nos donnees etaient stockees en memoire. Un redemarrage du serveur et tout disparait. Aujourd'hui on va connecter une vraie base de donnees PostgreSQL avec TypeORM.
+> Salut ! Jusqu'a maintenant, nos donnees etaient stockees en mémoire. Un redemarrage du serveur et tout disparait. Aujourd'hui on va connecter une vraie base de donnees PostgreSQL avec TypeORM.
 
 **Action** : Afficher le slide de titre "Module 14 — TypeORM Entites & Relations".
 
-> TypeORM est un ORM (Object-Relational Mapping) TypeScript. Il permet de manipuler la base de donnees avec des classes TypeScript au lieu d'ecrire du SQL brut. Chaque table est representee par une entite, chaque colonne par une propriete.
+> TypeORM est un ORM (Object-Relational Mapping) TypeScript. Il permet de manipuler la base de donnees avec des classes TypeScript au lieu d'écrire du SQL brut. Chaque table est representee par une entite, chaque colonne par une propriété.
 
-**Action** : Installer les dependances.
+**Action** : Installer les dépendances.
 
 ```bash
 npm install @nestjs/typeorm typeorm pg
 ```
 
-### [03:00-07:00] Configuration et premiere entite
+### [03:00-07:00] Configuration et première entite
 
 **Action** : Configurer TypeORM dans AppModule.
 
@@ -59,7 +59,7 @@ import { UsersModule } from './users/users.module';
 export class AppModule {}
 ```
 
-**Action** : Creer l'entite User.
+**Action** : Créer l'entite User.
 
 ```typescript
 // src/users/entities/user.entity.ts
@@ -90,13 +90,13 @@ export class User {
 }
 ```
 
-> Chaque decorateur definit une colonne : `@PrimaryGeneratedColumn` pour l'ID auto-incremente, `@Column` pour les colonnes standard, `@CreateDateColumn` pour la date de creation automatique. `select: false` sur le mot de passe signifie qu'il ne sera pas inclus dans les requetes par defaut.
+> Chaque decorateur définit une colonne : `@PrimaryGeneratedColumn` pour l'ID auto-incremente, `@Column` pour les colonnes standard, `@CreateDateColumn` pour la date de création automatique. `select: false` sur le mot de passe signifie qu'il ne sera pas inclus dans les requêtes par defaut.
 
 ### [07:00-12:00] Relations — OneToMany, ManyToOne, ManyToMany
 
 > La puissance d'un ORM, c'est la gestion des relations entre entites.
 
-**Action** : Creer l'entite Task avec une relation vers User.
+**Action** : Créer l'entite Task avec une relation vers User.
 
 ```typescript
 // src/tasks/entities/task.entity.ts
@@ -160,7 +160,7 @@ export class User {
 }
 ```
 
-> `@ManyToOne` : plusieurs taches appartiennent a un utilisateur. `@OneToMany` : un utilisateur a plusieurs taches. C'est la relation la plus courante.
+> `@ManyToOne` : plusieurs taches appartiennent à un utilisateur. `@OneToMany` : un utilisateur a plusieurs taches. C'est la relation la plus courante.
 
 **Action** : Montrer une relation ManyToMany avec les tags.
 
@@ -193,7 +193,7 @@ import { Tag } from './tag.entity';
 tags: Tag[];
 ```
 
-> `@ManyToMany` avec `@JoinTable` cree automatiquement une table de jointure. TypeORM gere tout.
+> `@ManyToMany` avec `@JoinTable` créé automatiquement une table de jointure. TypeORM géré tout.
 
 ### [12:00-16:00] Repository — CRUD avec TypeORM
 
@@ -279,14 +279,14 @@ curl http://localhost:3000/tasks
 
 ### [16:00-19:30] Recap
 
-> TypeORM connecte NestJS a PostgreSQL. Les entites decrivent les tables avec des decorateurs. Les relations (OneToMany, ManyToOne, ManyToMany) gerent les liens entre tables. Le Repository fournit les methodes CRUD.
+> TypeORM connecte NestJS a PostgreSQL. Les entites decrivent les tables avec des decorateurs. Les relations (OneToMany, ManyToOne, ManyToMany) gerent les liens entre tables. Le Repository fournit les méthodes CRUD.
 
 **Action** : Afficher le slide recap.
 
-> Attention : `synchronize: true` est pratique en developpement mais dangereux en production. En production, on utilise les migrations — c'est exactement ce qu'on verra au prochain screencast. Le lab est dans `labs/lab-14-typeorm-entites/`.
+> Attention : `synchronize: true` est pratique en développement mais dangereux en production. En production, on utilise les migrations — c'est exactement ce qu'on verra au prochain screencast. Le lab est dans `labs/lab-14-typeorm-entites/`.
 
 ## Points d'attention pour l'enregistrement
 - S'assurer que PostgreSQL tourne et que la base "nestcourse" existe
-- Montrer les tables creees dans pgAdmin ou psql apres le demarrage
+- Montrer les tables creees dans pgAdmin ou psql après le démarrage
 - Insister sur synchronize:true qui est uniquement pour le dev
 - Les relations eager vs lazy sont un concept important a clarifier

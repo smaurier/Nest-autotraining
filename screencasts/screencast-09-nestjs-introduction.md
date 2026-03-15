@@ -4,7 +4,7 @@
 - **Duree estimee** : 15-20 min
 - **Module** : `modules/09-nestjs-introduction.md`
 - **Lab associe** : `labs/lab-09-nestjs-premiers-pas/`
-- **Prerequis** : Screencast 08 (Auth & Securite), connaissances TypeScript basiques
+- **Prérequis** : Screencast 08 (Auth & Sécurité), connaissances TypeScript basiques
 
 ## Setup
 - [ ] Node.js 20+ installe
@@ -17,7 +17,7 @@
 
 ### [00:00-03:00] Introduction — Pourquoi NestJS ?
 
-> Salut ! On a passe huit screencasts a construire des APIs avec Node.js natif et Express. On a vu les limites : pas de structure imposee, pas de typage, pas d'injection de dependances. NestJS resout tous ces problemes.
+> Salut ! On a passe huit screencasts à construire des APIs avec Node.js natif et Express. On a vu les limites : pas de structure imposee, pas de typage, pas d'injection de dépendances. NestJS resout tous ces problèmes.
 
 **Action** : Afficher le slide de titre "Module 09 — NestJS Introduction".
 
@@ -30,18 +30,18 @@ npm i -g @nestjs/cli
 nest --version
 ```
 
-### [03:00-07:00] Creer un projet NestJS
+### [03:00-07:00] Créer un projet NestJS
 
-> On va creer notre premier projet NestJS avec le CLI.
+> On va créer notre premier projet NestJS avec le CLI.
 
-**Action** : Generer un nouveau projet.
+**Action** : Générer un nouveau projet.
 
 ```bash
 nest new task-api
 cd task-api
 ```
 
-> Le CLI genere une structure complete. Regardons ce qu'il y a dedans.
+> Le CLI généré une structure complete. Regardons ce qu'il y a dedans.
 
 **Action** : Explorer la structure dans l'editeur.
 
@@ -91,7 +91,7 @@ export class AppController {
 }
 ```
 
-> Vous voyez les decorateurs ? `@Module`, `@Controller`, `@Get`. C'est la signature de NestJS. Les decorateurs decrivent le role de chaque classe. Et le constructeur du controller recoit le service automatiquement — c'est l'injection de dependances.
+> Vous voyez les decorateurs ? `@Module`, `@Controller`, `@Get`. C'est la signature de NestJS. Les decorateurs decrivent le role de chaque classe. Et le constructeur du controller recoit le service automatiquement — c'est l'injection de dépendances.
 
 **Action** : Lancer le serveur.
 
@@ -105,17 +105,17 @@ curl http://localhost:3000
 
 > `start:dev` lance le serveur en mode watch : chaque modification du code redemarre automatiquement.
 
-### [07:00-12:00] Generer une ressource CRUD
+### [07:00-12:00] Générer une ressource CRUD
 
-> Le CLI NestJS peut generer une ressource complete en une commande. C'est la ou ca devient magique.
+> Le CLI NestJS peut générer une ressource complete en une commande. C'est la ou ça devient magique.
 
-**Action** : Generer la ressource tasks.
+**Action** : Générer la ressource tasks.
 
 ```bash
 nest g resource tasks
 ```
 
-> Choisissez "REST API" et "Yes" pour les CRUD entry points. Le CLI a genere un controller, un service, un module, des DTOs et des entites. Tout est cable automatiquement.
+> Choisissez "REST API" et "Yes" pour les CRUD entry points. Le CLI a généré un controller, un service, un module, des DTOs et des entites. Tout est cable automatiquement.
 
 **Action** : Explorer les fichiers generes.
 
@@ -157,11 +157,11 @@ export class TasksController {
 }
 ```
 
-> Comparez avec Express : plus de `app.get()`, plus de `req.params`. Chaque route est une methode decoree. `@Get()`, `@Post()`, `@Param('id')`, `@Body()`. C'est declaratif, typesafe, et auto-documente.
+> Comparez avec Express : plus de `app.get()`, plus de `req.params`. Chaque route est une méthode decoree. `@Get()`, `@Post()`, `@Param('id')`, `@Body()`. C'est declaratif, typesafe, et auto-documente.
 
 ### [12:00-16:00] Implementer la logique metier
 
-> Le service genere a des methodes vides. Implementons-les.
+> Le service généré a des méthodes vides. Implementons-les.
 
 **Action** : Completer le service.
 
@@ -234,20 +234,20 @@ curl -X PATCH -H "Content-Type: application/json" \
 curl -X DELETE http://localhost:3000/tasks/1
 ```
 
-> NestJS gere automatiquement les exceptions. `NotFoundException` renvoie un 404 avec un message JSON propre. Pas besoin de middleware d'erreur comme avec Express.
+> NestJS géré automatiquement les exceptions. `NotFoundException` renvoie un 404 avec un message JSON propre. Pas besoin de middleware d'erreur comme avec Express.
 
 ### [16:00-18:30] Recap — NestJS vs Express
 
-> Resumons la difference. Avec Express, on construit tout a la main : routing, validation, erreurs, structure. Avec NestJS, on a une architecture imposee, des decorateurs pour tout decrire, l'injection de dependances pour les services, et la gestion d'erreurs integree.
+> Resumons la différence. Avec Express, on construit tout à la main : routing, validation, erreurs, structure. Avec NestJS, on à une architecture imposee, des decorateurs pour tout decrire, l'injection de dépendances pour les services, et la gestion d'erreurs intégrée.
 
 **Action** : Afficher le slide comparatif.
 
-> NestJS n'est pas "mieux" qu'Express, il est "au-dessus" d'Express. Sous le capot, NestJS utilise Express (ou Fastify) comme couche HTTP. Il ajoute la structure, le typage et l'architecture.
+> NestJS n'est pas "mieux" qu'Express, il est "au-dessus" d'Express. Sous le capot, NestJS utilise Express (où Fastify) comme couche HTTP. Il ajoute la structure, le typage et l'architecture.
 
-> Le lab est dans `labs/lab-09-nestjs-premiers-pas/`. Vous allez creer votre premier projet NestJS et generer une API CRUD complete. C'est le debut de l'aventure NestJS, et on va approfondir chaque concept dans les screencasts suivants !
+> Le lab est dans `labs/lab-09-nestjs-premiers-pas/`. Vous allez créer votre premier projet NestJS et générer une API CRUD complete. C'est le debut de l'aventure NestJS, et on va approfondir chaque concept dans les screencasts suivants !
 
 ## Points d'attention pour l'enregistrement
 - S'assurer que le CLI NestJS est installe globalement avant de commencer
-- Prendre le temps de montrer chaque fichier genere par `nest g resource`
+- Prendre le temps de montrer chaque fichier généré par `nest g resource`
 - Insister sur les decorateurs — c'est le concept central de NestJS
 - Faire le parallele explicite avec les patterns Express vus precedemment

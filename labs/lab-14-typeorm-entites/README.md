@@ -2,27 +2,27 @@
 
 ## Objectifs
 
-- Configurer TypeORM avec NestJS (SQLite en memoire)
-- Creer des entites avec des decorateurs TypeORM (@Entity, @Column, @PrimaryGeneratedColumn)
-- Definir des relations (@OneToMany, @ManyToOne)
+- Configurer TypeORM avec NestJS (SQLite en mémoire)
+- Créer des entites avec des decorateurs TypeORM (@Entity, @Column, @PrimaryGeneratedColumn)
+- Définir des relations (@OneToMany, @ManyToOne)
 - Implementer un CRUD avec le Repository pattern
 
 ## Description
 
-Vous allez creer une API avec trois entites liees :
+Vous allez créer une API avec trois entites liees :
 - **User** — possede plusieurs posts
-- **Post** — appartient a un user, possede plusieurs commentaires
-- **Comment** — appartient a un post
+- **Post** — appartient à un user, possede plusieurs commentaires
+- **Comment** — appartient à un post
 
 ## Endpoints
 
-| Methode | Route           | Description            |
+| Méthode | Route           | Description            |
 |---------|----------------|------------------------|
 | GET     | /users          | Lister les utilisateurs|
-| POST    | /users          | Creer un utilisateur   |
+| POST    | /users          | Créer un utilisateur   |
 | GET     | /users/:id      | Obtenir un utilisateur |
 | GET     | /posts          | Lister les posts       |
-| POST    | /posts          | Creer un post          |
+| POST    | /posts          | Créer un post          |
 | GET     | /posts/:id      | Obtenir un post        |
 
 ## Instructions

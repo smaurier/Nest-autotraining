@@ -4,7 +4,7 @@
 - **Duree estimee** : 15-18 min
 - **Module** : `modules/06-express-middleware.md`
 - **Lab associe** : `labs/lab-06-middleware/`
-- **Prerequis** : Screencast 05 (Express Fondamentaux)
+- **Prérequis** : Screencast 05 (Express Fondamentaux)
 
 ## Setup
 - [ ] Node.js 20+ installe
@@ -17,19 +17,19 @@
 
 ### [00:00-03:00] Introduction — Qu'est-ce qu'un middleware ?
 
-> Salut ! On a vu comment creer des routes avec Express. Mais Express a un super-pouvoir qu'on n'a pas encore explore : les middlewares. Un middleware, c'est une fonction qui s'execute entre la requete et la reponse.
+> Salut ! On a vu comment créer des routes avec Express. Mais Express à un super-pouvoir qu'on n'a pas encore explore : les middlewares. Un middleware, c'est une fonction qui s'exécuté entre la requête et la réponse.
 
 **Action** : Afficher le slide de titre "Module 06 — Middleware & Architecture".
 
-> Imaginez une chaine de montage. La requete arrive, passe par une serie de middlewares, chacun fait son travail — logger, verifier l'authentification, parser le body — et a la fin, le handler de route produit la reponse. C'est le pattern middleware.
+> Imaginez une chaine de montage. La requête arrive, passe par une serie de middlewares, chacun fait son travail — logger, vérifier l'authentification, parser le body — et à la fin, le handler de route produit la réponse. C'est le pattern middleware.
 
 **Action** : Dessiner le schema de la chaine middleware.
 
-> Un middleware, c'est une fonction avec trois parametres : `req`, `res`, et `next`. `next()` passe au middleware suivant. Si vous ne l'appelez pas, la chaine s'arrete.
+> Un middleware, c'est une fonction avec trois paramètres : `req`, `res`, et `next`. `next()` passe au middleware suivant. Si vous ne l'appelez pas, la chaine s'arrete.
 
-### [03:00-07:00] Creer ses propres middlewares
+### [03:00-07:00] Créer ses propres middlewares
 
-**Action** : Creer un projet avec des middlewares personnalises.
+**Action** : Créer un projet avec des middlewares personnalises.
 
 ```javascript
 // app.js
@@ -103,13 +103,13 @@ curl http://localhost:3000/api/admin
 curl -H "Authorization: Bearer secret-token" http://localhost:3000/api/admin
 ```
 
-> Regardez le terminal : le middleware logger affiche chaque requete avec sa duree. Le middleware auth bloque l'acces sans token. Et quand le token est valide, il attache l'utilisateur a `req.user` pour que le handler de route puisse l'utiliser.
+> Regardez le terminal : le middleware logger affiche chaque requête avec sa duree. Le middleware auth bloque l'acces sans token. Et quand le token est valide, il attache l'utilisateur a `req.user` pour que le handler de route puisse l'utiliser.
 
 ### [07:00-11:00] Express Router — Organiser les routes
 
-> Quand l'application grandit, mettre toutes les routes dans un seul fichier devient ingerable. Express.Router permet de decouper les routes en modules.
+> Quand l'application grandit, mettre toutes les routes dans un seul fichier devient ingerable. Express.Router permet de découper les routes en modules.
 
-**Action** : Creer une structure de fichiers avec Router.
+**Action** : Créer une structure de fichiers avec Router.
 
 ```javascript
 // routes/users.js
@@ -181,11 +181,11 @@ curl http://localhost:3000/api/users
 curl http://localhost:3000/api/products
 ```
 
-> Chaque Router est un mini-application avec ses propres routes. On les monte sur un prefixe dans l'app principale. C'est propre, maintenable, et ca permet a plusieurs developpeurs de travailler sur des parties differentes.
+> Chaque Router est un mini-application avec ses propres routes. On les monte sur un prefixe dans l'app principale. C'est propre, maintenable, et ça permet a plusieurs développeurs de travailler sur des parties différentes.
 
 ### [11:00-15:00] Architecture MVC — Separer les responsabilites
 
-> Allons plus loin dans l'organisation. Le pattern MVC (Model-View-Controller) separe les donnees (Model), la logique de presentation (View), et la logique metier (Controller).
+> Allons plus loin dans l'organisation. Le pattern MVC (Model-View-Controller) separe les donnees (Model), la logique de présentation (View), et la logique metier (Controller).
 
 **Action** : Montrer la structure MVC.
 
@@ -234,18 +234,18 @@ exports.create = (req, res) => {
 };
 ```
 
-> Le service contient la logique metier. Le controller fait le lien entre la requete HTTP et le service. Les routes connectent les URLs aux controllers. C'est exactement l'architecture que NestJS va formaliser avec les decorateurs.
+> Le service contient la logique metier. Le controller fait le lien entre la requête HTTP et le service. Les routes connectent les URLs aux controllers. C'est exactement l'architecture que NestJS va formaliser avec les decorateurs.
 
 ### [15:00-17:00] Recap
 
-> Les middlewares sont le coeur d'Express. Ils permettent de creer des pipelines de traitement reuti1isables. Le Router organise les routes en modules. Et le pattern MVC separe les responsabilites.
+> Les middlewares sont le coeur d'Express. Ils permettent de créer des pipelines de traitement reuti1isables. Le Router organise les routes en modules. Et le pattern MVC separe les responsabilites.
 
 **Action** : Afficher le slide recap.
 
-> Le lab est dans `labs/lab-06-middleware/`. Vous allez creer vos propres middlewares, organiser votre code avec Router, et appliquer le pattern MVC. C'est une base essentielle pour comprendre NestJS. A bientot !
+> Le lab est dans `labs/lab-06-middleware/`. Vous allez créer vos propres middlewares, organiser votre code avec Router, et appliquer le pattern MVC. C'est une base essentielle pour comprendre NestJS. A bientot !
 
 ## Points d'attention pour l'enregistrement
-- Bien montrer l'ordre d'execution des middlewares dans le terminal (logs)
-- Insister sur l'importance de next() — sans lui, la requete reste en attente
+- Bien montrer l'ordre d'exécution des middlewares dans le terminal (logs)
+- Insister sur l'importance de next() — sans lui, la requête reste en attente
 - Montrer la structure de dossiers dans l'explorateur de fichiers de VS Code
 - Faire le parallele avec NestJS qui formalisera ces patterns

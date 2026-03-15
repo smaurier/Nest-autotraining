@@ -4,32 +4,32 @@
 - **Duree estimee** : 18-22 min
 - **Module** : `modules/13-nestjs-pipes-guards-interceptors.md`
 - **Lab associe** : `labs/lab-13-pipes-guards/`
-- **Prerequis** : Screencast 12 (Modules & Architecture)
+- **Prérequis** : Screencast 12 (Modules & Architecture)
 
 ## Setup
 - [ ] Node.js 20+ installe
 - [ ] Terminal ouvert dans `nest-course/`
-- [ ] Projet NestJS du screencast precedent disponible
+- [ ] Projet NestJS du screencast précédent disponible
 - [ ] Editeur de code ouvert
 - [ ] Port 3000 disponible
 
 ## Script
 
-### [00:00-03:00] Introduction — Le cycle de vie d'une requete
+### [00:00-03:00] Introduction — Le cycle de vie d'une requête
 
-> Salut ! Aujourd'hui on va explorer les quatre piliers du cycle de vie d'une requete NestJS : les Pipes, les Guards, les Interceptors et les ExceptionFilters. Ensemble, ils forment un pipeline de traitement puissant et flexible.
+> Salut ! Aujourd'hui on va explorer les quatre piliers du cycle de vie d'une requête NestJS : les Pipes, les Guards, les Interceptors et les ExceptionFilters. Ensemble, ils forment un pipeline de traitement puissant et flexible.
 
 **Action** : Afficher le slide de titre "Module 13 — Pipes, Guards & Interceptors".
 
-> Quand une requete arrive dans NestJS, elle passe par ces couches dans un ordre precis : Guards (authentification/autorisation), Interceptors (pre-traitement), Pipes (validation/transformation), puis le handler de route, et enfin les Interceptors (post-traitement) et les ExceptionFilters en cas d'erreur.
+> Quand une requête arrive dans NestJS, elle passe par ces couches dans un ordre précis : Guards (authentification/autorisation), Interceptors (pre-traitement), Pipes (validation/transformation), puis le handler de route, et enfin les Interceptors (post-traitement) et les ExceptionFilters en cas d'erreur.
 
 **Action** : Afficher le schema du cycle de vie.
 
 ### [03:00-07:00] Pipes — Validation et transformation
 
-> On a deja vu le ValidationPipe global. Maintenant on va creer nos propres pipes.
+> On a déjà vu le ValidationPipe global. Maintenant on va créer nos propres pipes.
 
-**Action** : Creer un pipe personnalise.
+**Action** : Créer un pipe personnalise.
 
 ```typescript
 // src/common/pipes/parse-date.pipe.ts
@@ -72,13 +72,13 @@ curl "http://localhost:3000/tasks/by-date?from=2024-01-15"
 curl "http://localhost:3000/tasks/by-date?from=pas-une-date"
 ```
 
-> Le pipe transforme la string en Date ou leve une BadRequestException. C'est propre, reutilisable, et testable.
+> Le pipe transforme la string en Date ou leve une BadRequestException. C'est propre, réutilisable, et testable.
 
 ### [07:00-12:00] Guards — Authentification et autorisation
 
-> Les Guards decident si une requete peut passer ou non. C'est l'endroit ideal pour l'authentification et l'autorisation.
+> Les Guards decident si une requête peut passer ou non. C'est l'endroit ideal pour l'authentification et l'autorisation.
 
-**Action** : Creer un AuthGuard.
+**Action** : Créer un AuthGuard.
 
 ```typescript
 // src/common/guards/auth.guard.ts
@@ -107,7 +107,7 @@ export class AuthGuard implements CanActivate {
 }
 ```
 
-**Action** : Creer un RolesGuard avec des decorateurs personnalises.
+**Action** : Créer un RolesGuard avec des decorateurs personnalises.
 
 ```typescript
 // src/common/decorators/roles.decorator.ts
@@ -165,13 +165,13 @@ export class TasksController {
 }
 ```
 
-> Les guards sont chainees : d'abord l'AuthGuard verifie le token, puis le RolesGuard verifie le role. Si l'un echoue, la requete est rejetee.
+> Les guards sont chainees : d'abord l'AuthGuard vérifié le token, puis le RolesGuard vérifié le role. Si l'un echoue, la requête est rejetee.
 
 ### [12:00-16:00] Interceptors — Pre et post-traitement
 
-> Les Interceptors s'executent avant ET apres le handler. Ils peuvent transformer la reponse, logger les performances, ou gerer le cache.
+> Les Interceptors s'executent avant ET après le handler. Ils peuvent transformer la réponse, logger les performances, ou gérer le cache.
 
-**Action** : Creer un interceptor de logging.
+**Action** : Créer un interceptor de logging.
 
 ```typescript
 // src/common/interceptors/logging.interceptor.ts
@@ -198,7 +198,7 @@ export class LoggingInterceptor implements NestInterceptor {
 }
 ```
 
-**Action** : Creer un interceptor de transformation de reponse.
+**Action** : Créer un interceptor de transformation de réponse.
 
 ```typescript
 // src/common/interceptors/transform.interceptor.ts
@@ -238,9 +238,9 @@ async function bootstrap() {
 
 ### [16:00-19:00] ExceptionFilter — Gestion d'erreurs personnalisee
 
-> Les ExceptionFilters capturent les exceptions et formatent les reponses d'erreur.
+> Les ExceptionFilters capturent les exceptions et formatent les réponses d'erreur.
 
-**Action** : Creer un filtre d'exception personnalise.
+**Action** : Créer un filtre d'exception personnalise.
 
 ```typescript
 // src/common/filters/http-exception.filter.ts
@@ -269,7 +269,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
 }
 ```
 
-> Le filtre capture toutes les HttpException et renvoie une reponse formatee avec le timestamp et le path.
+> Le filtre capture toutes les HttpException et renvoie une réponse formatee avec le timestamp et le path.
 
 ### [19:00-21:00] Recap
 
@@ -280,7 +280,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
 > Le lab est dans `labs/lab-13-pipes-guards/`. Vous allez implementer chaque couche et voir comment elles interagissent. C'est un module dense mais essentiel. A bientot pour TypeORM !
 
 ## Points d'attention pour l'enregistrement
-- Bien montrer l'ordre d'execution : Guards -> Interceptors (pre) -> Pipes -> Handler -> Interceptors (post) -> Filters
+- Bien montrer l'ordre d'exécution : Guards -> Interceptors (pre) -> Pipes -> Handler -> Interceptors (post) -> Filters
 - Montrer les logs dans le terminal pour visualiser le pipeline
 - Insister sur le pattern Observable des Interceptors avec RxJS
 - Faire le lien avec les middlewares Express vus au screencast 06

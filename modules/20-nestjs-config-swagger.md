@@ -1,19 +1,19 @@
 # Module 20 — NestJS — Configuration & Swagger
 
-> **Objectif** : Maitriser la gestion de configuration par environnement avec @nestjs/config et documenter automatiquement votre API REST avec Swagger/OpenAPI dans NestJS.
+> **Objectif** : Maîtriser la gestion de configuration par environnement avec @nestjs/config et documenter automatiquement votre API REST avec Swagger/OpenAPI dans NestJS.
 > **Difficulte** : ⭐⭐⭐ (avance)
-> **Prerequis** : Module 10 (Controllers), Module 11 (Services), Module 12 (Modules)
+> **Prérequis** : Module 10 (Controllers), Module 11 (Services), Module 12 (Modules)
 > **Duree estimee** : 4 heures
 
 ---
 
 ## 1. Gestion de la configuration
 
-### 1.1 Le probleme
+### 1.1 Le problème
 
-Une application a des parametres qui changent selon l'environnement : base de donnees, secrets, ports, URLs d'API tierces, etc. Il ne faut **jamais** coder ces valeurs en dur dans le code.
+Une application a des paramètres qui changent selon l'environnement : base de donnees, secrets, ports, URLs d'API tierces, etc. Il ne faut **jamais** coder ces valeurs en dur dans le code.
 
-> **Analogie** : Imaginez que votre application est un formulaire papier a remplir. La configuration est le crayon avec lequel vous remplissez les cases. En developpement, vous utilisez un crayon (valeurs de dev). En production, vous utilisez un stylo (valeurs de prod). Le formulaire est le meme, seules les reponses changent.
+> **Analogie** : Imaginez que votre application est un formulaire papier a remplir. La configuration est le crayon avec lequel vous remplissez les cases. En développement, vous utilisez un crayon (valeurs de dev). En production, vous utilisez un stylo (valeurs de prod). Le formulaire est le même, seules les réponses changent.
 
 ### 1.2 Installation
 
@@ -70,7 +70,7 @@ MAIL_USER=noreply@example.com
 MAIL_PASS=motDePasseMail
 ```
 
-> **Piege classique** : Ajoutez toujours `.env` dans votre `.gitignore`. Ne commitez **jamais** vos secrets. Fournissez un fichier `.env.example` avec des valeurs vides comme reference.
+> **Piege classique** : Ajoutez toujours `.env` dans votre `.gitignore`. Ne commitez **jamais** vos secrets. Fournissez un fichier `.env.example` avec des valeurs vides comme référence.
 
 ```env
 # .env.example (a commiter dans Git)
@@ -144,7 +144,7 @@ ConfigModule.forRoot({
 
 ### 1.6 Validation du schema avec Joi
 
-Il est crucial de valider que toutes les variables d'environnement requises sont presentes et valides au demarrage de l'application.
+Il est crucial de valider que toutes les variables d'environnement requises sont presentes et valides au démarrage de l'application.
 
 ```bash
 npm install joi
@@ -194,7 +194,7 @@ import * as Joi from 'joi';
 export class AppModule {}
 ```
 
-Si une variable requise manque, l'application refuse de demarrer :
+Si une variable requise manque, l'application refuse de démarrer :
 
 ```
 Error: Config validation error:
@@ -203,7 +203,7 @@ Error: Config validation error:
 "JWT_ACCESS_SECRET" length must be at least 32 characters long
 ```
 
-> **Bonne pratique** : Validez toujours votre configuration au demarrage. Il vaut mieux une erreur claire au lancement qu'un bug mystérieux en production a 3h du matin.
+> **Bonne pratique** : Validez toujours votre configuration au démarrage. Il vaut mieux une erreur claire au lancement qu'un bug mystérieux en production a 3h du matin.
 
 ### 1.7 Configuration par namespace (registerAs)
 
@@ -319,9 +319,9 @@ export class DatabaseService {
 
 ### 2.1 Qu'est-ce que Swagger ?
 
-Swagger (maintenant OpenAPI) est un standard pour documenter les API REST. Il genere automatiquement une interface web interactive pour explorer et tester votre API.
+Swagger (maintenant OpenAPI) est un standard pour documenter les API REST. Il généré automatiquement une interface web interactive pour explorer et tester votre API.
 
-> **Analogie** : Swagger est comme le menu d'un restaurant avec photos. Au lieu de deviner ce que l'API propose, vous avez une belle interface avec tous les plats (endpoints), les ingredients (parametres), et vous pouvez meme gouter (tester) directement.
+> **Analogie** : Swagger est comme le menu d'un restaurant avec photos. Au lieu de deviner ce que l'API propose, vous avez une belle interface avec tous les plats (endpoints), les ingredients (paramètres), et vous pouvez même gouter (tester) directement.
 
 ### 2.2 Installation
 
@@ -656,26 +656,26 @@ export class ArticleResponseDto {
 | Decorateur | Cible | Description |
 |-----------|-------|-------------|
 | `@ApiTags('nom')` | Controller | Groupe les routes sous un tag |
-| `@ApiOperation({ summary })` | Methode | Description de l'operation |
-| `@ApiResponse({ status, description })` | Methode | Reponse possible |
-| `@ApiOkResponse()` | Methode | Reponse 200 |
-| `@ApiCreatedResponse()` | Methode | Reponse 201 |
-| `@ApiNotFoundResponse()` | Methode | Reponse 404 |
-| `@ApiBadRequestResponse()` | Methode | Reponse 400 |
-| `@ApiUnauthorizedResponse()` | Methode | Reponse 401 |
-| `@ApiForbiddenResponse()` | Methode | Reponse 403 |
-| `@ApiBearerAuth()` | Controller/Methode | Authentification Bearer |
-| `@ApiQuery({ name })` | Methode | Parametre de query string |
-| `@ApiParam({ name })` | Methode | Parametre de route |
-| `@ApiBody({ type })` | Methode | Corps de la requete |
-| `@ApiProperty()` | Propriete DTO | Propriete requise |
-| `@ApiPropertyOptional()` | Propriete DTO | Propriete optionnelle |
-| `@ApiExcludeEndpoint()` | Methode | Exclut la route de Swagger |
+| `@ApiOperation({ summary })` | Méthode | Description de l'operation |
+| `@ApiResponse({ status, description })` | Méthode | Reponse possible |
+| `@ApiOkResponse()` | Méthode | Reponse 200 |
+| `@ApiCreatedResponse()` | Méthode | Reponse 201 |
+| `@ApiNotFoundResponse()` | Méthode | Reponse 404 |
+| `@ApiBadRequestResponse()` | Méthode | Reponse 400 |
+| `@ApiUnauthorizedResponse()` | Méthode | Reponse 401 |
+| `@ApiForbiddenResponse()` | Méthode | Reponse 403 |
+| `@ApiBearerAuth()` | Controller/Méthode | Authentification Bearer |
+| `@ApiQuery({ name })` | Méthode | Paramètre de query string |
+| `@ApiParam({ name })` | Méthode | Paramètre de route |
+| `@ApiBody({ type })` | Méthode | Corps de la requête |
+| `@ApiProperty()` | Propriété DTO | Propriété requise |
+| `@ApiPropertyOptional()` | Propriété DTO | Propriété optionnelle |
+| `@ApiExcludeEndpoint()` | Méthode | Exclut la route de Swagger |
 | `@ApiExcludeController()` | Controller | Exclut le controller de Swagger |
 
-### 2.7 Le plugin CLI pour la generation automatique
+### 2.7 Le plugin CLI pour la génération automatique
 
-Au lieu de decorer manuellement chaque propriete avec `@ApiProperty()`, le plugin CLI de NestJS Swagger peut les generer automatiquement a partir des types TypeScript et des decorateurs class-validator.
+Au lieu de decorer manuellement chaque propriété avec `@ApiProperty()`, le plugin CLI de NestJS Swagger peut les générer automatiquement à partir des types TypeScript et des decorateurs class-validator.
 
 ```json
 // nest-cli.json
@@ -729,7 +729,7 @@ Genere automatiquement la documentation Swagger equivalente a ajouter `@ApiPrope
 
 > **Bonne pratique** : Utilisez le plugin CLI pour les DTOs simples et ajoutez `@ApiProperty()` manuellement seulement quand vous avez besoin de personnaliser les exemples ou descriptions.
 
-### 2.8 Exporter la specification OpenAPI
+### 2.8 Exporter la spécification OpenAPI
 
 ```typescript
 // main.ts (apres la creation du document)
@@ -830,13 +830,13 @@ Mettez en place une configuration avec :
 
 Documentez un CRUD complet de produits avec :
 1. Tous les decorateurs Swagger sur le controller
-2. DTOs avec @ApiProperty detailles (exemples, descriptions)
+2. DTOs avec @ApiProperty détaillés (exemples, descriptions)
 3. Reponses d'erreur documentees
 4. Authentification Bearer configuree
 
 ### Exercice 3 : Plugin CLI
 
-Activez le plugin CLI Swagger et comparez avec la documentation manuelle. Quelles proprietes sont generees automatiquement ? Lesquelles necessitent toujours une configuration manuelle ?
+Activez le plugin CLI Swagger et comparez avec la documentation manuelle. Quelles propriétés sont generees automatiquement ? Lesquelles necessitent toujours une configuration manuelle ?
 
 ---
 
@@ -847,9 +847,19 @@ Activez le plugin CLI Swagger et comparez avec la documentation manuelle. Quelle
 | Quiz Module 20 | `quiz/20-quiz.md` |
 | Lab Module 20 | `labs/20-lab-config-swagger.md` |
 | Screencast | `screencasts/20-screencast.md` |
-| Module precedent | [Module 19 — Authentification & Autorisation](19-nestjs-auth.md) |
+| Module précédent | [Module 19 — Authentification & Autorisation](19-nestjs-auth.md) |
 | Module suivant | [Module 21 — WebSockets & Fichiers](21-nestjs-websockets-fichiers.md) |
 | @nestjs/config | https://docs.nestjs.com/techniques/configuration |
 | @nestjs/swagger | https://docs.nestjs.com/openapi/introduction |
-| OpenAPI Specification | https://swagger.io/specification/ |
+| OpenAPI Specification | https://swagger.io/spécification/ |
 | Joi | https://joi.dev/api/ |
+
+---
+
+<!-- parcours-recommande -->
+
+::: tip Parcours recommandé
+1. **Screencast** : [screencast 20 config swagger](../screencasts/screencast-20-config-swagger.md)
+2. **Lab** : [lab-20-config-swagger](../labs/lab-20-config-swagger/README)
+3. **Quiz** : [quiz 20 config swagger](../quizzes/quiz-20-config-swagger.html)
+:::

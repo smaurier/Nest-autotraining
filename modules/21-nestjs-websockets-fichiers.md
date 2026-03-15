@@ -1,8 +1,8 @@
-# Module 21 — NestJS — WebSockets, Fichiers & Temps reel
+# Module 21 — NestJS — WebSockets, Fichiers & Temps réel
 
-> **Objectif** : Apprendre a gerer l'upload et le telechargement de fichiers, et a implementer une communication temps reel avec les WebSockets (Socket.io) dans NestJS.
+> **Objectif** : Apprendre a gérer l'upload et le telechargement de fichiers, et a implementer une communication temps réel avec les WebSockets (Socket.io) dans NestJS.
 > **Difficulte** : ⭐⭐⭐⭐ (avance+)
-> **Prerequis** : Module 10 (Controllers), Module 13 (Interceptors), Module 19 (Auth JWT)
+> **Prérequis** : Module 10 (Controllers), Module 13 (Interceptors), Module 19 (Auth JWT)
 > **Duree estimee** : 6 heures
 
 ---
@@ -11,14 +11,14 @@
 
 ### 1.1 Installation
 
-NestJS utilise Multer (via Express) pour gerer les uploads de fichiers.
+NestJS utilise Multer (via Express) pour gérer les uploads de fichiers.
 
 ```bash
 npm install @nestjs/platform-express
 npm install --save-dev @types/multer
 ```
 
-> **Analogie** : L'upload de fichier est comme la reception d'un colis postal. Multer est le facteur qui recoit le colis, verifie qu'il est correct (taille, type), et le depose a l'endroit que vous avez choisi (disque, memoire).
+> **Analogie** : L'upload de fichier est comme la reception d'un colis postal. Multer est le facteur qui recoit le colis, vérifié qu'il est correct (taille, type), et le depose a l'endroit que vous avez choisi (disque, mémoire).
 
 ### 1.2 Upload d'un seul fichier
 
@@ -203,9 +203,9 @@ uploadFile(@UploadedFile() file: Express.Multer.File) {
 }
 ```
 
-### 1.5 Stockage en memoire
+### 1.5 Stockage en mémoire
 
-Utile quand vous voulez traiter le fichier (redimensionner, envoyer vers un cloud) sans l'ecrire sur le disque :
+Utile quand vous voulez traiter le fichier (redimensionner, envoyer vers un cloud) sans l'écrire sur le disque :
 
 ```typescript
 import { memoryStorage } from 'multer';
@@ -329,15 +329,15 @@ async function bootstrap() {
 
 ### 2.1 Qu'est-ce qu'un WebSocket ?
 
-HTTP est un protocole **requete-reponse** : le client demande, le serveur repond. Les WebSockets sont un protocole de communication **bidirectionnelle** et **persistante** : le serveur peut envoyer des donnees au client a tout moment, sans que le client n'ait rien demande.
+HTTP est un protocole **requête-réponse** : le client demandé, le serveur repond. Les WebSockets sont un protocole de communication **bidirectionnelle** et **persistante** : le serveur peut envoyer des donnees au client a tout moment, sans que le client n'ait rien demandé.
 
-> **Analogie** : HTTP c'est comme envoyer des lettres : vous ecrivez, vous postez, vous attendez la reponse. WebSocket c'est comme un appel telephonique : une fois la connexion etablie, les deux parties peuvent parler a tout moment.
+> **Analogie** : HTTP c'est comme envoyer des lettres : vous ecrivez, vous postez, vous attendez la réponse. WebSocket c'est comme un appel telephonique : une fois la connexion etablie, les deux parties peuvent parler a tout moment.
 
 | Caracteristique | HTTP | WebSocket |
 |----------------|------|-----------|
-| Direction | Unidirectionnelle (requete → reponse) | Bidirectionnelle |
-| Connexion | Nouvelle a chaque requete | Persistante |
-| Overhead | Headers a chaque requete | Minimal apres connexion |
+| Direction | Unidirectionnelle (requête → réponse) | Bidirectionnelle |
+| Connexion | Nouvelle à chaque requête | Persistante |
+| Overhead | Headers à chaque requête | Minimal après connexion |
 | Cas d'usage | API REST, pages web | Chat, notifications, jeux |
 
 ### 2.2 Installation
@@ -348,7 +348,7 @@ npm install socket.io
 npm install --save-dev @types/socket.io
 ```
 
-### 2.3 Creer un Gateway (serveur WebSocket)
+### 2.3 Créer un Gateway (serveur WebSocket)
 
 ```typescript
 // chat/chat.gateway.ts
@@ -706,7 +706,7 @@ export class NotificationsService {
 
 ### 3.1 Les Rooms
 
-Les rooms sont des canaux virtuels dans lesquels les sockets peuvent entrer et sortir. Un message envoye a une room est recu par tous les sockets dans cette room.
+Les rooms sont des canaux virtuels dans lesquels les sockets peuvent entrer et sortir. Un message envoye à une room est recu par tous les sockets dans cette room.
 
 ```typescript
 // Faire rejoindre une room
@@ -730,7 +730,7 @@ const rooms = client.rooms; // Set<string>
 
 ### 3.2 Les Namespaces
 
-Les namespaces sont des canaux de communication separes avec leurs propres evenements.
+Les namespaces sont des canaux de communication separes avec leurs propres événements.
 
 ```typescript
 // Gateway pour le chat
@@ -915,17 +915,17 @@ Implementez un endpoint `POST /products/:id/images` qui :
 ### Exercice 2 : Application de chat
 
 Implementez une application de chat complete avec :
-1. Authentification JWT a la connexion WebSocket
-2. Systeme de rooms
+1. Authentification JWT à la connexion WebSocket
+2. Système de rooms
 3. Persistance des messages en base
 4. Indicateur de frappe
 5. Liste des utilisateurs connectes par room
 
-### Exercice 3 : Notifications en temps reel
+### Exercice 3 : Notifications en temps réel
 
-Creez un systeme de notifications temps reel qui envoie un evenement WebSocket quand :
+Creez un système de notifications temps réel qui envoie un événement WebSocket quand :
 1. Un nouvel article est publie
-2. Un commentaire est ajoute a un article de l'utilisateur
+2. Un commentaire est ajoute à un article de l'utilisateur
 3. Un utilisateur recoit un nouveau role
 
 ---
@@ -937,9 +937,19 @@ Creez un systeme de notifications temps reel qui envoie un evenement WebSocket q
 | Quiz Module 21 | `quiz/21-quiz.md` |
 | Lab Module 21 | `labs/21-lab-websockets-fichiers.md` |
 | Screencast | `screencasts/21-screencast.md` |
-| Module precedent | [Module 20 — Configuration & Swagger](20-nestjs-config-swagger.md) |
+| Module précédent | [Module 20 — Configuration & Swagger](20-nestjs-config-swagger.md) |
 | Module suivant | [Module 22 — Taches planifiees & Files d'attente](22-nestjs-jobs-queues.md) |
 | NestJS File Upload | https://docs.nestjs.com/techniques/file-upload |
 | NestJS WebSockets | https://docs.nestjs.com/websockets/gateways |
 | Socket.io | https://socket.io/docs/v4/ |
 | Multer | https://github.com/expressjs/multer |
+
+---
+
+<!-- parcours-recommande -->
+
+::: tip Parcours recommandé
+1. **Screencast** : [screencast 21 websockets](../screencasts/screencast-21-websockets.md)
+2. **Lab** : [lab-21-websockets](../labs/lab-21-websockets/README)
+3. **Quiz** : [quiz 21 websockets](../quizzes/quiz-21-websockets.html)
+:::

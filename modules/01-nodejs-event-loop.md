@@ -1,18 +1,20 @@
 # Module 01 — Node.js — Event Loop & Asynchrone
 
-> **Objectif** : Comprendre en profondeur l'event loop de Node.js, maitriser les mecanismes asynchrones (callbacks, Promises, async/await), et savoir predire l'ordre d'execution du code asynchrone.
+> **Objectif** : Comprendre en profondeur l'event loop de Node.js, maîtriser les mécanismes asynchrones (callbacks, Promises, async/await), et savoir predire l'ordre d'exécution du code asynchrone.
 >
-> **Difficulte** : ⭐⭐ (intermediaire)
+> **Difficulte** : ⭐⭐ (intermédiaire)
 
 ---
 
-## 1. Pourquoi Node.js est different
+> **Si tu as fait le cours 02-JS Runtime** : ce module couvre l'event loop sous l'angle pratique (construire un serveur Node.js). Le cours 02 couvre la théorie en profondeur (V8, phases libuv, microtasks vs macrotasks). Les deux se completent — ici tu appliques, la-bas tu comprends les mécanismes internes.
 
-### 1.1 Le modele mono-thread
+## 1. Pourquoi Node.js est différent
 
-Node.js execute ton code JavaScript dans un **seul thread** (thread principal). C'est une difference fondamentale avec des langages comme Java ou C# qui creent un thread par requete.
+### 1.1 Le modèle mono-thread
 
-> **Analogie** : Imagine un restaurant avec un seul serveur (thread principal). Au lieu d'attendre a chaque table que le plat soit pret, le serveur prend la commande, la transmet en cuisine (operation I/O), et passe immediatement a la table suivante. Quand un plat est pret, la cuisine le signale et le serveur le livre. Ce serveur unique peut gerer des dizaines de tables en parallele — tant qu'il ne reste pas plante devant le four.
+Node.js exécuté ton code JavaScript dans un **seul thread** (thread principal). C'est une différence fondamentale avec des langages comme Java ou C# qui creent un thread par requête.
+
+> **Analogie** : Imagine un restaurant avec un seul serveur (thread principal). Au lieu d'attendre à chaque table que le plat soit pret, le serveur prend la commande, la transmet en cuisine (operation I/O), et passe immediatement à la table suivante. Quand un plat est pret, la cuisine le signale et le serveur le livre. Ce serveur unique peut gérer des dizaines de tables en parallele — tant qu'il ne reste pas plante devant le four.
 
 ```
   Modele multi-thread (Java, C#)          Modele mono-thread (Node.js)
@@ -28,7 +30,7 @@ Node.js execute ton code JavaScript dans un **seul thread** (thread principal). 
 
 ### 1.2 Non-blocking I/O
 
-L'avantage du modele mono-thread de Node.js est que les operations I/O (lecture fichier, requete base de donnees, appel reseau) sont **non-bloquantes** :
+L'avantage du modèle mono-thread de Node.js est que les operations I/O (lecture fichier, requête base de donnees, appel réseau) sont **non-bloquantes** :
 
 ```typescript
 // BLOQUANT (mauvais) — imagine ca dans un serveur qui recoit 1000 requetes
@@ -42,7 +44,7 @@ fs.readFile('gros-fichier.txt', (err, data) => {
 console.log('Je peux faire autre chose en attendant !');
 ```
 
-> **Piege classique** : "Si Node.js est mono-thread, comment peut-il etre performant ?" — Parce que 90% du temps d'une application web est passe a attendre des I/O (base de donnees, fichiers, reseau). Node.js ne bloque pas pendant cette attente, il traite d'autres requetes. C'est pour ca que Node.js excelle pour les API et les applications I/O-intensives.
+> **Piege classique** : "Si Node.js est mono-thread, comment peut-il etre performant ?" — Parce que 90% du temps d'une application web est passe a attendre des I/O (base de donnees, fichiers, réseau). Node.js ne bloque pas pendant cette attente, il traite d'autres requêtes. C'est pour ça que Node.js excelle pour les API et les applications I/O-intensives.
 
 ---
 
@@ -74,7 +76,7 @@ console.log('Je peux faire autre chose en attendant !');
 
 ### 2.2 Le Call Stack (pile d'appels)
 
-Le **call stack** est une pile LIFO (Last In, First Out) qui garde trace des fonctions en cours d'execution :
+Le **call stack** est une pile LIFO (Last In, First Out) qui garde trace des fonctions en cours d'exécution :
 
 ```typescript
 function multiplier(a, b) {
@@ -106,7 +108,7 @@ afficher();
 
 ### 2.3 Les phases de l'Event Loop
 
-L'event loop de Node.js (geree par libuv) est composee de **6 phases** qui s'executent en boucle :
+L'event loop de Node.js (gérée par libuv) est composee de **6 phases** qui s'executent en boucle :
 
 ```
    ┌───────────────────────────┐
@@ -139,7 +141,7 @@ Il y a en realite **deux files d'attente** importantes :
 | File | Contenu | Priorite |
 |---|---|---|
 | **Microtask Queue** | Callbacks de `Promise.then/catch/finally`, `process.nextTick`, `queueMicrotask` | **Haute** — traitee entre chaque phase de l'event loop |
-| **Macrotask Queue** (Callback Queue) | `setTimeout`, `setInterval`, `setImmediate`, I/O callbacks | **Normale** — traitee a la phase correspondante |
+| **Macrotask Queue** (Callback Queue) | `setTimeout`, `setInterval`, `setImmediate`, I/O callbacks | **Normale** — traitee à la phase correspondante |
 
 ```typescript
 // Demonstration de l'ordre de priorite
@@ -161,7 +163,7 @@ console.log('5. Synchrone');
 // 2. setTimeout (macrotask)
 ```
 
-> **Piege classique** : `setTimeout(fn, 0)` ne signifie PAS "execute immediatement". Ca signifie "execute au prochain passage dans la phase Timers de l'event loop, au plus tot dans 0ms". En pratique, il y a toujours un leger delai, et les microtasks passent avant.
+> **Piege classique** : `setTimeout(fn, 0)` ne signifie PAS "exécuté immediatement". Ça signifie "exécuté au prochain passage dans la phase Timers de l'event loop, au plus tot dans 0ms". En pratique, il y a toujours un leger delai, et les microtasks passent avant.
 
 ---
 
@@ -173,17 +175,17 @@ console.log('5. Synchrone');
 
 - L'event loop
 - Un **thread pool** (par defaut 4 threads) pour les operations qui ne peuvent pas etre async au niveau OS
-- Des abstractions cross-platform pour le reseau, les fichiers, les DNS, etc.
+- Des abstractions cross-platform pour le réseau, les fichiers, les DNS, etc.
 
 ### 3.2 Ce qui utilise le thread pool
 
-| Operation | Thread pool | Mecanisme OS natif |
+| Operation | Thread pool | Mécanisme OS natif |
 |---|---|---|
 | `fs.readFile` | Oui | |
 | `dns.lookup` | Oui | |
 | `crypto.pbkdf2` | Oui | |
 | `zlib.deflate` | Oui | |
-| Requete HTTP sortante | | Oui (epoll/kqueue/IOCP) |
+| Requête HTTP sortante | | Oui (epoll/kqueue/IOCP) |
 | Serveur TCP/HTTP | | Oui (epoll/kqueue/IOCP) |
 | `dns.resolve` | | Oui (c-ares) |
 
@@ -216,14 +218,14 @@ for (let i = 0; i < 4; i++) {
 
 ### 4.1 Differences fondamentales
 
-| Fonction | Quand ca s'execute | Phase de l'event loop |
+| Fonction | Quand ça s'exécuté | Phase de l'event loop |
 |---|---|---|
-| `process.nextTick(fn)` | Immediatement apres l'operation en cours, AVANT la prochaine phase | Entre les phases (microtask) |
-| `Promise.resolve().then(fn)` | Apres tous les nextTick, AVANT la prochaine phase | Entre les phases (microtask) |
+| `process.nextTick(fn)` | Immediatement après l'operation en cours, AVANT la prochaine phase | Entre les phases (microtask) |
+| `Promise.resolve().then(fn)` | Après tous les nextTick, AVANT la prochaine phase | Entre les phases (microtask) |
 | `setTimeout(fn, 0)` | Au prochain passage dans la phase Timers | Phase Timers |
 | `setImmediate(fn)` | Au prochain passage dans la phase Check | Phase Check |
 
-### 4.2 Ordre d'execution detaille
+### 4.2 Ordre d'exécution détaillé
 
 ```typescript
 // Exercice d'ordre d'execution — essaie de predire AVANT d'executer
@@ -263,7 +265,7 @@ console.log('H: synchrone fin');
 // C: setImmediate
 ```
 
-> **Piege classique** : L'ordre entre `setTimeout(fn, 0)` et `setImmediate(fn)` n'est PAS garanti quand ils sont appeles dans le scope global (en dehors d'un callback I/O). Par contre, a l'interieur d'un callback I/O (comme `fs.readFile`), `setImmediate` s'execute TOUJOURS avant `setTimeout`.
+> **Piege classique** : L'ordre entre `setTimeout(fn, 0)` et `setImmediate(fn)` n'est PAS garanti quand ils sont appeles dans le scope global (en dehors d'un callback I/O). Par contre, a l'interieur d'un callback I/O (comme `fs.readFile`), `setImmediate` s'exécuté TOUJOURS avant `setTimeout`.
 
 ```typescript
 const fs = require('fs');
@@ -283,12 +285,12 @@ fs.readFile(__filename, () => {
 
 | Cas d'usage | Utilise |
 |---|---|
-| Differ un callback apres le return en cours | `process.nextTick` |
-| Executer apres la phase I/O courante | `setImmediate` |
-| Delai temporel (meme 0ms) | `setTimeout` |
+| Differ un callback après le return en cours | `process.nextTick` |
+| Exécuter après la phase I/O courante | `setImmediate` |
+| Delai temporel (même 0ms) | `setTimeout` |
 | Gestion de Promises et async/await | Microtask automatique |
 
-> **Bonne pratique** : Prefere `setImmediate` a `process.nextTick` dans la plupart des cas. Un usage excessif de `process.nextTick` peut "affamer" l'event loop car les nextTick sont traites de facon recursive avant de passer a la phase suivante.
+> **Bonne pratique** : Prefere `setImmediate` a `process.nextTick` dans la plupart des cas. Un usage excessif de `process.nextTick` peut "affamer" l'event loop car les nextTick sont traites de façon recursive avant de passer à la phase suivante.
 
 ---
 
@@ -311,7 +313,7 @@ fs.readFile('fichier.txt', 'utf-8', (err, data) => {
 });
 ```
 
-Le probleme : le **callback hell** (ou pyramide of doom) :
+Le problème : le **callback hell** (où pyramide of doom) :
 
 ```typescript
 // Callback hell — code illisible et difficile a maintenir
@@ -338,7 +340,7 @@ fs.readFile('config.json', 'utf-8', (err, configStr) => {
 
 ### 5.2 Les Promises (ES2015 / ES6)
 
-Les Promises permettent de chainer les operations et d'eviter le callback hell :
+Les Promises permettent de chainer les operations et d'éviter le callback hell :
 
 ```typescript
 // Une Promise represente une valeur future
@@ -361,7 +363,7 @@ maPromise
   .finally(() => console.log('Fini'));  // Toujours execute
 ```
 
-Les 3 etats d'une Promise :
+Les 3 états d'une Promise :
 
 ```
   ┌────────────┐
@@ -422,7 +424,7 @@ async function envoyerEmails() {
 envoyerEmails();
 ```
 
-> **A retenir** : `async/await` est la facon moderne d'ecrire du code asynchrone en Node.js. Utilise toujours `async/await` sauf si tu as une bonne raison de ne pas le faire. Le code est plus lisible, plus debuggable et les stack traces sont meilleures.
+> **A retenir** : `async/await` est la façon moderne d'écrire du code asynchrone en Node.js. Utilise toujours `async/await` sauf si tu as une bonne raison de ne pas le faire. Le code est plus lisible, plus debuggable et les stack traces sont meilleures.
 
 ### 5.4 Comparaison cote a cote
 
@@ -507,7 +509,7 @@ process.on('uncaughtException', (err) => {
 });
 ```
 
-> **Piege classique** : Depuis Node.js 15, les `unhandledRejection` font planter le processus par defaut. Avant Node 15, elles etaient ignorees silencieusement — ce qui causait des bugs tres difficiles a trouver. Gere TOUJOURS tes Promises.
+> **Piege classique** : Depuis Node.js 15, les `unhandledRejection` font planter le processus par defaut. Avant Node 15, elles etaient ignorees silencieusement — ce qui causait des bugs très difficiles a trouver. Gere TOUJOURS tes Promises.
 
 ---
 
@@ -599,7 +601,7 @@ const data = await Promise.any([
 |---|---|---|---|
 | `Promise.all` | Premiere rejection | Au moins une rejette | Requetes paralleles, toutes obligatoires |
 | `Promise.allSettled` | Jamais | Jamais (toujours fulfilled) | Operations en lot, tolerant aux echecs |
-| `Promise.race` | Premiere settled (OK ou KO) | La premiere rejette | Timeout, premier arrive |
+| `Promise.race` | Premiere settled (OK ou KO) | La première rejette | Timeout, premier arrive |
 | `Promise.any` | Premiere fulfilled | Toutes rejettent | Serveurs miroirs, fallback |
 
 ---
@@ -629,17 +631,17 @@ emitter.emit('message', { type: 'info', text: 'Test' });
 // Message recu : { type: 'info', text: 'Test' }
 ```
 
-### 8.2 Les methodes principales
+### 8.2 Les méthodes principales
 
-| Methode | Role |
+| Méthode | Role |
 |---|---|
 | `on(event, fn)` | Abonner un listener (peut etre appele plusieurs fois) |
-| `once(event, fn)` | Abonner un listener qui se desabonne apres le premier appel |
-| `emit(event, ...args)` | Emettre un evenement avec des arguments |
-| `removeListener(event, fn)` | Desabonner un listener specifique |
-| `removeAllListeners([event])` | Desabonner tous les listeners (d'un evenement ou de tous) |
-| `listenerCount(event)` | Nombre de listeners pour un evenement |
-| `eventNames()` | Liste des evenements ayant des listeners |
+| `once(event, fn)` | Abonner un listener qui se desabonne après le premier appel |
+| `emit(event, ...args)` | Emettre un événement avec des arguments |
+| `removeListener(event, fn)` | Desabonner un listener spécifique |
+| `removeAllListeners([event])` | Desabonner tous les listeners (d'un événement ou de tous) |
+| `listenerCount(event)` | Nombre de listeners pour un événement |
+| `eventNames()` | Liste des événements ayant des listeners |
 
 ### 8.3 Exemple pratique : Logger avec EventEmitter
 
@@ -718,15 +720,15 @@ emitter.emit('error', new Error('Boom'));
 // Affiche : 'Erreur geree : Boom'
 ```
 
-> **Piege classique** : Ne pas ecouter l'evenement `'error'` sur un EventEmitter est une source frequente de crashes en production. Ajoute TOUJOURS un listener `'error'` sur tes emitters, serveurs HTTP, connexions bases de donnees, etc.
+> **Piege classique** : Ne pas ecouter l'événement `'error'` sur un EventEmitter est une source frequente de crashes en production. Ajoute TOUJOURS un listener `'error'` sur tes emitters, serveurs HTTP, connexions bases de donnees, etc.
 
 ---
 
-## 9. Exercices d'ordre d'execution
+## 9. Exercices d'ordre d'exécution
 
 ### Exercice 1 — Niveau facile
 
-Predis la sortie AVANT d'executer :
+Predis la sortie AVANT d'exécuter :
 
 ```typescript
 console.log('1');
@@ -753,16 +755,16 @@ console.log('4');
 ```
 
 **Explication** :
-1. `console.log('1')` — synchrone, execute immediatement
+1. `console.log('1')` — synchrone, exécuté immediatement
 2. `setTimeout` — schedule dans la macrotask queue (phase Timers)
 3. `Promise.then` — schedule dans la microtask queue
-4. `console.log('4')` — synchrone, execute immediatement
+4. `console.log('4')` — synchrone, exécuté immediatement
 5. Le call stack est vide → les microtasks sont traitees → `3`
 6. Puis la macrotask → `2`
 
 </details>
 
-### Exercice 2 — Niveau intermediaire
+### Exercice 2 — Niveau intermédiaire
 
 ```typescript
 console.log('A');
@@ -806,7 +808,7 @@ C
 1. `A`, `I` — synchrones
 2. `F` — nextTick (priorite maximale parmi les microtasks)
 3. `G` — nextTick imbrique (traite avant de passer aux Promises)
-4. `D`, `H` — microtasks Promise (meme "tick")
+4. `D`, `H` — microtasks Promise (même "tick")
 5. `E` — microtask Promise du `.then` suivant
 6. `B`, `C` — macrotasks setTimeout
 
@@ -860,7 +862,7 @@ setTimeout
 2. `setTimeout` — schedule en macrotask
 3. `async1()` demarre :
    - `'async1 start'` — synchrone dans async1
-   - `await async2()` : `async2()` s'execute → `'async2'`
+   - `await async2()` : `async2()` s'exécuté → `'async2'`
    - Le `await` met en pause async1 et ajoute la suite (`async1 end`) en microtask
 4. `new Promise(executor)` : l'executor est synchrone → `'promise1'`
    - `resolve()` schedule le `.then` en microtask
@@ -908,18 +910,18 @@ timeout inside promise
 3. Puis `'promise2'` (microtask chainee)
 4. Premier setTimeout → `'timeout1'`, puis sa Promise → `'promise inside timeout'` (microtask traitee avant le prochain timer)
 5. Deuxieme setTimeout → `'timeout2'`
-6. Le setTimeout cree dans la Promise → `'timeout inside promise'`
+6. Le setTimeout créé dans la Promise → `'timeout inside promise'`
 
 </details>
 
 ---
 
-## 10. Resume — Les concepts cles
+## 10. Résumé — Les concepts clés
 
 | Concept | Definition |
 |---|---|
-| **Event Loop** | Boucle qui orchestre l'execution du code async en 6 phases |
-| **Call Stack** | Pile LIFO qui trace les fonctions en cours d'execution |
+| **Event Loop** | Boucle qui orchestre l'exécution du code async en 6 phases |
+| **Call Stack** | Pile LIFO qui trace les fonctions en cours d'exécution |
 | **Microtask Queue** | File pour les Promises et nextTick (priorite haute) |
 | **Macrotask Queue** | File pour les timers, I/O, setImmediate (priorite normale) |
 | **libuv** | Bibliotheque C qui fournit l'event loop et le thread pool |
@@ -927,10 +929,10 @@ timeout inside promise
 | **Non-blocking I/O** | Les operations I/O ne bloquent pas le thread principal |
 | **Callback** | Fonction passee en argument, appelee quand l'operation est terminee |
 | **Promise** | Objet representant une valeur future (pending, fulfilled, rejected) |
-| **async/await** | Sucre syntaxique pour ecrire du code asynchrone lisiblement |
-| **EventEmitter** | Pattern Observer pour emettre et ecouter des evenements |
+| **async/await** | Sucre syntaxique pour écrire du code asynchrone lisiblement |
+| **EventEmitter** | Pattern Observer pour emettre et ecouter des événements |
 
-> **A retenir** : L'event loop est le coeur de Node.js. Comprendre son fonctionnement te permet de predire l'ordre d'execution du code, d'eviter les bugs asynchrones et d'ecrire des applications performantes. Les microtasks (Promises, nextTick) passent toujours avant les macrotasks (timers, I/O).
+> **A retenir** : L'event loop est le coeur de Node.js. Comprendre son fonctionnement te permet de predire l'ordre d'exécution du code, d'éviter les bugs asynchrones et d'écrire des applications performantes. Les microtasks (Promises, nextTick) passent toujours avant les macrotasks (timers, I/O).
 
 ---
 
@@ -938,11 +940,22 @@ timeout inside promise
 
 | | Lien |
 |---|---|
-| Module precedent | [Module 00 — Prerequis & Le monde du backend](./00-prerequis-et-monde-backend.md) |
+| Module précédent | [Module 00 — Prérequis & Le monde du backend](./00-prerequis-et-monde-backend.md) |
 | Module suivant | [Module 02 — Node.js — Modules, FS & Process](./02-nodejs-modules-et-fs.md) |
 | Quiz | [Quiz Module 01](../quizzes/01-nodejs-event-loop.quiz.md) |
 | Lab | [Lab 01 — Event Loop en pratique](../labs/01-nodejs-event-loop.lab.md) |
 
 ---
 
-> **A retenir** : Node.js est mono-thread mais pas mono-tache. L'event loop, libuv et le thread pool travaillent ensemble pour gerer la concurrence sans bloquer. Maitriser l'ordre d'execution (synchrone → nextTick → Promise → timer → I/O) est une competence fondamentale pour tout developpeur Node.js.
+> **A retenir** : Node.js est mono-thread mais pas mono-tache. L'event loop, libuv et le thread pool travaillent ensemble pour gérer la concurrence sans bloquer. Maîtriser l'ordre d'exécution (synchrone → nextTick → Promise → timer → I/O) est une compétence fondamentale pour tout développeur Node.js.
+
+---
+
+<!-- parcours-recommande -->
+
+::: tip Parcours recommandé
+1. **Screencast** : [screencast 01 event loop](../screencasts/screencast-01-event-loop.md)
+2. **Lab** : [lab-01-event-loop](../labs/lab-01-event-loop/README)
+3. **Visualisation** : [Event Loop](../visualizations/event-loop.html)
+4. **Quiz** : [quiz 01 event loop](../quizzes/quiz-01-event-loop.html)
+:::

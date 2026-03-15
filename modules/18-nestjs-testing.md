@@ -1,8 +1,8 @@
 # Module 18 — NestJS — Testing
 
-> **Objectif** : Apprendre a ecrire des tests unitaires, d'integration et end-to-end (E2E) pour une application NestJS, en maitrisant les techniques de mocking et l'outillage Jest.
+> **Objectif** : Apprendre à écrire des tests unitaires, d'intégration et end-to-end (E2E) pour une application NestJS, en maitrisant les techniques de mocking et l'outillage Jest.
 > **Difficulte** : ⭐⭐⭐ (avance)
-> **Prerequis** : Module 11 (Services), Module 13 (Pipes, Guards, Interceptors), Module 14 ou 16 (ORM au choix)
+> **Prérequis** : Module 11 (Services), Module 13 (Pipes, Guards, Interceptors), Module 14 ou 16 (ORM au choix)
 > **Duree estimee** : 6 heures
 
 ---
@@ -13,19 +13,19 @@
 
 ### 1.1 Pourquoi tester ?
 
-> **Analogie** : Les tests sont comme les filets de securite d'un trapeziste. Ils ne vous empechent pas de faire des figures acrobatiques (du code complexe), mais ils vous rattrapent quand vous tombez (quand un bug est introduit). Sans filet, chaque modification devient un acte de bravoure.
+> **Analogie** : Les tests sont comme les filets de sécurité d'un trapeziste. Ils ne vous empechent pas de faire des figures acrobatiques (du code complexe), mais ils vous rattrapent quand vous tombez (quand un bug est introduit). Sans filet, chaque modification devient un acte de bravoure.
 
 ### 1.2 Les trois niveaux de tests
 
 | Niveau | Cible | Vitesse | Couverture | Dependances |
 |--------|-------|---------|------------|-------------|
-| **Unitaire** | Une classe/methode | Tres rapide | Etroite | Mockees |
-| **Integration** | Plusieurs classes ensemble | Moyen | Moyenne | Partiellement reelles |
+| **Unitaire** | Une classe/méthode | Très rapide | Etroite | Mockees |
+| **Intégration** | Plusieurs classes ensemble | Moyen | Moyenne | Partiellement reelles |
 | **E2E** | L'application complete | Lent | Large | Reelles (DB, HTTP) |
 
 ### 1.3 Configuration de Jest dans NestJS
 
-NestJS utilise Jest comme framework de test par defaut. La configuration est deja presente dans un projet NestJS genere avec la CLI.
+NestJS utilise Jest comme framework de test par defaut. La configuration est déjà présenté dans un projet NestJS généré avec la CLI.
 
 ```json
 // package.json
@@ -105,7 +105,7 @@ npx jest --testPathPattern=users.service.spec.ts
 
 ### 2.1 Le module de test NestJS
 
-NestJS fournit `Test.createTestingModule()` pour creer un module de test isole.
+NestJS fournit `Test.createTestingModule()` pour créer un module de test isole.
 
 ```typescript
 // users/users.service.spec.ts
@@ -733,9 +733,9 @@ describe('TransformResponseInterceptor', () => {
 
 ---
 
-## 5. Tests d'integration
+## 5. Tests d'intégration
 
-Les tests d'integration testent plusieurs composants ensemble, avec une vraie base de donnees.
+Les tests d'intégration testent plusieurs composants ensemble, avec une vraie base de donnees.
 
 ```typescript
 // users/users.integration.spec.ts
@@ -1121,16 +1121,16 @@ coverageThresholds: {
 
 | Pratique | Description |
 |----------|-------------|
-| Pattern AAA | Arrange (preparer), Act (agir), Assert (verifier) |
-| Un test = une assertion | Chaque test verifie UNE chose specifique |
+| Pattern AAA | Arrange (preparer), Act (agir), Assert (vérifier) |
+| Un test = une assertion | Chaque test vérifié UNE chose spécifique |
 | Nommer clairement | `devrait retourner 404 si utilisateur introuvable` |
-| Tests independants | Chaque test peut s'executer seul, dans n'importe quel ordre |
-| Eviter les tests fragiles | Ne testez pas les details d'implementation, testez le comportement |
-| Mocker avec parcimonie | Preferez les tests d'integration pour les cas complexes |
-| Nettoyer apres | Utilisez `afterEach` / `afterAll` pour nettoyer |
-| CI/CD | Lancez les tests automatiquement a chaque push |
+| Tests independants | Chaque test peut s'exécuter seul, dans n'importe quel ordre |
+| Éviter les tests fragiles | Ne testez pas les details d'implementation, testez le comportement |
+| Mocker avec parcimonie | Preferez les tests d'intégration pour les cas complexes |
+| Nettoyer après | Utilisez `afterEach` / `afterAll` pour nettoyer |
+| CI/CD | Lancez les tests automatiquement à chaque push |
 
-> **Bonne pratique** : Suivez la pyramide de tests. Beaucoup de tests unitaires (rapides, isoles), quelques tests d'integration (service + DB), et peu de tests E2E (lents mais complets).
+> **Bonne pratique** : Suivez la pyramide de tests. Beaucoup de tests unitaires (rapides, isoles), quelques tests d'intégration (service + DB), et peu de tests E2E (lents mais complets).
 
 ---
 
@@ -1138,11 +1138,11 @@ coverageThresholds: {
 
 ### Exercice 1 : Tests unitaires
 
-Ecrivez les tests unitaires complets pour un `ProductsService` avec les methodes : create, findAll, findOne, update, remove. Utilisez des mocks pour le repository.
+Ecrivez les tests unitaires complets pour un `ProductsService` avec les méthodes : create, findAll, findOne, update, remove. Utilisez des mocks pour le repository.
 
 ### Exercice 2 : Test de Guard
 
-Testez un `ApiKeyGuard` qui verifie le header `x-api-key`. Testez les cas : cle valide, cle invalide, cle absente.
+Testez un `ApiKeyGuard` qui vérifié le header `x-api-key`. Testez les cas : clé valide, clé invalide, clé absente.
 
 ### Exercice 3 : Test E2E
 
@@ -1157,8 +1157,18 @@ Ecrivez une suite de tests E2E pour un CRUD complet de produits, incluant la val
 | Quiz Module 18 | `quiz/18-quiz.md` |
 | Lab Module 18 | `labs/18-lab-testing.md` |
 | Screencast | `screencasts/18-screencast.md` |
-| Module precedent | [Module 17 — Prisma avance & Comparaison](17-prisma-avance-comparaison.md) |
+| Module précédent | [Module 17 — Prisma avance & Comparaison](17-prisma-avance-comparaison.md) |
 | Module suivant | [Module 19 — Authentification & Autorisation](19-nestjs-auth.md) |
 | NestJS Testing | https://docs.nestjs.com/fundamentals/testing |
 | Jest Documentation | https://jestjs.io/docs/getting-started |
 | Supertest | https://github.com/ladjs/supertest |
+
+---
+
+<!-- parcours-recommande -->
+
+::: tip Parcours recommandé
+1. **Screencast** : [screencast 18 testing](../screencasts/screencast-18-testing.md)
+2. **Lab** : [lab-18-testing](../labs/lab-18-testing/README)
+3. **Quiz** : [quiz 18 testing](../quizzes/quiz-18-testing.html)
+:::

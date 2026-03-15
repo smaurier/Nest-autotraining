@@ -1,8 +1,8 @@
 # Module 26 — GraphQL avec NestJS
 
-> **Objectif** : Maitriser l'integration de GraphQL dans NestJS avec Apollo Server. Comprendre les differences fondamentales avec REST, implementer des queries, mutations, subscriptions, gerer le probleme N+1 avec DataLoader, securiser et paginer une API GraphQL.
+> **Objectif** : Maîtriser l'intégration de GraphQL dans NestJS avec Apollo Server. Comprendre les différences fondamentales avec REST, implementer des queries, mutations, subscriptions, gérer le problème N+1 avec DataLoader, sécuriser et paginer une API GraphQL.
 > **Difficulte** : ⭐⭐⭐⭐ (avance+)
-> **Prerequis** : Module 10 (Controllers & Providers), Module 13 (Guards & Pipes), Module 19 (Auth JWT)
+> **Prérequis** : Module 10 (Controllers & Providers), Module 13 (Guards & Pipes), Module 19 (Auth JWT)
 > **Duree estimee** : 8 heures
 
 ---
@@ -13,7 +13,7 @@
 
 REST est un excellent paradigme architectural, mais il montre ses limites dans certains contextes :
 
-**Over-fetching** : le client recoit plus de donnees que necessaire.
+**Over-fetching** : le client recoit plus de donnees que nécessaire.
 
 ```
 GET /api/products/42
@@ -36,9 +36,9 @@ GET /api/products/42
 }
 ```
 
-Si le frontend n'a besoin que du `name` et du `price`, il recoit quand meme tous les autres champs. Sur un reseau mobile, ca peut faire la difference.
+Si le frontend n'a besoin que du `name` et du `price`, il recoit quand même tous les autres champs. Sur un réseau mobile, ça peut faire la différence.
 
-**Under-fetching** : le client doit faire plusieurs requetes pour obtenir les donnees liees.
+**Under-fetching** : le client doit faire plusieurs requêtes pour obtenir les donnees liees.
 
 ```
 GET /api/products/42          → le produit
@@ -46,25 +46,25 @@ GET /api/products/42/reviews  → les avis
 GET /api/categories/7         → la categorie
 ```
 
-Trois requetes HTTP pour afficher une seule page produit. C'est du **under-fetching**.
+Trois requêtes HTTP pour afficher une seule page produit. C'est du **under-fetching**.
 
-> **Analogie** : Imagine que tu commandes au restaurant. Avec REST, tu dois demander le plat, puis separement les accompagnements, puis separement la sauce. Avec GraphQL, tu fais une seule commande : "Je veux le plat avec les frites et la sauce bearnaise". Le serveur te ramene tout en une fois, exactement ce que tu as demande.
+> **Analogie** : Imagine que tu commandes au restaurant. Avec REST, tu dois demander le plat, puis separement les accompagnements, puis separement la sauce. Avec GraphQL, tu fais une seule commande : "Je veux le plat avec les frites et la sauce bearnaise". Le serveur te ramene tout en une fois, exactement ce que tu as demandé.
 
 ### 1.2 Qu'est-ce que GraphQL ?
 
-GraphQL est un **langage de requete pour les API** et un **runtime** pour executer ces requetes. Il a ete cree par Facebook en 2012 et rendu open source en 2015.
+GraphQL est un **langage de requête pour les API** et un **runtime** pour exécuter ces requêtes. Il a ete créé par Facebook en 2012 et rendu open source en 2015.
 
 Principes fondamentaux :
 
 | Principe | Description |
 |---|---|
-| **Schema fortement type** | Chaque API definit un schema avec des types precis |
-| **Requete declarative** | Le client demande exactement ce qu'il veut |
+| **Schema fortement type** | Chaque API définit un schema avec des types précis |
+| **Requête declarative** | Le client demandé exactement ce qu'il veut |
 | **Un seul endpoint** | Tout passe par `POST /graphql` |
 | **Introspection** | L'API peut decrire son propre schema |
-| **Hierarchique** | Les requetes suivent la structure des donnees |
+| **Hierarchique** | Les requêtes suivent la structure des donnees |
 
-### 1.3 Anatomie d'une requete GraphQL
+### 1.3 Anatomie d'une requête GraphQL
 
 ```graphql
 # Le client envoie cette requete
@@ -102,41 +102,41 @@ query {
 }
 ```
 
-**Une seule requete, exactement les champs demandes, avec les relations incluses.**
+**Une seule requête, exactement les champs demandes, avec les relations incluses.**
 
 ### 1.4 Les trois types d'operations
 
 | Operation | Description | Equivalent REST |
 |---|---|---|
 | **Query** | Lecture de donnees | GET |
-| **Mutation** | Creation, modification, suppression | POST, PUT, PATCH, DELETE |
-| **Subscription** | Donnees temps reel (WebSocket) | WebSocket / SSE |
+| **Mutation** | Création, modification, suppression | POST, PUT, PATCH, DELETE |
+| **Subscription** | Donnees temps réel (WebSocket) | WebSocket / SSE |
 
 ### 1.5 REST vs GraphQL — Matrice de decision
 
 | Critere | REST | GraphQL |
 |---|---|---|
-| **Simplicite** | Plus simple a apprendre | Courbe d'apprentissage plus forte |
+| **Simplicite** | Plus simple à apprendre | Courbe d'apprentissage plus forte |
 | **Caching** | HTTP caching natif (GET) | Plus complexe (POST uniquement) |
 | **Over/under-fetching** | Frequent | Elimine par design |
 | **Versioning** | /api/v1, /api/v2 | Pas de versioning (evolution du schema) |
-| **Upload fichiers** | Natif (multipart) | Necessaire spec supplementaire |
+| **Upload fichiers** | Natif (multipart) | Nécessaire spec supplementaire |
 | **Monitoring** | Un endpoint = une metrique | Tout passe par /graphql |
 | **Outillage** | Swagger/OpenAPI | Playground, introspection |
 | **Multi-clients** | Un endpoint par besoin (BFF) | Un seul schema, chaque client choisit ses champs |
-| **Temps reel** | WebSocket a part | Subscriptions integrees |
+| **Temps réel** | WebSocket a part | Subscriptions integrees |
 
 **Quand utiliser REST** :
 - API publique simple avec caching important
 - CRUD classique avec peu de relations
-- Equipe peu experimentee avec GraphQL
+- Équipe peu experimentee avec GraphQL
 - Upload de fichiers intensif
 
 **Quand utiliser GraphQL** :
-- Plusieurs clients (web, mobile) avec des besoins differents
+- Plusieurs clients (web, mobile) avec des besoins différents
 - Donnees fortement interconnectees (graphe)
 - Frontend qui evolue rapidement
-- Besoin de reduire le nombre de requetes reseau
+- Besoin de reduire le nombre de requêtes réseau
 
 ---
 
@@ -152,7 +152,7 @@ Les packages :
 - `@nestjs/graphql` — Module GraphQL pour NestJS
 - `@nestjs/apollo` — Driver Apollo Server pour NestJS
 - `@apollo/server` — Apollo Server v4
-- `graphql` — Implementation de reference de GraphQL en JavaScript
+- `graphql` — Implementation de référence de GraphQL en JavaScript
 
 ### 2.2 Configuration dans AppModule
 
@@ -181,27 +181,27 @@ export class AppModule {}
 
 ### 2.3 Approche Code-first vs Schema-first
 
-NestJS supporte deux approches pour definir le schema GraphQL :
+NestJS supporte deux approches pour définir le schema GraphQL :
 
-| Approche | Schema defini dans... | Generation |
+| Approche | Schema défini dans... | Génération |
 |---|---|---|
-| **Code-first** | Decorateurs TypeScript | Schema .gql genere automatiquement |
+| **Code-first** | Decorateurs TypeScript | Schema .gql généré automatiquement |
 | **Schema-first** | Fichiers .graphql | Types TypeScript generes |
 
 Dans ce module, nous utilisons l'approche **code-first** car elle :
-- S'integre naturellement avec les decorateurs NestJS
+- S'intégré naturellement avec les decorateurs NestJS
 - Evite la duplication entre le schema et les types TypeScript
 - Permet une meilleure experience avec l'autocompletion
 
-> **Analogie** : L'approche code-first, c'est comme ecrire un roman directement. L'approche schema-first, c'est comme ecrire d'abord le plan detaille de chaque chapitre, puis le roman qui doit respecter ce plan. Les deux approches sont valides, mais la premiere est souvent plus naturelle quand on developpe en TypeScript.
+> **Analogie** : L'approche code-first, c'est comme écrire un roman directement. L'approche schema-first, c'est comme écrire d'abord le plan détaillé de chaque chapitre, puis le roman qui doit respecter ce plan. Les deux approches sont valides, mais la première est souvent plus naturelle quand on développé en TypeScript.
 
 ### 2.4 Le playground Apollo
 
 Une fois le serveur lance, ouvrez `http://localhost:3000/graphql` dans votre navigateur. Le playground Apollo vous permet de :
 
 - Explorer le schema avec l'onglet **Docs**
-- Ecrire et executer des requetes
-- Voir l'historique des requetes
+- Écrire et exécuter des requêtes
+- Voir l'historique des requêtes
 - Tester les mutations et subscriptions
 
 ```graphql
@@ -215,7 +215,7 @@ query {
 }
 ```
 
-C'est l'**introspection** : l'API se decrit elle-meme. Tres utile en developpement, a desactiver en production.
+C'est l'**introspection** : l'API se decrit elle-même. Très utile en développement, a désactiver en production.
 
 ```typescript
 // En production, desactivez l'introspection et le playground
@@ -231,9 +231,9 @@ GraphQLModule.forRoot<ApolloDriverConfig>({
 
 ## 3. Code-first — Types et Resolvers
 
-### 3.1 @ObjectType — Definir un type GraphQL
+### 3.1 @ObjectType — Définir un type GraphQL
 
-Un `@ObjectType` est l'equivalent GraphQL d'un type dans le schema SDL.
+Un `@ObjectType` est l'équivalent GraphQL d'un type dans le schema SDL.
 
 ```typescript
 // products/models/product.model.ts
@@ -258,7 +258,7 @@ export class Product {
 }
 ```
 
-Cela genere ce schema SDL :
+Cela généré ce schema SDL :
 
 ```graphql
 """Un produit du catalogue"""
@@ -291,7 +291,7 @@ type Product {
 | `Boolean` | `boolean` | `@Field()` |
 | `DateTime` | `Date` | `@Field()` |
 
-> **Important** : TypeScript ne distingue pas `Int` et `Float` (tout est `number`). Vous devez explicitement specifier le type GraphQL avec le premier argument de `@Field()`. Si vous ne le faites pas, NestJS infere `Float` par defaut pour les `number`.
+> **Important** : TypeScript ne distingue pas `Int` et `Float` (tout est `number`). Vous devez explicitement spécifier le type GraphQL avec le premier argument de `@Field()`. Si vous ne le faites pas, NestJS infere `Float` par defaut pour les `number`.
 
 ### 3.3 Champs nullables et valeurs par defaut
 
@@ -322,7 +322,7 @@ export class Product {
 
 ### 3.4 @Resolver — Le coeur de la logique
 
-Un resolver est l'equivalent d'un controller REST, mais pour GraphQL.
+Un resolver est l'équivalent d'un controller REST, mais pour GraphQL.
 
 ```typescript
 // products/products.resolver.ts
@@ -392,7 +392,7 @@ products(@Args() args: ProductsArgs): Product[] {
 
 ### 3.6 @InputType — Donnees en entree
 
-Un `@InputType` est l'equivalent d'un DTO pour les mutations.
+Un `@InputType` est l'équivalent d'un DTO pour les mutations.
 
 ```typescript
 // products/dto/create-product.input.ts
@@ -517,7 +517,7 @@ type Mutation {
 }
 ```
 
-NestJS genere automatiquement les types TypeScript correspondants dans `src/graphql.ts`.
+NestJS généré automatiquement les types TypeScript correspondants dans `src/graphql.ts`.
 
 ### 4.3 Resolver Schema-first
 
@@ -543,7 +543,7 @@ export class ProductsResolver {
 }
 ```
 
-> **Recommandation** : Sauf si votre equipe a deja un workflow schema-first etabli (par exemple, un schema partage entre plusieurs services), preferez l'approche **code-first** avec NestJS. Elle est mieux integree et plus idiomatique.
+> **Recommandation** : Sauf si votre équipe a déjà un workflow schema-first etabli (par exemple, un schema partage entre plusieurs services), preferez l'approche **code-first** avec NestJS. Elle est mieux intégrée et plus idiomatique.
 
 ---
 
@@ -551,7 +551,7 @@ export class ProductsResolver {
 
 ### 5.1 @ResolveField — Resoudre des champs lies
 
-Quand un champ d'un type fait reference a un autre type, on utilise `@ResolveField` pour indiquer comment le resoudre.
+Quand un champ d'un type fait référence à un autre type, on utilise `@ResolveField` pour indiquer comment le résoudre.
 
 ```typescript
 // products/models/product.model.ts
@@ -605,11 +605,11 @@ export class ProductsResolver {
 }
 ```
 
-> **Analogie** : `@ResolveField` est comme un assistant specialise. Quand le resolver principal (le manager) livre un produit, il ne connait pas les avis. Il delegue a un assistant (le ResolveField) qui sait ou trouver les avis pour ce produit specifique.
+> **Analogie** : `@ResolveField` est comme un assistant specialise. Quand le resolver principal (le manager) livre un produit, il ne connait pas les avis. Il délégué à un assistant (le ResolveField) qui sait ou trouver les avis pour ce produit spécifique.
 
 ### 5.2 @Parent — Acceder au parent
 
-`@Parent()` donne acces a l'objet parent dans l'arbre de resolution.
+`@Parent()` donne acces a l'objet parent dans l'arbre de résolution.
 
 ```typescript
 @Resolver(() => Review)
@@ -624,7 +624,7 @@ export class ReviewsResolver {
 }
 ```
 
-Le flux de resolution :
+Le flux de résolution :
 
 ```
 Query products
@@ -633,9 +633,9 @@ Query products
       → ReviewsResolver.author(parent)  → pour chaque Review, retourne User
 ```
 
-### 5.3 @Context — Acceder au contexte de la requete
+### 5.3 @Context — Acceder au contexte de la requête
 
-Le contexte GraphQL donne acces a la requete HTTP, a l'utilisateur authentifie, etc.
+Le contexte GraphQL donne acces à la requête HTTP, a l'utilisateur authentifie, etc.
 
 ```typescript
 // Configuration du contexte
@@ -659,11 +659,11 @@ me(@Context() context: { req: Request }): User {
 
 ---
 
-## 6. Le probleme N+1 et DataLoader
+## 6. Le problème N+1 et DataLoader
 
-### 6.1 Le probleme N+1 explique
+### 6.1 Le problème N+1 explique
 
-C'est le piege classique de GraphQL. Observons cette requete :
+C'est le piege classique de GraphQL. Observons cette requête :
 
 ```graphql
 query {
@@ -676,15 +676,15 @@ query {
 }
 ```
 
-Resultat : **1 + 50 = 51 requetes** a la base de donnees. C'est le probleme **N+1**.
+Résultat : **1 + 50 = 51 requêtes** à la base de donnees. C'est le problème **N+1**.
 
-Avec REST, le probleme existe aussi, mais il est gere cote serveur (eager loading, joins). Avec GraphQL, le client peut demander n'importe quelle combinaison de champs, donc le probleme est plus frequent.
+Avec REST, le problème existe aussi, mais il est géré cote serveur (eager loading, joins). Avec GraphQL, le client peut demander n'importe quelle combinaison de champs, donc le problème est plus frequent.
 
-> **Analogie** : Imagine un professeur qui doit distribuer les copies a 30 eleves. Le probleme N+1, c'est comme faire un aller-retour au casier pour chaque copie. La solution DataLoader, c'est comme aller au casier une seule fois et ramener toutes les copies d'un coup.
+> **Analogie** : Imagine un professeur qui doit distribuer les copies a 30 eleves. Le problème N+1, c'est comme faire un aller-retour au casier pour chaque copie. La solution DataLoader, c'est comme aller au casier une seule fois et ramener toutes les copies d'un coup.
 
 ### 6.2 DataLoader — La solution
 
-**DataLoader** est une bibliotheque qui regroupe (batch) et met en cache les requetes pendant un meme tick d'execution.
+**DataLoader** est une bibliotheque qui regroupe (batch) et met en cache les requêtes pendant un même tick d'exécution.
 
 ```bash
 npm install dataloader
@@ -747,15 +747,15 @@ export class ProductsResolver {
 }
 ```
 
-**Avant DataLoader** : 1 + N requetes (51 pour 50 produits)
-**Apres DataLoader** : 1 + 1 = 2 requetes (une pour les produits, une pour toutes les reviews)
+**Avant DataLoader** : 1 + N requêtes (51 pour 50 produits)
+**Après DataLoader** : 1 + 1 = 2 requêtes (une pour les produits, une pour toutes les reviews)
 
 ### 6.4 Scope REQUEST — Pourquoi c'est important
 
 Le DataLoader doit etre en scope `REQUEST` pour deux raisons :
 
-1. **Cache par requete** : Chaque requete GraphQL a son propre cache. Sinon, un utilisateur pourrait voir des donnees cachees d'un autre utilisateur.
-2. **Batching par tick** : Le regroupement se fait pendant un seul tick d'execution, qui correspond a une seule requete.
+1. **Cache par requête** : Chaque requête GraphQL a son propre cache. Sinon, un utilisateur pourrait voir des donnees cachees d'un autre utilisateur.
+2. **Batching par tick** : Le regroupement se fait pendant un seul tick d'exécution, qui correspond à une seule requête.
 
 ```typescript
 @Injectable({ scope: Scope.REQUEST })
@@ -764,7 +764,7 @@ export class ReviewsLoader {
 }
 ```
 
-> **Attention** : Les providers en scope `REQUEST` impactent la performance car ils sont recrees a chaque requete. Utilisez-les uniquement pour les DataLoaders, pas pour les services classiques.
+> **Attention** : Les providers en scope `REQUEST` impactent la performance car ils sont recrees à chaque requête. Utilisez-les uniquement pour les DataLoaders, pas pour les services classiques.
 
 ---
 
@@ -895,11 +895,11 @@ throw new GraphQLError('Produit non trouve', {
 
 ---
 
-## 8. Subscriptions — Temps reel
+## 8. Subscriptions — Temps réel
 
 ### 8.1 Configuration
 
-Les subscriptions utilisent les WebSockets pour envoyer des donnees en temps reel au client.
+Les subscriptions utilisent les WebSockets pour envoyer des donnees en temps réel au client.
 
 ```bash
 npm install graphql-subscriptions
@@ -917,7 +917,7 @@ GraphQLModule.forRoot<ApolloDriverConfig>({
 }),
 ```
 
-### 8.2 PubSub — Le systeme de publication
+### 8.2 PubSub — Le système de publication
 
 ```typescript
 // common/pubsub.provider.ts
@@ -928,7 +928,7 @@ import { PubSub } from 'graphql-subscriptions';
 export const pubSub = new PubSub();
 ```
 
-> **Attention** : `PubSub` de `graphql-subscriptions` est **uniquement pour le developpement**. En production avec plusieurs instances du serveur, utilisez `graphql-redis-subscriptions` ou `graphql-kafka-subscriptions` pour que les messages soient distribues entre toutes les instances.
+> **Attention** : `PubSub` de `graphql-subscriptions` est **uniquement pour le développement**. En production avec plusieurs instances du serveur, utilisez `graphql-redis-subscriptions` ou `graphql-kafka-subscriptions` pour que les messages soient distribues entre toutes les instances.
 
 ### 8.3 Publication dans les mutations
 
@@ -948,7 +948,7 @@ async createProduct(
 }
 ```
 
-### 8.4 @Subscription — Ecouter les evenements
+### 8.4 @Subscription — Ecouter les événements
 
 ```typescript
 import { Resolver, Subscription } from '@nestjs/graphql';
@@ -1015,7 +1015,7 @@ function ProductFeed() {
 
 ---
 
-## 9. Authentification et securite
+## 9. Authentification et sécurité
 
 ### 9.1 Guards avec GraphQL
 
@@ -1089,7 +1089,7 @@ createProduct(
 
 ### 9.3 Limitation de profondeur (Depth limiting)
 
-Sans protection, un client malveillant pourrait envoyer une requete tres imbriquee :
+Sans protection, un client malveillant pourrait envoyer une requête très imbriquee :
 
 ```graphql
 query {
@@ -1109,7 +1109,7 @@ query {
 }
 ```
 
-Cette requete pourrait mettre le serveur a genoux.
+Cette requête pourrait mettre le serveur a genoux.
 
 ```bash
 npm install graphql-depth-limit
@@ -1127,7 +1127,7 @@ GraphQLModule.forRoot<ApolloDriverConfig>({
 
 ### 9.4 Limitation de complexite (Query complexity)
 
-La profondeur ne suffit pas. Une requete peu profonde mais avec beaucoup de champs peut aussi etre couteuse.
+La profondeur ne suffit pas. Une requête peu profonde mais avec beaucoup de champs peut aussi etre couteuse.
 
 ```bash
 npm install graphql-query-complexity
@@ -1172,7 +1172,7 @@ GraphQLModule.forRoot<ApolloDriverConfig>({
 }),
 ```
 
-Definir la complexite par champ :
+Définir la complexite par champ :
 
 ```typescript
 @ObjectType()
@@ -1202,7 +1202,7 @@ export class GqlThrottlerGuard extends ThrottlerGuard {
 }
 ```
 
-### 9.6 Checklist securite GraphQL
+### 9.6 Checklist sécurité GraphQL
 
 | Mesure | Importance | Implementation |
 |---|---|---|
@@ -1226,11 +1226,11 @@ export class GqlThrottlerGuard extends ThrottlerGuard {
 | **Offset/Limit** | Simple, familier | Donnees dupliquees ou manquantes si les donnees changent |
 | **Cursor-based** | Stable, performant | Plus complexe a implementer |
 
-La pagination cursor-based utilise un **curseur opaque** (generalement un ID encode en base64) pour indiquer ou reprendre la lecture.
+La pagination cursor-based utilise un **curseur opaque** (généralement un ID encode en base64) pour indiquer où reprendre la lecture.
 
 ### 10.2 Types de pagination Relay
 
-Le standard Relay definit une structure de pagination reuilisable :
+Le standard Relay définit une structure de pagination reuilisable :
 
 ```typescript
 // common/pagination/page-info.model.ts
@@ -1340,7 +1340,7 @@ findPaginated(first: number, after?: string): PaginatedProducts {
 }
 ```
 
-Requete cote client :
+Requête cote client :
 
 ```graphql
 query {
@@ -1386,7 +1386,7 @@ query {
 
 ### 11.1 Tests E2E avec supertest
 
-Pour tester une API GraphQL, on envoie des requetes POST au endpoint `/graphql`.
+Pour tester une API GraphQL, on envoie des requêtes POST au endpoint `/graphql`.
 
 ```typescript
 // test/products.e2e-spec.ts
@@ -1733,7 +1733,7 @@ Client → Apollo Gateway → Service Produits (sous-graphe)
                         → Service Commandes (sous-graphe)
 ```
 
-Chaque service definit sa portion du schema, et le Gateway les combine automatiquement.
+Chaque service définit sa portion du schema, et le Gateway les combine automatiquement.
 
 ```typescript
 // Installation pour un sous-graphe
@@ -1819,7 +1819,7 @@ export class DateScalar implements CustomScalar<string, Date> {
 
 ---
 
-## 14. Recapitulatif et bonnes pratiques
+## 14. Récapitulatif et bonnes pratiques
 
 ### 14.1 Architecture d'un module GraphQL NestJS
 
@@ -1848,7 +1848,7 @@ src/
 
 ### 14.2 Checklist avant mise en production
 
-| Element | Description |
+| Élément | Description |
 |---|---|
 | Desactiver le playground | `playground: false` en production |
 | Desactiver l'introspection | `introspection: false` en production |
@@ -1859,7 +1859,7 @@ src/
 | Auth sur les mutations | `@UseGuards(GqlAuthGuard)` |
 | Rate limiting | `@nestjs/throttler` adapte pour GraphQL |
 | Logs et monitoring | `LoggingInterceptor` ou Apollo Studio |
-| Persisted queries | Limiter les requetes aux requetes connues |
+| Persisted queries | Limiter les requêtes aux requêtes connues |
 
 ### 14.3 Comparaison finale REST vs GraphQL
 
@@ -1888,7 +1888,7 @@ Creez un schema GraphQL code-first pour une application de gestion de livres ave
 - Mutations : `createBook`, `updateBook`, `removeBook`
 
 ### Exercice 2 — DataLoader
-Identifiez le probleme N+1 dans cette requete et implementez un DataLoader :
+Identifiez le problème N+1 dans cette requête et implementez un DataLoader :
 ```graphql
 query {
   books {
@@ -1906,7 +1906,7 @@ query {
 ### Exercice 3 — Pagination
 Implementez la pagination cursor-based (Relay) pour la query `books`.
 
-### Exercice 4 — Securite
+### Exercice 4 — Sécurité
 Ajoutez un guard d'authentification sur les mutations, la limitation de profondeur a 4, et la complexite maximale a 30.
 
 ---
@@ -1920,3 +1920,24 @@ Ajoutez un guard d'authentification sur les mutations, la limitation de profonde
 - [DataLoader GitHub](https://github.com/graphql/dataloader)
 - [Relay Cursor Connections Specification](https://relay.dev/graphql/connections.htm)
 - [GraphQL Security — OWASP](https://cheatsheetseries.owasp.org/cheatsheets/GraphQL_Cheat_Sheet.html)
+
+---
+
+<!-- parcours-recommande -->
+
+::: tip Parcours recommandé
+1. **Screencast** : [screencast 26 graphql](../screencasts/screencast-26-graphql.md)
+2. **Lab** : [lab-26-graphql](../labs/lab-26-graphql/README)
+3. **Quiz** : [quiz 26 graphql](../quizzes/quiz-26-graphql.html)
+:::
+
+---
+
+<!-- navigation-inter-cours -->
+
+::: info Cours suivant
+Bravo, tu as termine le cours **NestJS** ! 
+Le prochain cours du curriculum est **PostgreSQL**.
+
+[Commencer PostgreSQL →](../../06-postgresql/modules/00-prerequis-et-vue-ensemble.md)
+:::

@@ -1,15 +1,15 @@
 # Module 13 — NestJS — Pipes, Guards, Interceptors & Filters
 
-> **Objectif** : Maitriser les quatre couches de traitement transversal de NestJS pour valider, securiser, transformer et filtrer les requetes de maniere elegante et reutilisable.
+> **Objectif** : Maîtriser les quatre couches de traitement transversal de NestJS pour valider, sécuriser, transformer et filtrer les requêtes de manière elegante et réutilisable.
 > **Difficulte** : ⭐⭐⭐ (avance)
-> **Prerequis** : Module 10 (Controllers & Routing), Module 11 (Services & Providers), Module 12 (Modules)
+> **Prérequis** : Module 10 (Controllers & Routing), Module 11 (Services & Providers), Module 12 (Modules)
 > **Duree estimee** : 6 heures
 
 ---
 
 ## 1. Vue d'ensemble : l'architecture en couches de NestJS
 
-Avant de plonger dans chaque concept, il est crucial de comprendre **l'ordre d'execution** complet d'une requete dans NestJS. C'est l'un des points les plus importants de ce module.
+Avant de plonger dans chaque concept, il est crucial de comprendre **l'ordre d'exécution** complet d'une requête dans NestJS. C'est l'un des points les plus importants de ce module.
 
 ```
 Requete HTTP entrante
@@ -39,7 +39,7 @@ Requete HTTP entrante
    Reponse HTTP
 ```
 
-> **Analogie** : Imaginez un aeroport. Le middleware est le hall d'entree (tout le monde passe). Le guard est le controle des passeports (avez-vous le droit d'entrer ?). L'interceptor est la douane (inspection avant et apres). Le pipe est le scanner de bagages (validation du contenu). Le handler est votre destination finale. Et le filtre d'exception est le bureau des reclamations en cas de probleme.
+> **Analogie** : Imaginez un aeroport. Le middleware est le hall d'entree (tout le monde passe). Le guard est le controle des passeports (avez-vous le droit d'entrer ?). L'interceptor est la douane (inspection avant et après). Le pipe est le scanner de bagages (validation du contenu). Le handler est votre destination finale. Et le filtre d'exception est le bureau des reclamations en cas de problème.
 
 ---
 
@@ -50,7 +50,7 @@ Requete HTTP entrante
 Un **Pipe** est une classe annotee `@Injectable()` qui implemente l'interface `PipeTransform`. Il a deux fonctions principales :
 
 1. **Transformation** : convertir les donnees d'entree (ex: string vers number)
-2. **Validation** : verifier que les donnees respectent certaines regles
+2. **Validation** : vérifier que les donnees respectent certaines regles
 
 ```typescript
 // Signature de l'interface PipeTransform
@@ -142,7 +142,7 @@ findAll(@Query('published', new ParseBoolPipe({ optional: true })) published?: b
 
 #### ParseArrayPipe
 
-Parse un tableau depuis un parametre de requete.
+Parse un tableau depuis un paramètre de requête.
 
 ```typescript
 import { ParseArrayPipe } from '@nestjs/common';
@@ -159,7 +159,7 @@ findByIds(
 
 #### DefaultValuePipe
 
-Fournit une valeur par defaut si le parametre est `undefined` ou `null`.
+Fournit une valeur par defaut si le paramètre est `undefined` ou `null`.
 
 ```typescript
 import { DefaultValuePipe, ParseIntPipe } from '@nestjs/common';
@@ -216,13 +216,13 @@ bootstrap();
 
 | Option | Description | Valeur recommandee |
 |--------|-------------|-------------------|
-| `whitelist` | Supprime les proprietes non decorees du DTO | `true` |
-| `forbidNonWhitelisted` | Erreur 400 si propriete inconnue | `true` |
+| `whitelist` | Supprime les propriétés non decorees du DTO | `true` |
+| `forbidNonWhitelisted` | Erreur 400 si propriété inconnue | `true` |
 | `transform` | Transformation automatique des types | `true` |
 | `disableErrorMessages` | Masque les details d'erreur | `false` (dev), `true` (prod) |
 | `exceptionFactory` | Fonction custom pour formater les erreurs | selon besoin |
 
-> **Piege classique** : Si vous oubliez `whitelist: true`, un utilisateur malveillant peut envoyer des proprietes supplementaires (comme `isAdmin: true`) qui seront transmises a votre service. Toujours activer le whitelist !
+> **Piege classique** : Si vous oubliez `whitelist: true`, un utilisateur malveillant peut envoyer des propriétés supplementaires (comme `isAdmin: true`) qui seront transmises a votre service. Toujours activer le whitelist !
 
 #### Les decorateurs de class-validator
 
@@ -353,9 +353,9 @@ import { CreateUserDto } from './create-user.dto';
 export class UpdateUserDto extends PartialType(CreateUserDto) {}
 ```
 
-> **A retenir** : `PartialType` de `@nestjs/mapped-types` copie tous les decorateurs de validation mais rend chaque propriete optionnelle. C'est la maniere idiomatique de creer un DTO de mise a jour.
+> **A retenir** : `PartialType` de `@nestjs/mapped-types` copie tous les decorateurs de validation mais rend chaque propriété optionnelle. C'est la manière idiomatique de créer un DTO de mise a jour.
 
-#### Tableau recapitulatif des decorateurs class-validator
+#### Tableau récapitulatif des decorateurs class-validator
 
 | Decorateur | Description | Exemple |
 |-----------|-------------|---------|
@@ -378,9 +378,9 @@ export class UpdateUserDto extends PartialType(CreateUserDto) {}
 | `@ValidateNested()` | Valide l'objet imbrique | `@ValidateNested()` |
 | `@Type(() => Class)` | Transforme en instance de classe | `@Type(() => AddressDto)` |
 
-### 2.4 Creer un Pipe personnalise
+### 2.4 Créer un Pipe personnalise
 
-Parfois, les pipes integres ne suffisent pas. Voici comment en creer un sur mesure.
+Parfois, les pipes integres ne suffisent pas. Voici comment en créer un sur mesure.
 
 ```typescript
 // pipes/parse-objectid.pipe.ts
@@ -486,7 +486,7 @@ export class FileValidationPipe implements PipeTransform {
 
 ### 3.1 Qu'est-ce qu'un Guard ?
 
-Un **Guard** est une classe annotee `@Injectable()` qui implemente l'interface `CanActivate`. Sa responsabilite unique est de determiner si une requete peut continuer vers le handler ou non.
+Un **Guard** est une classe annotee `@Injectable()` qui implemente l'interface `CanActivate`. Sa responsabilite unique est de déterminer si une requête peut continuer vers le handler ou non.
 
 ```typescript
 export interface CanActivate {
@@ -498,7 +498,7 @@ export interface CanActivate {
 
 ### 3.2 ExecutionContext
 
-L'`ExecutionContext` etend `ArgumentsHost` et fournit des methodes supplementaires :
+L'`ExecutionContext` etend `ArgumentsHost` et fournit des méthodes supplementaires :
 
 ```typescript
 // L'ExecutionContext vous donne acces a tout
@@ -562,9 +562,9 @@ export class AuthGuard implements CanActivate {
 
 ### 3.4 Guard base sur les roles avec @SetMetadata et Reflector
 
-C'est un pattern fondamental dans NestJS. On utilise des **metadonnees** pour definir quels roles ont acces a une route.
+C'est un pattern fondamental dans NestJS. On utilise des **metadonnees** pour définir quels roles ont acces à une route.
 
-#### Etape 1 : Creer le decorateur @Roles
+#### Étape 1 : Créer le decorateur @Roles
 
 ```typescript
 // decorators/roles.decorator.ts
@@ -576,7 +576,7 @@ export const ROLES_KEY = 'roles';
 export const Roles = (...roles: string[]) => SetMetadata(ROLES_KEY, roles);
 ```
 
-#### Etape 2 : Creer le RolesGuard
+#### Étape 2 : Créer le RolesGuard
 
 ```typescript
 // guards/roles.guard.ts
@@ -628,7 +628,7 @@ export class RolesGuard implements CanActivate {
 }
 ```
 
-#### Etape 3 : Utilisation dans un controller
+#### Étape 3 : Utilisation dans un controller
 
 ```typescript
 // controllers/admin.controller.ts
@@ -660,7 +660,7 @@ export class AdminController {
 }
 ```
 
-> **Piege classique** : L'ordre des guards dans `@UseGuards()` est important. `AuthGuard` doit s'executer **avant** `RolesGuard` car ce dernier a besoin de `request.user` qui est defini par le premier.
+> **Piege classique** : L'ordre des guards dans `@UseGuards()` est important. `AuthGuard` doit s'exécuter **avant** `RolesGuard` car ce dernier a besoin de `request.user` qui est défini par le premier.
 
 ### 3.5 Niveaux d'application des Guards
 
@@ -691,7 +691,7 @@ export class UsersController {}
 findAll() {}
 ```
 
-> **Bonne pratique** : Utilisez `APP_GUARD` dans le module plutot que `app.useGlobalGuards()` dans main.ts. Cela permet l'injection de dependances (comme le `Reflector` ou un `JwtService`) dans votre guard.
+> **Bonne pratique** : Utilisez `APP_GUARD` dans le module plutot que `app.useGlobalGuards()` dans main.ts. Cela permet l'injection de dépendances (comme le `Reflector` ou un `JwtService`) dans votre guard.
 
 ---
 
@@ -699,7 +699,7 @@ findAll() {}
 
 ### 4.1 Qu'est-ce qu'un Interceptor ?
 
-Un **Interceptor** est une classe annotee `@Injectable()` qui implemente `NestInterceptor`. Il peut executer de la logique **avant** et **apres** l'execution du handler, et peut meme **transformer** la reponse.
+Un **Interceptor** est une classe annotee `@Injectable()` qui implemente `NestInterceptor`. Il peut exécuter de la logique **avant** et **après** l'exécution du handler, et peut même **transformer** la réponse.
 
 ```typescript
 export interface NestInterceptor<T = any, R = any> {
@@ -707,9 +707,9 @@ export interface NestInterceptor<T = any, R = any> {
 }
 ```
 
-Le `CallHandler` expose la methode `handle()` qui retourne un `Observable`. C'est grace a cet Observable (RxJS) qu'on peut agir avant et apres le handler.
+Le `CallHandler` expose la méthode `handle()` qui retourne un `Observable`. C'est grâce à cet Observable (RxJS) qu'on peut agir avant et après le handler.
 
-> **Analogie** : L'interceptor est comme un emballage cadeau. Vous pouvez faire quelque chose **avant** de mettre le cadeau dans la boite (preparer le papier), laisser le cadeau se creer (le handler), puis faire quelque chose **apres** (fermer la boite, ajouter un ruban).
+> **Analogie** : L'interceptor est comme un emballage cadeau. Vous pouvez faire quelque chose **avant** de mettre le cadeau dans la boite (preparer le papier), laisser le cadeau se créer (le handler), puis faire quelque chose **après** (fermer la boite, ajouter un ruban).
 
 ### 4.2 Interceptor de logging
 
@@ -761,9 +761,9 @@ export class LoggingInterceptor implements NestInterceptor {
 }
 ```
 
-### 4.3 Interceptor de transformation de reponse
+### 4.3 Interceptor de transformation de réponse
 
-Un pattern tres courant : envelopper toutes les reponses dans un format uniforme.
+Un pattern très courant : envelopper toutes les réponses dans un format uniforme.
 
 ```typescript
 // interceptors/transform-response.interceptor.ts
@@ -806,13 +806,13 @@ export class TransformResponseInterceptor<T>
 }
 ```
 
-Resultat avant :
+Résultat avant :
 
 ```json
 [{ "id": 1, "nom": "Alice" }, { "id": 2, "nom": "Bob" }]
 ```
 
-Resultat apres avec l'interceptor :
+Résultat après avec l'interceptor :
 
 ```json
 {
@@ -941,11 +941,11 @@ findAll() {}
 
 ## 5. Les Exception Filters — Gestion des erreurs
 
-### 5.1 Le systeme d'exceptions de NestJS
+### 5.1 Le système d'exceptions de NestJS
 
-NestJS possede une couche de gestion d'exceptions integree. Par defaut, toute exception non geree est interceptee et transformee en reponse JSON.
+NestJS possede une couche de gestion d'exceptions intégrée. Par defaut, toute exception non gérée est interceptee et transformee en réponse JSON.
 
-#### Hierarchie des exceptions HTTP
+#### Hiérarchie des exceptions HTTP
 
 ```typescript
 // Toutes heritent de HttpException
@@ -1001,7 +1001,7 @@ export class UsersService {
 }
 ```
 
-### 5.2 Creer une exception personnalisee
+### 5.2 Créer une exception personnalisee
 
 ```typescript
 // exceptions/business.exception.ts
@@ -1037,7 +1037,7 @@ export class InsufficientStockException extends BusinessException {
 }
 ```
 
-### 5.3 Creer un Exception Filter personnalise
+### 5.3 Créer un Exception Filter personnalise
 
 ```typescript
 // filters/http-exception.filter.ts
@@ -1181,11 +1181,11 @@ create(@Body() dto: CreateUserDto) {}
 
 ---
 
-## 6. Ordre d'execution complet et recapitulatif
+## 6. Ordre d'exécution complet et récapitulatif
 
 ### 6.1 Le cycle de vie complet
 
-Voici l'ordre **exact** d'execution pour une requete NestJS :
+Voici l'ordre **exact** d'exécution pour une requête NestJS :
 
 ```
 1. Middleware global
@@ -1213,11 +1213,11 @@ Voici l'ordre **exact** d'execution pour une requete NestJS :
 
 ### 6.2 Tableau comparatif
 
-| Concept | Interface | Methode | Role principal | Peut arreter la requete ? |
+| Concept | Interface | Méthode | Role principal | Peut arreter la requête ? |
 |---------|-----------|---------|----------------|--------------------------|
-| Middleware | `NestMiddleware` | `use()` | Logique transversale generique | Oui (ne pas appeler `next()`) |
+| Middleware | `NestMiddleware` | `use()` | Logique transversale générique | Oui (ne pas appeler `next()`) |
 | Guard | `CanActivate` | `canActivate()` | Autorisation | Oui (retourner `false`) |
-| Interceptor | `NestInterceptor` | `intercept()` | Transformation avant/apres | Oui (via Observable) |
+| Interceptor | `NestInterceptor` | `intercept()` | Transformation avant/après | Oui (via Observable) |
 | Pipe | `PipeTransform` | `transform()` | Validation/Transformation | Oui (lancer une exception) |
 | Filter | `ExceptionFilter` | `catch()` | Gestion d'erreurs | Non (agit sur les erreurs) |
 
@@ -1225,14 +1225,14 @@ Voici l'ordre **exact** d'execution pour une requete NestJS :
 
 | Besoin | Solution |
 |--------|----------|
-| Journalisation de chaque requete | Middleware ou Interceptor |
-| Verification du token JWT | Guard |
-| Verification des roles/permissions | Guard |
+| Journalisation de chaque requête | Middleware ou Interceptor |
+| Vérification du token JWT | Guard |
+| Vérification des roles/permissions | Guard |
 | Validation des donnees d'entree | Pipe (ValidationPipe) |
-| Transformation de parametre (string → number) | Pipe |
-| Ajout de headers a la reponse | Interceptor |
-| Mise en cache des reponses | Interceptor |
-| Mesure du temps de reponse | Interceptor |
+| Transformation de paramètre (string → number) | Pipe |
+| Ajout de headers à la réponse | Interceptor |
+| Mise en cache des réponses | Interceptor |
+| Mesure du temps de réponse | Interceptor |
 | Format uniforme des erreurs | Exception Filter |
 | Gestion des erreurs business | Exception Filter |
 
@@ -1421,13 +1421,13 @@ Creez un pipe `ParseSlugPipe` qui transforme une chaine en slug (minuscule, sans
 
 ### Exercice 2 : Guard d'API Key
 
-Creez un guard `ApiKeyGuard` qui verifie la presence d'une cle API dans le header `x-api-key` et la compare a une variable d'environnement.
+Creez un guard `ApiKeyGuard` qui vérifié la presence d'une clé API dans le header `x-api-key` et la compare à une variable d'environnement.
 
 ### Exercice 3 : Interceptor de serialisation
 
-Creez un interceptor qui supprime automatiquement les champs `motDePasse` et `__v` de toutes les reponses.
+Creez un interceptor qui supprime automatiquement les champs `motDePasse` et `__v` de toutes les réponses.
 
-### Exercice 4 : Filter specifique
+### Exercice 4 : Filter spécifique
 
 Creez un `DatabaseExceptionFilter` qui capture les erreurs TypeORM (comme les violations de contrainte unique) et retourne des messages utilisateur lisibles.
 
@@ -1440,7 +1440,7 @@ Creez un `DatabaseExceptionFilter` qui capture les erreurs TypeORM (comme les vi
 | Quiz Module 13 | `quiz/13-quiz.md` |
 | Lab Module 13 | `labs/13-lab-pipes-guards.md` |
 | Screencast | `screencasts/13-screencast.md` |
-| Module precedent | [Module 12 — Modules & Architecture](12-nestjs-modules-architecture.md) |
+| Module précédent | [Module 12 — Modules & Architecture](12-nestjs-modules-architecture.md) |
 | Module suivant | [Module 14 — TypeORM Entites & Relations](14-typeorm-entites-relations.md) |
 | Documentation officielle — Pipes | https://docs.nestjs.com/pipes |
 | Documentation officielle — Guards | https://docs.nestjs.com/guards |
@@ -1448,3 +1448,14 @@ Creez un `DatabaseExceptionFilter` qui capture les erreurs TypeORM (comme les vi
 | Documentation officielle — Exception Filters | https://docs.nestjs.com/exception-filters |
 | class-validator | https://github.com/typestack/class-validator |
 | class-transformer | https://github.com/typestack/class-transformer |
+
+---
+
+<!-- parcours-recommande -->
+
+::: tip Parcours recommandé
+1. **Screencast** : [screencast 13 pipes guards](../screencasts/screencast-13-pipes-guards.md)
+2. **Lab** : [lab-13-pipes-guards](../labs/lab-13-pipes-guards/README)
+3. **Visualisation** : [NestJS Lifecycle](../visualizations/nestjs-lifecycle.html)
+4. **Quiz** : [quiz 13 pipes guards](../quizzes/quiz-13-pipes-guards.html)
+:::

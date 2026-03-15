@@ -4,32 +4,32 @@
 - **Duree estimee** : 15-18 min
 - **Module** : `modules/11-nestjs-providers-di.md`
 - **Lab associe** : `labs/lab-11-providers-di/`
-- **Prerequis** : Screencast 10 (Controllers & Routing)
+- **Prérequis** : Screencast 10 (Controllers & Routing)
 
 ## Setup
 - [ ] Node.js 20+ installe
 - [ ] Terminal ouvert dans `nest-course/`
-- [ ] Projet NestJS du screencast precedent disponible
+- [ ] Projet NestJS du screencast précédent disponible
 - [ ] Editeur de code ouvert
 - [ ] Port 3000 disponible
 
 ## Script
 
-### [00:00-03:00] Introduction — L'injection de dependances
+### [00:00-03:00] Introduction — L'injection de dépendances
 
-> Salut ! Aujourd'hui on va comprendre en profondeur le systeme de providers et d'injection de dependances de NestJS. C'est le coeur du framework, ce qui rend le code testable, modulaire et maintenable.
+> Salut ! Aujourd'hui on va comprendre en profondeur le système de providers et d'injection de dépendances de NestJS. C'est le coeur du framework, ce qui rend le code testable, modulaire et maintenable.
 
 **Action** : Afficher le slide de titre "Module 11 — Providers & DI".
 
-> L'injection de dependances, c'est un pattern ou les objets ne creent pas eux-memes leurs dependances. Au lieu de ca, ils les recoivent de l'exterieur. NestJS gere ca automatiquement grace au container DI.
+> L'injection de dépendances, c'est un pattern ou les objets ne creent pas eux-memes leurs dépendances. Au lieu de ça, ils les recoivent de l'exterieur. NestJS géré ça automatiquement grace au container DI.
 
-> Quand vous ecrivez `constructor(private readonly tasksService: TasksService)` dans un controller, NestJS cree automatiquement une instance de TasksService et la fournit au controller. Vous n'avez jamais ecrit `new TasksService()`. C'est ca, l'injection de dependances.
+> Quand vous ecrivez `constructor(private readonly tasksService: TasksService)` dans un controller, NestJS créé automatiquement une instance de TasksService et la fournit au controller. Vous n'avez jamais écrit `new TasksService()`. C'est ça, l'injection de dépendances.
 
 ### [03:00-07:00] Services — Les providers de base
 
 > Un provider, c'est n'importe quelle classe decoree avec `@Injectable()`. Le service est le type de provider le plus courant.
 
-**Action** : Creer un service avec des dependances.
+**Action** : Créer un service avec des dépendances.
 
 ```typescript
 // src/tasks/tasks.service.ts
@@ -91,7 +91,7 @@ export class TasksService {
 
 > Parfois, un simple `@Injectable()` ne suffit pas. On a besoin de providers personnalises : par valeur, par factory, ou par classe.
 
-**Action** : Creer differents types de providers.
+**Action** : Créer différents types de providers.
 
 ```typescript
 // src/tasks/tasks.module.ts
@@ -169,17 +169,17 @@ export class TasksService {
 }
 ```
 
-> Les custom providers sont essentiels pour integrer des librairies externes, des configurations, ou des abstractions. Le token `'TASK_CONFIG'` est une cle que NestJS utilise pour resoudre la dependance.
+> Les custom providers sont essentiels pour intégrer des librairies externes, des configurations, ou des abstractions. Le token `'TASK_CONFIG'` est une clé que NestJS utilise pour résoudre la dépendance.
 
-### [11:00-14:00] Le container DI — Comment ca marche
+### [11:00-14:00] Le container DI — Comment ça marche
 
-> Voyons comment NestJS resout les dependances en coulisses.
+> Voyons comment NestJS resout les dépendances en coulisses.
 
 **Action** : Afficher un schema du container DI.
 
-> Quand NestJS demarre, il scanne tous les modules, collecte tous les providers, et construit un graphe de dependances. Quand un controller a besoin d'un service, NestJS regarde le graphe, cree l'instance si elle n'existe pas encore, et l'injecte.
+> Quand NestJS demarre, il scanne tous les modules, collecte tous les providers, et construit un graphe de dépendances. Quand un controller a besoin d'un service, NestJS regarde le graphe, créé l'instance si elle n'existe pas encore, et l'injecte.
 
-> Par defaut, les providers sont des singletons. Une seule instance est creee et partagee partout. Si le TasksService est injecte dans deux controllers, ils recoivent la meme instance.
+> Par defaut, les providers sont des singletons. Une seule instance est créée et partagee partout. Si le TasksService est injecte dans deux controllers, ils recoivent la même instance.
 
 **Action** : Demontrer le scope des providers.
 
@@ -197,18 +197,18 @@ export class RequestScopedService {}
 export class TransientService {}
 ```
 
-> En pratique, utilisez presque toujours le scope par defaut (singleton). Le scope REQUEST est utile pour des cas specifiques comme le multi-tenancy. Le scope TRANSIENT est rare.
+> En pratique, utilisez presque toujours le scope par defaut (singleton). Le scope REQUEST est utile pour des cas spécifiques comme le multi-tenancy. Le scope TRANSIENT est rare.
 
 ### [14:00-16:30] Recap
 
-> L'injection de dependances est la colonne vertebrale de NestJS. Les providers sont des classes injectables. On peut les definir par valeur, par factory, ou par classe. Le container DI gere leur cycle de vie et les resout automatiquement.
+> L'injection de dépendances est la colonne vertebrale de NestJS. Les providers sont des classes injectables. On peut les définir par valeur, par factory, ou par classe. Le container DI géré leur cycle de vie et les resout automatiquement.
 
 **Action** : Afficher le slide recap.
 
-> Ce pattern rend le code testable : dans les tests, on peut remplacer un vrai service par un mock. On verra ca en detail dans le screencast sur le testing. Le lab est dans `labs/lab-11-providers-di/`. Vous allez creer des services avec des dependances, des custom providers et explorer le container DI.
+> Ce pattern rend le code testable : dans les tests, on peut remplacer un vrai service par un mock. On verra ça en detail dans le screencast sur le testing. Le lab est dans `labs/lab-11-providers-di/`. Vous allez créer des services avec des dépendances, des custom providers et explorer le container DI.
 
 ## Points d'attention pour l'enregistrement
 - Bien expliquer le concept de DI avant de montrer le code NestJS
 - Insister sur le fait que les providers sont des singletons par defaut
-- Montrer comment NestJS resout les dependances circulaires avec forwardRef
-- Faire le lien entre custom providers et l'integration de librairies externes
+- Montrer comment NestJS resout les dépendances circulaires avec forwardRef
+- Faire le lien entre custom providers et l'intégration de librairies externes

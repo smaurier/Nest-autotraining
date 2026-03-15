@@ -1,17 +1,17 @@
 # Module 17 — Prisma — Requetes avancees & Comparaison TypeORM vs Prisma
 
-> **Objectif** : Maitriser les requetes avancees de Prisma (ecritures imbriquees, filtrage complexe, transactions, SQL brut) et comparer objectivement TypeORM et Prisma pour faire un choix eclaire.
+> **Objectif** : Maîtriser les requêtes avancees de Prisma (ecritures imbriquees, filtrage complexe, transactions, SQL brut) et comparer objectivement TypeORM et Prisma pour faire un choix eclaire.
 > **Difficulte** : ⭐⭐⭐ (avance)
-> **Prerequis** : Module 14 (TypeORM Entites), Module 15 (TypeORM Requetes), Module 16 (Prisma Schema & Client)
+> **Prérequis** : Module 14 (TypeORM Entites), Module 15 (TypeORM Requetes), Module 16 (Prisma Schema & Client)
 > **Duree estimee** : 5 heures
 
 ---
 
 ## 1. Ecritures imbriquees (Nested Writes)
 
-### 1.1 Creer avec des relations
+### 1.1 Créer avec des relations
 
-Prisma permet de creer des enregistrements et leurs relations en une seule operation.
+Prisma permet de créer des enregistrements et leurs relations en une seule operation.
 
 ```typescript
 // Creer un utilisateur avec son profil et un premier article
@@ -55,7 +55,7 @@ const user = await prisma.user.create({
 });
 ```
 
-### 1.2 connect — Lier a un enregistrement existant
+### 1.2 connect — Lier à un enregistrement existant
 
 ```typescript
 // Creer un article lie a un utilisateur existant
@@ -82,7 +82,7 @@ const article = await prisma.article.create({
 });
 ```
 
-### 1.3 connectOrCreate — Lier ou creer
+### 1.3 connectOrCreate — Lier ou créer
 
 ```typescript
 // Creer un article avec des tags : les creer s'ils n'existent pas
@@ -110,7 +110,7 @@ const article = await prisma.article.create({
 });
 ```
 
-> **Bonne pratique** : `connectOrCreate` est tres utile pour les tags, categories et autres entites de reference. Il evite de faire un `findUnique` suivi d'un `create` conditionnel.
+> **Bonne pratique** : `connectOrCreate` est très utile pour les tags, categories et autres entites de référence. Il evite de faire un `findUnique` suivi d'un `create` conditionnel.
 
 ### 1.4 Mise a jour des relations
 
@@ -178,11 +178,11 @@ const user = await prisma.user.update({
 
 ---
 
-## 2. include vs select — Strategies de chargement
+## 2. include vs select — Stratégies de chargement
 
 ### 2.1 include — Charger les relations
 
-`include` charge les relations en plus de tous les champs du modele principal.
+`include` charge les relations en plus de tous les champs du modèle principal.
 
 ```typescript
 // Charge l'article avec TOUS ses champs + les relations specifiees
@@ -211,9 +211,9 @@ const article = await prisma.article.findUnique({
 // article._count.commentaires = 42
 ```
 
-### 2.2 select — Selectionner des champs specifiques
+### 2.2 select — Selectionner des champs spécifiques
 
-`select` permet de choisir exactement quels champs retourner. C'est une **optimisation importante** pour eviter de charger des donnees inutiles.
+`select` permet de choisir exactement quels champs retourner. C'est une **optimisation importante** pour éviter de charger des donnees inutiles.
 
 ```typescript
 // Ne charge QUE les champs specifies
@@ -253,13 +253,13 @@ const article = await prisma.article.findUnique({
 // article.auteur.email ✗ (non selectionne)
 ```
 
-> **A retenir** : `include` et `select` sont **mutuellement exclusifs** au meme niveau. Vous ne pouvez pas utiliser les deux en meme temps sur le meme objet. `include` charge TOUT + les relations. `select` ne charge QUE ce que vous demandez.
+> **A retenir** : `include` et `select` sont **mutuellement exclusifs** au même niveau. Vous ne pouvez pas utiliser les deux en même temps sur le même objet. `include` charge TOUT + les relations. `select` ne charge QUE ce que vous demandez.
 
 ### 2.3 Tableau comparatif
 
 | Critere | `include` | `select` |
 |---------|-----------|----------|
-| Champs du modele | Tous | Seulement ceux specifies |
+| Champs du modèle | Tous | Seulement ceux specifies |
 | Relations | Ajoutees aux champs existants | Doivent etre explicitement demandees |
 | Performance | Peut charger trop de donnees | Optimise le transfert |
 | Cas d'usage | Quand on veut tout + relations | API publiques, listes, performances |
@@ -543,7 +543,7 @@ async function findAllCursorPaginated(
 // Page 2 : findAllCursorPaginated(lastArticle.id)
 ```
 
-> **Bonne pratique** : Utilisez la pagination par offset pour les interfaces avec des numeros de page (page 1, 2, 3...). Utilisez la pagination par curseur pour le scroll infini ou les grandes tables (performances superieures car pas de `OFFSET`).
+> **Bonne pratique** : Utilisez la pagination par offset pour les interfaces avec des numéros de page (page 1, 2, 3...). Utilisez la pagination par curseur pour le scroll infini ou les grandes tables (performances superieures car pas de `OFFSET`).
 
 ---
 
@@ -653,7 +653,7 @@ async function createOrder(
 |--------|-------------|-------------|
 | `ReadUncommitted` | Peut lire des donnees non commitees | Rarement utile |
 | `ReadCommitted` | Lit seulement les donnees commitees | Defaut PostgreSQL |
-| `RepeatableRead` | Garantit la meme lecture dans la transaction | Rapports |
+| `RepeatableRead` | Garantit la même lecture dans la transaction | Rapports |
 | `Serializable` | Isolation maximale | Operations financieres critiques |
 
 ---
@@ -714,7 +714,7 @@ await prisma.$executeRaw(Prisma.sql`
 `);
 ```
 
-> **Piege classique** : Utilisez **toujours** `Prisma.sql` (tagged template) pour les requetes brutes. Ne construisez jamais des requetes par concatenation de chaines — c'est une faille d'injection SQL.
+> **Piege classique** : Utilisez **toujours** `Prisma.sql` (tagged template) pour les requêtes brutes. Ne construisez jamais des requêtes par concatenation de chaines — c'est une faille d'injection SQL.
 
 ---
 
@@ -722,7 +722,7 @@ await prisma.$executeRaw(Prisma.sql`
 
 ### 7.1 Qu'est-ce qu'un middleware Prisma ?
 
-Les middlewares Prisma interceptent les requetes avant et apres leur execution. Ils permettent d'ajouter de la logique transversale.
+Les middlewares Prisma interceptent les requêtes avant et après leur exécution. Ils permettent d'ajouter de la logique transversale.
 
 ```typescript
 // prisma/prisma.service.ts
@@ -814,9 +814,9 @@ this.$use(async (params, next) => {
 | Aspect | TypeORM | Prisma |
 |--------|---------|--------|
 | Approche | Code-first (decorateurs) | Schema-first (fichier .prisma) |
-| Pattern | Active Record + Data Mapper | Client genere unique |
+| Pattern | Active Record + Data Mapper | Client généré unique |
 | Definition du schema | Decorateurs dans les classes TypeScript | Fichier schema.prisma declaratif |
-| Client | `Repository<Entity>` generique | PrismaClient genere et entierement type |
+| Client | `Repository<Entity>` générique | PrismaClient généré et entièrement type |
 | Communaute | Plus ancienne, plus large | En forte croissance |
 | Mainteneur | Communaute open-source | Prisma (entreprise) |
 
@@ -860,17 +860,17 @@ const user = await prisma.user.findUnique({
 // user.email ← ERREUR de compilation (pas selectionne)
 ```
 
-> **A retenir** : Prisma offre une type-safety **superieure** a TypeORM. Le type de retour de Prisma reflete exactement les champs et relations que vous avez demandes. Avec TypeORM, le type retourne est toujours l'entite complete, meme si certaines relations ne sont pas chargees.
+> **A retenir** : Prisma offre une type-safety **superieure** a TypeORM. Le type de retour de Prisma reflete exactement les champs et relations que vous avez demandes. Avec TypeORM, le type retourne est toujours l'entite complete, même si certaines relations ne sont pas chargees.
 
 ### 8.3 Migration
 
 | Aspect | TypeORM | Prisma |
 |--------|---------|--------|
-| Generation | `migration:generate` (compare entites vs DB) | `prisma migrate dev` (compare schema vs DB) |
+| Génération | `migration:generate` (compare entites vs DB) | `prisma migrate dev` (compare schema vs DB) |
 | Format | Fichier TypeScript avec QueryRunner | Fichier SQL pur |
-| Approche | Imperative (up/down en code) | Declarative (SQL genere) |
-| Revert | Methode `down()` dans la migration | `prisma migrate reset` (reapplique tout) |
-| Seed | Pas de systeme integre | `prisma db seed` integre |
+| Approche | Imperative (up/down en code) | Declarative (SQL généré) |
+| Revert | Méthode `down()` dans la migration | `prisma migrate reset` (reapplique tout) |
+| Seed | Pas de système intégré | `prisma db seed` intégré |
 | Prototypage | `synchronize: true` | `prisma db push` |
 
 ### 8.4 Requetes
@@ -908,21 +908,21 @@ const articles = await prisma.article.findMany({
 
 | Aspect | TypeORM | Prisma |
 |--------|---------|--------|
-| Temps de demarrage | Rapide | Plus lent (chargement du client genere) |
-| Execution des requetes | SQL standard | SQL optimise via moteur Rust |
+| Temps de démarrage | Rapide | Plus lent (chargement du client généré) |
+| Exécution des requêtes | SQL standard | SQL optimise via moteur Rust |
 | Lazy loading | Supporte (via Promises) | Non supporte (par design) |
 | Eager loading | Supporte | Via include/select |
 | N+1 queries | Possible si mal utilise | Evite par design (include fait des JOINs) |
 | Connection pooling | Via le driver (pg) | Integre dans le moteur Prisma |
 
-### 8.6 Experience developpeur
+### 8.6 Experience développeur
 
 | Aspect | TypeORM | Prisma |
 |--------|---------|--------|
 | Autocompletion IDE | Bonne | Excellente |
 | Documentation | Correcte mais parfois datee | Excellente et a jour |
 | Courbe d'apprentissage | Moyenne (beaucoup de concepts) | Douce (API intuitive) |
-| Debugging | Les requetes SQL sont visibles | Logging integre, Prisma Studio |
+| Debugging | Les requêtes SQL sont visibles | Logging intégré, Prisma Studio |
 | Outil visuel | Pas d'outil officiel | Prisma Studio (navigateur web) |
 | Ecosysteme | TypeORM CLI | Prisma CLI, Prisma Studio, Prisma Accelerate |
 
@@ -931,23 +931,23 @@ const articles = await prisma.article.findMany({
 #### Choisissez TypeORM si :
 
 - Vous venez du monde Java/C# et connaissez les patterns Active Record/Data Mapper
-- Vous avez besoin de requetes SQL tres complexes (QueryBuilder est tres puissant)
+- Vous avez besoin de requêtes SQL très complexes (QueryBuilder est très puissant)
 - Vous travaillez avec une base de donnees existante avec un schema complexe
 - Vous avez besoin du lazy loading
-- Votre equipe connait deja TypeORM
-- Vous voulez un ORM entierement en TypeScript sans dependance binaire
+- Votre équipe connait déjà TypeORM
+- Vous voulez un ORM entièrement en TypeScript sans dépendance binaire
 
 #### Choisissez Prisma si :
 
 - Vous commencez un nouveau projet
 - La type-safety est une priorite
-- Vous voulez une experience developpeur optimale
+- Vous voulez une experience développeur optimale
 - Vous preferez une approche declarative (schema-first)
 - Vous voulez un outil visuel pour explorer les donnees (Prisma Studio)
 - Vous travaillez avec PostgreSQL, MySQL ou SQLite
 - Vous voulez des migrations en SQL pur
 
-### 8.8 Tableau recapitulatif final
+### 8.8 Tableau récapitulatif final
 
 | Critere | TypeORM | Prisma | Gagnant |
 |---------|---------|--------|---------|
@@ -970,20 +970,20 @@ const articles = await prisma.article.findMany({
 Avec Prisma, implementez :
 1. Une recherche d'articles par terme (titre ou contenu) avec pagination par curseur
 2. Un classement des auteurs par nombre d'articles publies
-3. Une requete qui retourne les tags les plus utilises
+3. Une requête qui retourne les tags les plus utilises
 
 ### Exercice 2 : Transaction
 
 Implementez avec Prisma une transaction interactive pour :
-1. Creer un nouvel utilisateur
-2. Lui creer un profil
-3. Lui creer 3 articles brouillon
-4. Si une etape echoue, tout est annule
+1. Créer un nouvel utilisateur
+2. Lui créer un profil
+3. Lui créer 3 articles brouillon
+4. Si une étape echoue, tout est annule
 
 ### Exercice 3 : Migration comparative
 
-1. Creez le meme schema (User, Article, Tag) avec TypeORM ET Prisma
-2. Comparez le code necessaire, la type-safety et la facilite de requetage
+1. Creez le même schema (User, Article, Tag) avec TypeORM ET Prisma
+2. Comparez le code nécessaire, la type-safety et la facilite de requetage
 3. Notez vos observations
 
 ---
@@ -995,9 +995,20 @@ Implementez avec Prisma une transaction interactive pour :
 | Quiz Module 17 | `quiz/17-quiz.md` |
 | Lab Module 17 | `labs/17-lab-prisma-avance.md` |
 | Screencast | `screencasts/17-screencast.md` |
-| Module precedent | [Module 16 — Prisma Schema & Client](16-prisma-schema-client.md) |
+| Module précédent | [Module 16 — Prisma Schema & Client](16-prisma-schema-client.md) |
 | Module suivant | [Module 18 — NestJS Testing](18-nestjs-testing.md) |
-| Prisma Client API | https://www.prisma.io/docs/reference/api-reference/prisma-client-reference |
+| Prisma Client API | https://www.prisma.io/docs/référence/api-référence/prisma-client-référence |
 | Prisma Filtering | https://www.prisma.io/docs/concepts/components/prisma-client/filtering-and-sorting |
 | Prisma Transactions | https://www.prisma.io/docs/concepts/components/prisma-client/transactions |
 | TypeORM vs Prisma | https://www.prisma.io/docs/concepts/more/comparisons/prisma-and-typeorm |
+
+---
+
+<!-- parcours-recommande -->
+
+::: tip Parcours recommandé
+1. **Screencast** : [screencast 17 prisma avance](../screencasts/screencast-17-prisma-avance.md)
+2. **Lab** : [lab-17-prisma-avance](../labs/lab-17-prisma-avance/README)
+3. **Visualisation** : [ORM Query Flow](../visualizations/orm-query-flow.html)
+4. **Quiz** : [quiz 17 prisma avance](../quizzes/quiz-17-prisma-avance.html)
+:::

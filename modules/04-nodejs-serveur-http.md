@@ -1,14 +1,14 @@
 # Module 04 — Node.js — Serveur HTTP natif
 
-> **Objectif** : Creer un serveur HTTP complet avec le module natif `http` de Node.js, comprendre IncomingMessage et ServerResponse, implementer du routing manuel et construire une API REST complete — pour ensuite comprendre ce qu'Express abstrait.
+> **Objectif** : Créer un serveur HTTP complet avec le module natif `http` de Node.js, comprendre IncomingMessage et ServerResponse, implementer du routing manuel et construire une API REST complete — pour ensuite comprendre ce qu'Express abstrait.
 >
-> **Difficulte** : ⭐⭐ (intermediaire)
+> **Difficulte** : ⭐⭐ (intermédiaire)
 
 ---
 
 ## 1. Le module http de Node.js
 
-### 1.1 Creer un serveur minimal
+### 1.1 Créer un serveur minimal
 
 ```typescript
 import http from 'http';
@@ -28,7 +28,7 @@ server.listen(3000, () => {
 });
 ```
 
-> **Analogie** : `http.createServer()` c'est comme embaucher un receptionniste a l'entree d'un batiment. A chaque visiteur (requete), il regarde ce que le visiteur demande (URL, methode), decide quoi faire, et lui donne une reponse. Le `server.listen(3000)` c'est ouvrir la porte du batiment — le receptionniste commence a accueillir les visiteurs.
+> **Analogie** : `http.createServer()` c'est comme embaucher un receptionniste a l'entree d'un batiment. A chaque visiteur (requête), il regarde ce que le visiteur demandé (URL, méthode), decide quoi faire, et lui donne une réponse. Le `server.listen(3000)` c'est ouvrir la porte du batiment — le receptionniste commence a accueillir les visiteurs.
 
 ### 1.2 Anatomie du callback
 
@@ -56,13 +56,13 @@ const server = http.createServer((req, res) => {
 });
 ```
 
-> **Piege classique** : Tu DOIS toujours appeler `res.end()` pour terminer la reponse. Si tu oublies, le client reste en attente indefiniment (timeout). C'est le bug le plus courant des debutants avec le serveur HTTP natif.
+> **Piege classique** : Tu DOIS toujours appeler `res.end()` pour terminer la réponse. Si tu oublies, le client reste en attente indefiniment (timeout). C'est le bug le plus courant des débutants avec le serveur HTTP natif.
 
 ---
 
 ## 2. Routing manuel
 
-### 2.1 Router selon l'URL et la methode
+### 2.1 Router selon l'URL et la méthode
 
 ```typescript
 import http from 'http';
@@ -98,7 +98,7 @@ server.listen(3000, () => {
 });
 ```
 
-### 2.2 Extraire les parametres d'URL
+### 2.2 Extraire les paramètres d'URL
 
 ```typescript
 import http from 'http';
@@ -146,7 +146,7 @@ const server = http.createServer((req, res) => {
 server.listen(3000);
 ```
 
-> **A retenir** : La classe `URL` (API Web standard, disponible nativement en Node.js) est la meilleure facon de parser les URLs. `URLSearchParams` facilite l'acces aux query parameters. Pas besoin de librairie externe.
+> **A retenir** : La classe `URL` (API Web standard, disponible nativement en Node.js) est la meilleure façon de parser les URLs. `URLSearchParams` facilite l'acces aux query parameters. Pas besoin de librairie externe.
 
 ---
 
@@ -154,7 +154,7 @@ server.listen(3000);
 
 ### 3.1 Le body arrive en chunks
 
-En HTTP natif, le body n'est PAS disponible directement sur `req.body`. Il arrive sous forme de **chunks** (morceaux) via les evenements du stream `req` :
+En HTTP natif, le body n'est PAS disponible directement sur `req.body`. Il arrive sous forme de **chunks** (morceaux) via les événements du stream `req` :
 
 ```typescript
 import http from 'http';
@@ -216,13 +216,13 @@ const server = http.createServer(async (req, res) => {
 server.listen(3000);
 ```
 
-> **Analogie** : Parser le body en HTTP natif, c'est comme recevoir un colis par la poste en plusieurs paquets. Tu dois attendre d'avoir TOUS les paquets (`end`), les assembler (`Buffer.concat`), puis ouvrir le carton (`JSON.parse`). Express fait tout ca automatiquement avec `express.json()`.
+> **Analogie** : Parser le body en HTTP natif, c'est comme recevoir un colis par la poste en plusieurs paquets. Tu dois attendre d'avoir TOUS les paquets (`end`), les assembler (`Buffer.concat`), puis ouvrir le carton (`JSON.parse`). Express fait tout ça automatiquement avec `express.json()`.
 
 ---
 
 ## 4. Status codes et headers
 
-### 4.1 Definir les headers correctement
+### 4.1 Définir les headers correctement
 
 ```typescript
 const server = http.createServer((req, res) => {
@@ -326,7 +326,7 @@ server.listen(3000, () => {
 });
 ```
 
-> **Piege classique** : Ne sers JAMAIS de fichiers statiques sans verifier le chemin. Un attaquant pourrait envoyer `GET /../../../etc/passwd` pour lire des fichiers sensibles sur ton serveur. Toujours normaliser le chemin et verifier qu'il reste dans le dossier public.
+> **Piege classique** : Ne sers JAMAIS de fichiers statiques sans vérifier le chemin. Un attaquant pourrait envoyer `GET /../../../etc/passwd` pour lire des fichiers sensibles sur ton serveur. Toujours normaliser le chemin et vérifier qu'il reste dans le dossier public.
 
 ---
 
@@ -618,7 +618,7 @@ Maintenant que tu as construit une API complete avec le module HTTP natif, voici
 | `if (method === 'GET' && url === '/api/users')` | `app.get('/api/users', handler)` |
 | `parseJSON(req)` (fonction manuelle) | `express.json()` (middleware) |
 | `sendJSON(res, 200, data)` | `res.json(data)` |
-| Regex pour les parametres d'URL | `app.get('/api/users/:id', ...)` → `req.params.id` |
+| Regex pour les paramètres d'URL | `app.get('/api/users/:id', ...)` → `req.params.id` |
 | `new URL(url).searchParams` | `req.query` |
 | CORS manuel | `app.use(cors())` |
 | Error handling try/catch partout | Error-handling middleware |
@@ -654,7 +654,7 @@ app.get('/api/todos/:id', (req, res) => {
 });
 ```
 
-> **A retenir** : Construire une API avec le module HTTP natif est un excellent exercice pedagogique. Tu comprends exactement ce qui se passe a chaque etape. Mais en production, utilise Express (ou NestJS) — le code natif est trop verbeux, fragile et difficile a maintenir pour une vraie application.
+> **A retenir** : Construire une API avec le module HTTP natif est un excellent exercice pedagogique. Tu comprends exactement ce qui se passe à chaque étape. Mais en production, utilise Express (où NestJS) — le code natif est trop verbeux, fragile et difficile a maintenir pour une vraie application.
 
 ---
 
@@ -669,34 +669,34 @@ Ameliore le serveur de fichiers statiques de la section 5 avec :
 
 ### Exercice 2 — API de notes avec persistance fichier
 
-Cree une API REST de notes (`GET`, `POST`, `PUT`, `DELETE`) qui sauvegarde les donnees dans un fichier `notes.json` au lieu de la memoire.
+Cree une API REST de notes (`GET`, `POST`, `PUT`, `DELETE`) qui sauvegarde les donnees dans un fichier `notes.json` au lieu de la mémoire.
 
 ### Exercice 3 — Proxy HTTP simple
 
-Cree un serveur qui agit comme proxy : il recoit les requetes du client, les transmet a un autre serveur (ex: `jsonplaceholder.typicode.com`), et renvoie la reponse.
+Cree un serveur qui agit comme proxy : il recoit les requêtes du client, les transmet à un autre serveur (ex: `jsonplaceholder.typicode.com`), et renvoie la réponse.
 
 ### Exercice 4 — Middleware maison
 
-Implemente un systeme de middleware basic (tableau de fonctions executees dans l'ordre avant le handler) pour simuler le fonctionnement d'Express.
+Implemente un système de middleware basic (tableau de fonctions executees dans l'ordre avant le handler) pour simuler le fonctionnement d'Express.
 
 ---
 
-## 10. Resume — Les concepts cles
+## 10. Résumé — Les concepts clés
 
 | Concept | Definition |
 |---|---|
-| **http.createServer** | Cree un serveur HTTP qui ecoute les requetes |
-| **IncomingMessage (req)** | Objet representant la requete du client |
-| **ServerResponse (res)** | Objet pour construire et envoyer la reponse |
-| **res.writeHead** | Definir le status code et les headers |
-| **res.end** | Terminer la reponse (OBLIGATOIRE) |
+| **http.createServer** | Cree un serveur HTTP qui ecoute les requêtes |
+| **IncomingMessage (req)** | Objet representant la requête du client |
+| **ServerResponse (res)** | Objet pour construire et envoyer la réponse |
+| **res.writeHead** | Définir le status code et les headers |
+| **res.end** | Terminer la réponse (OBLIGATOIRE) |
 | **Routing manuel** | if/else ou switch/case sur method + URL |
 | **Parsing du body** | Collecter les chunks et JSON.parse |
 | **URL/URLSearchParams** | API standard pour parser les URLs |
-| **CORS** | Headers necessaires pour les requetes cross-origin |
+| **CORS** | Headers nécessaires pour les requêtes cross-origin |
 | **Path traversal** | Attaque securitaire via les chemins (`../../`) |
 
-> **A retenir** : Le module HTTP natif est la fondation de tout serveur web Node.js. Express, Fastify, Koa, NestJS — tous sont construits par-dessus. Comprendre comment fonctionne le serveur HTTP natif te donne une comprehension profonde de ce que les frameworks abstraient, et te permet de debugger des problemes que les developpeurs qui n'ont jamais vu le code natif ne savent pas resoudre.
+> **A retenir** : Le module HTTP natif est la fondation de tout serveur web Node.js. Express, Fastify, Koa, NestJS — tous sont construits par-dessus. Comprendre comment fonctionne le serveur HTTP natif te donne une comprehension profonde de ce que les frameworks abstraient, et te permet de debugger des problèmes que les développeurs qui n'ont jamais vu le code natif ne savent pas résoudre.
 
 ---
 
@@ -704,11 +704,21 @@ Implemente un systeme de middleware basic (tableau de fonctions executees dans l
 
 | | Lien |
 |---|---|
-| Module precedent | [Module 03 — Node.js — Streams & Buffers](./03-nodejs-streams-et-buffers.md) |
+| Module précédent | [Module 03 — Node.js — Streams & Buffers](./03-nodejs-streams-et-buffers.md) |
 | Module suivant | [Module 05 — Express — Fondamentaux](./05-express-fondamentaux.md) |
 | Quiz | [Quiz Module 04](../quizzes/04-nodejs-serveur-http.quiz.md) |
 | Lab | [Lab 04 — Serveur HTTP natif](../labs/04-nodejs-serveur-http.lab.md) |
 
 ---
 
-> **A retenir** : Tu viens de construire une API REST complete avec le module HTTP natif de Node.js. C'est verbeux, c'est manuel, et c'est exactement le point — tu sais maintenant EXACTEMENT ce qui se passe quand un framework recoit une requete. A partir du module suivant, Express va automatiser tout ca. Tu apprecieras d'autant plus sa simplicite que tu as vecu la difficulte du natif.
+> **A retenir** : Tu viens de construire une API REST complete avec le module HTTP natif de Node.js. C'est verbeux, c'est manuel, et c'est exactement le point — tu sais maintenant EXACTEMENT ce qui se passe quand un framework recoit une requête. A partir du module suivant, Express va automatiser tout ça. Tu apprecieras d'autant plus sa simplicite que tu as vecu la difficulte du natif.
+
+---
+
+<!-- parcours-recommande -->
+
+::: tip Parcours recommandé
+1. **Screencast** : [screencast 04 serveur http](../screencasts/screencast-04-serveur-http.md)
+2. **Lab** : [lab-04-serveur-http](../labs/lab-04-serveur-http/README)
+3. **Quiz** : [quiz 04 serveur http](../quizzes/quiz-04-serveur-http.html)
+:::

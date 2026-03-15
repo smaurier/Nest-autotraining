@@ -1,8 +1,8 @@
 # Module 03 — Node.js — Streams & Buffers
 
-> **Objectif** : Comprendre les Buffers pour manipuler des donnees binaires, maitriser les 4 types de Streams (Readable, Writable, Transform, Duplex), et savoir utiliser pipe/pipeline pour traiter des flux de donnees efficacement.
+> **Objectif** : Comprendre les Buffers pour manipuler des donnees binaires, maîtriser les 4 types de Streams (Readable, Writable, Transform, Duplex), et savoir utiliser pipe/pipeline pour traiter des flux de donnees efficacement.
 >
-> **Difficulte** : ⭐⭐ (intermediaire)
+> **Difficulte** : ⭐⭐ (intermédiaire)
 
 ---
 
@@ -10,9 +10,9 @@
 
 ### 1.1 Qu'est-ce qu'un Buffer
 
-En JavaScript navigateur, tu travailles avec des strings, des nombres et des objets. Mais dans Node.js, tu dois souvent manipuler des **donnees binaires** : fichiers, images, donnees reseau, flux audio/video. Le **Buffer** est la structure de donnees de Node.js pour stocker des donnees binaires brutes.
+En JavaScript navigateur, tu travailles avec des strings, des nombres et des objets. Mais dans Node.js, tu dois souvent manipuler des **donnees binaires** : fichiers, images, donnees réseau, flux audio/video. Le **Buffer** est la structure de donnees de Node.js pour stocker des donnees binaires brutes.
 
-> **Analogie** : Un Buffer, c'est comme un casier de consigne a la gare. Chaque case (octet) contient un nombre entre 0 et 255. Le casier a une taille fixe — tu ne peux pas ajouter de cases apres sa creation. Tu peux lire et ecrire dans chaque case individuellement.
+> **Analogie** : Un Buffer, c'est comme un casier de consigne à la gare. Chaque case (octet) contient un nombre entre 0 et 255. Le casier à une taille fixe — tu ne peux pas ajouter de cases après sa création. Tu peux lire et écrire dans chaque case individuellement.
 
 ```typescript
 // Un Buffer est une zone de memoire brute contenant des octets
@@ -26,7 +26,7 @@ console.log(buf.length);     // 7 (7 octets)
 console.log(buf.toString());  // 'Bonjour'
 ```
 
-### 1.2 Creer des Buffers
+### 1.2 Créer des Buffers
 
 ```typescript
 // === Buffer.from — Creer a partir de donnees existantes ===
@@ -57,7 +57,7 @@ const buf6 = Buffer.allocUnsafe(10);
 // DANGER : le contenu est imprevisible ! Utilise alloc() sauf si tu sais ce que tu fais
 ```
 
-> **Piege classique** : N'utilise `Buffer.allocUnsafe()` que si tu vas immediatement ecrire dans tout le buffer. Sinon, des donnees sensibles (mots de passe, tokens) d'autres parties de la memoire pourraient fuiter. Utilise toujours `Buffer.alloc()` par defaut.
+> **Piege classique** : N'utilise `Buffer.allocUnsafe()` que si tu vas immediatement écrire dans tout le buffer. Sinon, des donnees sensibles (mots de passe, tokens) d'autres parties de la mémoire pourraient fuiter. Utilise toujours `Buffer.alloc()` par defaut.
 
 ### 1.3 Encodages
 
@@ -66,7 +66,7 @@ const buf6 = Buffer.allocUnsafe(10);
 | `utf-8` | Encodage Unicode variable (1-4 octets/caractere) | **Defaut** — texte, JSON, HTML |
 | `ascii` | 7 bits, caracteres anglais uniquement | Protocoles basiques |
 | `base64` | Representation texte de donnees binaires | Envoi d'images en JSON, tokens |
-| `hex` | Representation hexadecimale | Hashes, cles cryptographiques |
+| `hex` | Representation hexadecimale | Hashes, clés cryptographiques |
 | `binary` (latin1) | 1 octet par caractere | Legacy, deconseille |
 | `utf-16le` | Unicode 16 bits little-endian | Fichiers Windows, BMP |
 
@@ -159,14 +159,14 @@ stream.on('end', () => {
 });
 ```
 
-> **Analogie** : Charger tout un fichier en memoire, c'est comme remplir une piscine avec un seul seau geant — il faut un seau aussi gros que la piscine. Les Streams, c'est comme utiliser un tuyau d'arrosage — l'eau coule en continu, tu n'as jamais besoin de stocker toute la piscine dans un seau.
+> **Analogie** : Charger tout un fichier en mémoire, c'est comme remplir une piscine avec un seul seau geant — il faut un seau aussi gros que la piscine. Les Streams, c'est comme utiliser un tuyau d'arrosage — l'eau coule en continu, tu n'as jamais besoin de stocker toute la piscine dans un seau.
 
 ### 2.2 Les 4 types de Streams
 
 | Type | Description | Exemples natifs |
 |---|---|---|
 | **Readable** | Source de donnees (on lit depuis) | `fs.createReadStream`, `http.IncomingMessage`, `process.stdin` |
-| **Writable** | Destination de donnees (on ecrit vers) | `fs.createWriteStream`, `http.ServerResponse`, `process.stdout` |
+| **Writable** | Destination de donnees (on écrit vers) | `fs.createWriteStream`, `http.ServerResponse`, `process.stdout` |
 | **Transform** | Transforme les donnees en transit | `zlib.createGzip`, `crypto.createCipher` |
 | **Duplex** | A la fois Readable et Writable | `net.Socket`, `crypto.createCipher` |
 
@@ -187,7 +187,7 @@ Un Readable Stream a deux modes de lecture :
 
 | Mode | Description | Comment activer |
 |---|---|---|
-| **Flowing** | Les donnees arrivent automatiquement via l'evenement `data` | `.on('data')`, `.pipe()`, `.resume()` |
+| **Flowing** | Les donnees arrivent automatiquement via l'événement `data` | `.on('data')`, `.pipe()`, `.resume()` |
 | **Paused** | Tu demandes les donnees explicitement avec `.read()` | `.pause()`, `.read()` |
 
 ```typescript
@@ -248,7 +248,7 @@ ws.on('error', (err) => {
 });
 ```
 
-#### L'evenement drain — Gestion de la pression
+#### L'événement drain — Gestion de la pression
 
 ```typescript
 import { createWriteStream } from 'fs';
@@ -282,7 +282,7 @@ function ecrireBeaucoup() {
 ecrireBeaucoup();
 ```
 
-> **Piege classique** : Si tu ignores la valeur de retour de `ws.write()` et que tu continues a ecrire, les donnees s'accumulent en memoire (backpressure). Pour un million de lignes, ca peut causer un crash. Verifie toujours la valeur de retour et attend le `drain` si necessaire.
+> **Piege classique** : Si tu ignores la valeur de retour de `ws.write()` et que tu continues à écrire, les donnees s'accumulent en mémoire (backpressure). Pour un million de lignes, ça peut causer un crash. Verifie toujours la valeur de retour et attend le `drain` si nécessaire.
 
 ### 2.5 Transform Streams
 
@@ -355,7 +355,7 @@ createReadStream('app.log')
 
 ### 2.6 Duplex Streams
 
-Un Duplex Stream est a la fois Readable et Writable, mais les deux cotes sont **independants** :
+Un Duplex Stream est à la fois Readable et Writable, mais les deux cotes sont **independants** :
 
 ```typescript
 import { Duplex } from 'stream';
@@ -381,15 +381,15 @@ duplex.write('Donnees envoyees au duplex\n');
 duplex.end();
 ```
 
-> **A retenir** : En pratique, tu n'ecris presque jamais de Duplex Streams toi-meme. Les exemples courants sont les sockets TCP (`net.Socket`) et les connexions WebSocket. L'important est de comprendre que les Duplex Streams existent et comment ils s'integrent dans le systeme de pipes.
+> **A retenir** : En pratique, tu n'ecris presque jamais de Duplex Streams toi-même. Les exemples courants sont les sockets TCP (`net.Socket`) et les connexions WebSocket. L'important est de comprendre que les Duplex Streams existent et comment ils s'integrent dans le système de pipes.
 
 ---
 
 ## 3. pipe() et pipeline()
 
-### 3.1 La methode pipe()
+### 3.1 La méthode pipe()
 
-`pipe()` connecte un Readable a un Writable (avec gestion automatique de la backpressure) :
+`pipe()` connecte un Readable à un Writable (avec gestion automatique de la backpressure) :
 
 ```typescript
 import { createReadStream, createWriteStream } from 'fs';
@@ -410,7 +410,7 @@ createReadStream('fichier.txt.gz')
   .pipe(createWriteStream('fichier-decompresse.txt'));
 ```
 
-### 3.2 Le probleme de pipe() — Gestion des erreurs
+### 3.2 Le problème de pipe() — Gestion des erreurs
 
 ```typescript
 // PROBLEME : pipe() ne propage PAS les erreurs automatiquement
@@ -447,7 +447,7 @@ async function compresser(source, destination) {
 compresser('fichier.txt', 'fichier.txt.gz');
 ```
 
-> **Bonne pratique** : Utilise TOUJOURS `pipeline()` (depuis `stream/promises`) plutot que `.pipe()`. C'est la methode moderne et sure pour chainer des streams. Elle gere les erreurs, nettoie les ressources et retourne une Promise.
+> **Bonne pratique** : Utilise TOUJOURS `pipeline()` (depuis `stream/promises`) plutot que `.pipe()`. C'est la méthode moderne et sure pour chainer des streams. Elle géré les erreurs, nettoie les ressources et retourne une Promise.
 
 ---
 
@@ -455,7 +455,7 @@ compresser('fichier.txt', 'fichier.txt.gz');
 
 ### 4.1 Qu'est-ce que la backpressure
 
-La **backpressure** (contre-pression) est le mecanisme qui empeche un producteur rapide de submerger un consommateur lent.
+La **backpressure** (contre-pression) est le mécanisme qui empeche un producteur rapide de submerger un consommateur lent.
 
 ```
   Producteur rapide          Consommateur lent
@@ -471,9 +471,9 @@ La **backpressure** (contre-pression) est le mecanisme qui empeche un producteur
   └──────────┘               └──────────┘
 ```
 
-> **Analogie** : La backpressure, c'est comme une file d'attente au restaurant. Si la cuisine est debordee (Writable lent), le serveur (pipe) arrete de prendre de nouvelles commandes (pause le Readable) jusqu'a ce que la cuisine ait rattrape son retard (evenement drain).
+> **Analogie** : La backpressure, c'est comme une file d'attente au restaurant. Si la cuisine est debordee (Writable lent), le serveur (pipe) arrete de prendre de nouvelles commandes (pause le Readable) jusqu'a ce que la cuisine ait rattrape son retard (événement drain).
 
-### 4.2 Comment ca fonctionne internement
+### 4.2 Comment ça fonctionne internement
 
 ```typescript
 // pipe() fait essentiellement ceci en interne :
@@ -497,7 +497,7 @@ readable.on('end', () => {
 
 ### 4.3 Le highWaterMark
 
-Le `highWaterMark` est la taille du buffer interne de chaque stream (en octets). C'est le seuil a partir duquel la backpressure s'active :
+Le `highWaterMark` est la taille du buffer interne de chaque stream (en octets). C'est le seuil à partir duquel la backpressure s'active :
 
 ```typescript
 import { createReadStream, createWriteStream } from 'fs';
@@ -665,7 +665,7 @@ server.listen(3000, () => {
 });
 ```
 
-### 5.4 Compression a la volee
+### 5.4 Compression à la volee
 
 ```typescript
 import http from 'http';
@@ -700,19 +700,19 @@ server.listen(3000);
 
 ---
 
-## 6. Quand utiliser les Streams vs charger en memoire
+## 6. Quand utiliser les Streams vs charger en mémoire
 
-| Critere | Charger en memoire (`readFile`) | Streams (`createReadStream`) |
+| Critere | Charger en mémoire (`readFile`) | Streams (`createReadStream`) |
 |---|---|---|
 | **Taille du fichier** | Petit (< 50 Mo) | Grand (> 50 Mo) |
 | **Latence premier octet** | Elevee (tout charger d'abord) | Faible (commence immediatement) |
-| **Memoire utilisee** | Proportionnelle a la taille du fichier | Constante (~64 Ko par stream) |
+| **Mémoire utilisee** | Proportionnelle à la taille du fichier | Constante (~64 Ko par stream) |
 | **Complexite du code** | Simple | Plus complexe |
 | **Traitement ligne par ligne** | Charger tout, split, iterer | Stream + Transform |
-| **Envoi HTTP** | Doit tout charger avant d'envoyer | Stream direct (reponse progressive) |
-| **Transformation** | Charger, transformer, sauvegarder | Transform stream (memoire constante) |
+| **Envoi HTTP** | Doit tout charger avant d'envoyer | Stream direct (réponse progressive) |
+| **Transformation** | Charger, transformer, sauvegarder | Transform stream (mémoire constante) |
 
-> **Bonne pratique** : En regle generale, si tu ne connais pas la taille du fichier a l'avance ou s'il peut depasser quelques Mo, utilise des Streams. Pour les fichiers de configuration (JSON, .env), `readFile` est parfaitement adapte.
+> **Bonne pratique** : En regle générale, si tu ne connais pas la taille du fichier a l'avance ou s'il peut depasser quelques Mo, utilise des Streams. Pour les fichiers de configuration (JSON, .env), `readFile` est parfaitement adapte.
 
 ---
 
@@ -790,7 +790,7 @@ readable2.pipe(process.stdout);
 
 ### Exercice 1 — Compter les mots d'un fichier
 
-Ecris un programme qui utilise des streams pour compter le nombre de mots dans un gros fichier texte sans le charger entierement en memoire.
+Ecris un programme qui utilise des streams pour compter le nombre de mots dans un gros fichier texte sans le charger entièrement en mémoire.
 
 ### Exercice 2 — Crypter un fichier
 
@@ -802,7 +802,7 @@ Ecris un serveur HTTP qui sert des fichiers statiques en utilisant des streams (
 
 ### Exercice 4 — Transform Stream : Compteur de lignes
 
-Cree un Transform Stream qui ajoute un numero de ligne au debut de chaque ligne.
+Cree un Transform Stream qui ajoute un numéro de ligne au debut de chaque ligne.
 
 ```typescript
 // Resultat attendu :
@@ -813,22 +813,22 @@ Cree un Transform Stream qui ajoute un numero de ligne au debut de chaque ligne.
 
 ---
 
-## 10. Resume — Les concepts cles
+## 10. Résumé — Les concepts clés
 
 | Concept | Definition |
 |---|---|
-| **Buffer** | Zone de memoire pour stocker des donnees binaires brutes |
+| **Buffer** | Zone de mémoire pour stocker des donnees binaires brutes |
 | **Readable Stream** | Source de donnees (on lit depuis) |
-| **Writable Stream** | Destination de donnees (on ecrit vers) |
+| **Writable Stream** | Destination de donnees (on écrit vers) |
 | **Transform Stream** | Modifie les donnees en transit (Readable + Writable) |
 | **Duplex Stream** | Readable et Writable independants |
-| **pipe()** | Connecte un Readable a un Writable |
+| **pipe()** | Connecte un Readable à un Writable |
 | **pipeline()** | Version moderne de pipe() avec gestion des erreurs |
-| **Backpressure** | Mecanisme de regulation quand le consommateur est plus lent |
+| **Backpressure** | Mécanisme de regulation quand le consommateur est plus lent |
 | **highWaterMark** | Seuil du buffer interne avant activation de la backpressure |
-| **drain** | Evenement emis quand le buffer d'un Writable se vide |
+| **drain** | Événement emis quand le buffer d'un Writable se vide |
 
-> **A retenir** : Les Streams sont le mecanisme de traitement de donnees le plus puissant de Node.js. Ils permettent de traiter des fichiers de n'importe quelle taille avec une memoire constante, de commencer a envoyer des donnees avant d'avoir tout recu, et de chainer des transformations elegamment. Utilise `pipeline()` de `stream/promises` pour chainer les streams de maniere sure et moderne.
+> **A retenir** : Les Streams sont le mécanisme de traitement de donnees le plus puissant de Node.js. Ils permettent de traiter des fichiers de n'importe quelle taille avec une mémoire constante, de commencer a envoyer des donnees avant d'avoir tout recu, et de chainer des transformations elegamment. Utilise `pipeline()` de `stream/promises` pour chainer les streams de manière sure et moderne.
 
 ---
 
@@ -836,11 +836,21 @@ Cree un Transform Stream qui ajoute un numero de ligne au debut de chaque ligne.
 
 | | Lien |
 |---|---|
-| Module precedent | [Module 02 — Node.js — Modules, FS & Process](./02-nodejs-modules-et-fs.md) |
+| Module précédent | [Module 02 — Node.js — Modules, FS & Process](./02-nodejs-modules-et-fs.md) |
 | Module suivant | [Module 04 — Node.js — Serveur HTTP natif](./04-nodejs-serveur-http.md) |
 | Quiz | [Quiz Module 03](../quizzes/03-nodejs-streams-et-buffers.quiz.md) |
 | Lab | [Lab 03 — Streams en pratique](../labs/03-nodejs-streams-et-buffers.lab.md) |
 
 ---
 
-> **A retenir** : Les Buffers sont la porte d'entree vers le monde binaire en Node.js, et les Streams sont la facon idiomatique de traiter de gros volumes de donnees. Meme si tu n'ecris pas de Streams tous les jours, tu en utilises a chaque requete HTTP, chaque lecture de fichier et chaque connexion base de donnees. Comprendre leur fonctionnement te rendra meilleur pour debugger et optimiser tes applications.
+> **A retenir** : Les Buffers sont la porte d'entree vers le monde binaire en Node.js, et les Streams sont la façon idiomatique de traiter de gros volumes de donnees. Même si tu n'ecris pas de Streams tous les jours, tu en utilises à chaque requête HTTP, chaque lecture de fichier et chaque connexion base de donnees. Comprendre leur fonctionnement te rendra meilleur pour debugger et optimiser tes applications.
+
+---
+
+<!-- parcours-recommande -->
+
+::: tip Parcours recommandé
+1. **Screencast** : [screencast 03 streams](../screencasts/screencast-03-streams.md)
+2. **Lab** : [lab-03-streams](../labs/lab-03-streams/README)
+3. **Quiz** : [quiz 03 streams](../quizzes/quiz-03-streams.html)
+:::

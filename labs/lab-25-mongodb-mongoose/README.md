@@ -6,11 +6,11 @@ Implementer une API REST de gestion de **produits** avec **MongoDB** et **Mongoo
 
 Vous allez apprendre a :
 
-- Definir un schema Mongoose avec les decorateurs `@Schema()` et `@Prop()`
+- Définir un schema Mongoose avec les decorateurs `@Schema()` et `@Prop()`
 - Injecter un `Model<Product>` via `@InjectModel()`
 - Implementer les operations CRUD avec Mongoose
 - Utiliser les regex MongoDB pour la recherche textuelle
-- Ecrire une aggregation pour calculer des statistiques par categorie
+- Écrire une aggregation pour calculer des statistiques par categorie
 
 ## Structure du produit
 
@@ -27,13 +27,13 @@ Vous allez apprendre a :
 
 ## Endpoints a implementer
 
-| Methode | Route                      | Description                          |
+| Méthode | Route                      | Description                          |
 |---------|----------------------------|--------------------------------------|
 | GET     | /products                  | Lister tous les produits             |
 | GET     | /products/search?q=term    | Rechercher des produits              |
 | GET     | /products/stats/by-category| Statistiques par categorie           |
 | GET     | /products/:id              | Obtenir un produit par son id        |
-| POST    | /products                  | Creer un produit                     |
+| POST    | /products                  | Créer un produit                     |
 | PATCH   | /products/:id              | Modifier partiellement un produit    |
 | DELETE  | /products/:id              | Supprimer un produit                 |
 
@@ -45,15 +45,15 @@ Vous allez apprendre a :
 
 Completez le fichier en ajoutant :
 - Le decorateur `@Schema({ timestamps: true })` sur la classe
-- Les decorateurs `@Prop()` sur chaque propriete avec les bonnes options
-- La generation du schema via `SchemaFactory.createForClass(Product)`
+- Les decorateurs `@Prop()` sur chaque propriété avec les bonnes options
+- La génération du schema via `SchemaFactory.createForClass(Product)`
 
 ### 2. Service (`src/products/products.service.ts`)
 
-Implementez les methodes :
+Implementez les méthodes :
 - `findAll()` : retourne tous les produits
 - `findOne(id)` : retourne un produit par id, leve `NotFoundException` si introuvable
-- `create(dto)` : cree et sauvegarde un nouveau produit
+- `create(dto)` : créé et sauvegarde un nouveau produit
 - `update(id, dto)` : met a jour un produit, leve `NotFoundException` si introuvable
 - `remove(id)` : supprime un produit, leve `NotFoundException` si introuvable
 - `search(query)` : recherche par nom ou description avec une regex case-insensitive
@@ -61,7 +61,7 @@ Implementez les methodes :
 
 ### 3. Controller (`src/products/products.controller.ts`)
 
-Ajoutez les decorateurs NestJS sur chaque methode :
+Ajoutez les decorateurs NestJS sur chaque méthode :
 - `@Get()`, `@Post()`, `@Patch()`, `@Delete()`
 - `@Param('id')`, `@Body()`, `@Query('q')`
 
@@ -78,8 +78,8 @@ pnpm test
 pnpm test:solution
 ```
 
-Les tests utilisent `mongodb-memory-server` pour lancer une instance MongoDB en memoire. Aucune installation de MongoDB n'est necessaire.
+Les tests utilisent `mongodb-memory-server` pour lancer une instance MongoDB en mémoire. Aucune installation de MongoDB n'est nécessaire.
 
-## Verification
+## Vérification
 
 Tous les tests doivent passer au vert une fois l'implementation terminee.

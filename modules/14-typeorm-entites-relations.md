@@ -2,7 +2,7 @@
 
 > **Objectif** : Apprendre a modeliser une base de donnees relationnelle avec TypeORM dans NestJS, en maitrisant les entites, les types de colonnes, et toutes les formes de relations.
 > **Difficulte** : ⭐⭐⭐ (avance)
-> **Prerequis** : Module 11 (Services & Providers), Module 12 (Modules), notions SQL de base
+> **Prérequis** : Module 11 (Services & Providers), Module 12 (Modules), notions SQL de base
 > **Duree estimee** : 5 heures
 
 ---
@@ -13,7 +13,7 @@
 
 Un **ORM** (Object-Relational Mapping) est un outil qui fait le pont entre le monde des objets (TypeScript/JavaScript) et le monde des bases de donnees relationnelles (SQL).
 
-> **Analogie** : Imaginez que vous parlez francais et que votre base de donnees parle chinois. L'ORM est votre traducteur personnel. Vous lui decrivez ce que vous voulez en francais (TypeScript), et il traduit en chinois (SQL) pour la base de donnees, puis vous ramene la reponse en francais.
+> **Analogie** : Imaginez que vous parlez français et que votre base de donnees parle chinois. L'ORM est votre traducteur personnel. Vous lui decrivez ce que vous voulez en français (TypeScript), et il traduit en chinois (SQL) pour la base de donnees, puis vous ramene la réponse en français.
 
 ### 1.2 Pourquoi TypeORM ?
 
@@ -24,7 +24,7 @@ TypeORM est l'ORM le plus utilise dans l'ecosysteme NestJS. Il supporte :
 | TypeScript natif | Decorateurs, types, autocompletion |
 | Bases supportees | PostgreSQL, MySQL, SQLite, MSSQL, Oracle, MongoDB |
 | Patterns | Active Record et Data Mapper |
-| Migrations | Generation et execution automatiques |
+| Migrations | Génération et exécution automatiques |
 | Relations | OneToOne, OneToMany, ManyToOne, ManyToMany |
 | CLI | Outil en ligne de commande pour les migrations |
 
@@ -144,11 +144,11 @@ export class UsersModule {}
 
 ---
 
-## 3. Les Entites — Definir vos tables
+## 3. Les Entites — Définir vos tables
 
 ### 3.1 Le decorateur @Entity
 
-Une entite est une classe TypeScript decoree avec `@Entity()`. Chaque entite correspond a une table en base de donnees.
+Une entite est une classe TypeScript decoree avec `@Entity()`. Chaque entite correspond à une table en base de donnees.
 
 ```typescript
 // entities/user.entity.ts
@@ -331,7 +331,7 @@ export class Article {
 
 ### 3.5 Colonnes speciales : dates automatiques
 
-TypeORM fournit des decorateurs tres pratiques pour gerer automatiquement les dates :
+TypeORM fournit des decorateurs très pratiques pour gérer automatiquement les dates :
 
 ```typescript
 import {
@@ -375,7 +375,7 @@ export class Article {
 }
 ```
 
-> **Analogie** : Le soft delete c'est comme mettre un document a la corbeille plutot que le dechiqueter. Le document existe toujours, mais il n'apparait plus dans vos recherches normales. Vous pouvez le restaurer a tout moment.
+> **Analogie** : Le soft delete c'est comme mettre un document à la corbeille plutot que le dechiqueter. Le document existe toujours, mais il n'apparait plus dans vos recherches normales. Vous pouvez le restaurer a tout moment.
 
 ### 3.6 Utiliser des enums TypeScript
 
@@ -416,7 +416,7 @@ Les relations sont le coeur de la modelisation relationnelle. TypeORM supporte q
 
 ### 4.1 @ManyToOne et @OneToMany — La relation la plus courante
 
-C'est la relation "un vers plusieurs". Exemple : un utilisateur a plusieurs articles, chaque article appartient a un utilisateur.
+C'est la relation "un vers plusieurs". Exemple : un utilisateur a plusieurs articles, chaque article appartient à un utilisateur.
 
 ```typescript
 // entities/user.entity.ts
@@ -499,9 +499,9 @@ export class Article {
 }
 ```
 
-> **Piege classique** : La relation `@OneToMany` ne cree pas de colonne en base de donnees. C'est toujours le cote `@ManyToOne` qui possede la cle etrangere. Si vous n'avez qu'un `@OneToMany` sans son `@ManyToOne` correspondant, TypeORM ne creera aucune cle etrangere.
+> **Piege classique** : La relation `@OneToMany` ne créé pas de colonne en base de donnees. C'est toujours le cote `@ManyToOne` qui possede la clé etrangere. Si vous n'avez qu'un `@OneToMany` sans son `@ManyToOne` correspondant, TypeORM ne creera aucune clé etrangere.
 
-> ⚠️ **Piege N+1** : charger `user.articles` pour chaque user dans une boucle genere N+1 requetes.
+> ⚠️ **Piege N+1** : charger `user.articles` pour chaque user dans une boucle généré N+1 requêtes.
 > Solution : utiliser `relations: ['articles']` dans `find()`, ou le QueryBuilder avec `leftJoinAndSelect()` (module 15).
 
 #### Le comportement onDelete
@@ -515,7 +515,7 @@ export class Article {
 
 ### 4.2 @OneToOne — Relation un-a-un
 
-Chaque utilisateur a un seul profil, et chaque profil appartient a un seul utilisateur.
+Chaque utilisateur à un seul profil, et chaque profil appartient à un seul utilisateur.
 
 ```typescript
 // entities/profile.entity.ts
@@ -591,7 +591,7 @@ export class User {
 }
 ```
 
-> **A retenir** : Dans une relation `@OneToOne`, le decorateur `@JoinColumn()` est **obligatoire** sur exactement un des deux cotes. Le cote qui le porte est celui qui aura la colonne de cle etrangere en base.
+> **A retenir** : Dans une relation `@OneToOne`, le decorateur `@JoinColumn()` est **obligatoire** sur exactement un des deux cotes. Le cote qui le porte est celui qui aura la colonne de clé etrangere en base.
 
 ### 4.3 @ManyToMany — Relation plusieurs-a-plusieurs
 
@@ -682,7 +682,7 @@ export class Article {
 
 > **Bonne pratique** : Personnalisez toujours les noms de colonnes dans `@JoinTable()` pour avoir des noms clairs et previsibles. Le nommage automatique de TypeORM peut etre confus (`article_tags_tag`).
 
-### 4.4 Tableau recapitulatif des relations
+### 4.4 Tableau récapitulatif des relations
 
 | Relation | Decorateur proprietaire | Decorateur inverse | Decorateur join | Table de liaison |
 |----------|------------------------|-------------------|-----------------|-----------------|
@@ -705,11 +705,11 @@ Les relations avec `eager: true` sont **toujours** chargees automatiquement :
 auteur: User;
 ```
 
-> **Piege classique** : N'utilisez `eager: true` que pour les relations qui sont **toujours** necessaires. Sinon, chaque requete chargera des donnees inutiles, degradant les performances.
+> **Piege classique** : N'utilisez `eager: true` que pour les relations qui sont **toujours** nécessaires. Sinon, chaque requête chargera des donnees inutiles, degradant les performances.
 
 ### 5.2 Lazy loading
 
-Les relations lazy sont chargees **a la demande** via des Promises :
+Les relations lazy sont chargees **à la demandé** via des Promises :
 
 ```typescript
 @OneToMany(() => Article, (article) => article.auteur, {
@@ -724,7 +724,7 @@ const articles = await user.articles; // La requete SQL est executee ICI
 
 ### 5.3 Chargement explicite avec relations (recommande)
 
-La methode la plus courante et la plus controlee :
+La méthode la plus courante et la plus controlee :
 
 ```typescript
 // Charger un article avec son auteur et ses tags
@@ -740,7 +740,7 @@ const article = await articleRepository.findOne({
 });
 ```
 
-> **Bonne pratique** : Preferez toujours le chargement explicite avec `relations` plutot que `eager: true` ou `lazy: true`. Cela vous donne un controle total sur les donnees chargees pour chaque requete.
+> **Bonne pratique** : Preferez toujours le chargement explicite avec `relations` plutot que `eager: true` ou `lazy: true`. Cela vous donne un controle total sur les donnees chargees pour chaque requête.
 
 ---
 
@@ -782,7 +782,7 @@ user.articles = [article1, article2];
 await userRepository.save(user);
 ```
 
-> **Piege classique** : `cascade: true` est tres pratique mais peut mener a des sauvegardes involontaires. Si vous modifiez un objet relie accidentellement, il sera sauvegarde aussi. Utilisez les cascades avec parcimonie.
+> **Piege classique** : `cascade: true` est très pratique mais peut mener a des sauvegardes involontaires. Si vous modifiez un objet relie accidentellement, il sera sauvegarde aussi. Utilisez les cascades avec parcimonie.
 
 ---
 
@@ -871,17 +871,17 @@ export class UsersService {
 }
 ```
 
-> **A retenir** : La difference entre `create()` et `save()` est fondamentale. `create()` cree une instance en memoire (utile pour appliquer les valeurs par defaut et les transformations). `save()` persiste l'objet en base. Utilisez toujours `create()` avant `save()` pour un code propre.
+> **A retenir** : La différence entre `create()` et `save()` est fondamentale. `create()` créé une instance en mémoire (utile pour appliquer les valeurs par defaut et les transformations). `save()` persiste l'objet en base. Utilisez toujours `create()` avant `save()` pour un code propre.
 
-### 7.2 Difference entre save, update et delete
+### 7.2 Différence entre save, update et delete
 
-| Methode | Retourne | Hooks d'entite | Cascade | Utilisation |
+| Méthode | Retourne | Hooks d'entite | Cascade | Utilisation |
 |---------|---------|----------------|---------|-------------|
-| `save(entity)` | L'entite sauvegardee | Oui | Oui | Creation ou mise a jour |
+| `save(entity)` | L'entite sauvegardee | Oui | Oui | Création ou mise a jour |
 | `update(criteria, data)` | UpdateResult | Non | Non | Mise a jour rapide sans charger |
-| `remove(entity)` | L'entite supprimee | Oui | Oui | Suppression apres chargement |
+| `remove(entity)` | L'entite supprimee | Oui | Oui | Suppression après chargement |
 | `delete(criteria)` | DeleteResult | Non | Non | Suppression rapide sans charger |
-| `softRemove(entity)` | L'entite | Oui | Oui | Soft delete apres chargement |
+| `softRemove(entity)` | L'entite | Oui | Oui | Soft delete après chargement |
 | `softDelete(criteria)` | UpdateResult | Non | Non | Soft delete rapide |
 
 ---
@@ -1210,7 +1210,7 @@ Ajoutez a l'exercice 1 : une relation ManyToMany entre Product et Tag, un Profil
 
 ### Exercice 3 : Service CRUD
 
-Creez un `ProductsService` complet avec les methodes : create, findAll (avec pagination), findOne (avec relations), update, remove, softRemove, restore.
+Creez un `ProductsService` complet avec les méthodes : create, findAll (avec pagination), findOne (avec relations), update, remove, softRemove, restore.
 
 ---
 
@@ -1221,8 +1221,19 @@ Creez un `ProductsService` complet avec les methodes : create, findAll (avec pag
 | Quiz Module 14 | `quiz/14-quiz.md` |
 | Lab Module 14 | `labs/14-lab-typeorm-entites.md` |
 | Screencast | `screencasts/14-screencast.md` |
-| Module precedent | [Module 13 — Pipes, Guards, Interceptors](13-nestjs-pipes-guards-interceptors.md) |
+| Module précédent | [Module 13 — Pipes, Guards, Interceptors](13-nestjs-pipes-guards-interceptors.md) |
 | Module suivant | [Module 15 — TypeORM Requetes & Migrations](15-typeorm-requetes-migrations.md) |
 | Documentation TypeORM | https://typeorm.io/ |
 | @nestjs/typeorm | https://docs.nestjs.com/techniques/database |
 | TypeORM Relations | https://typeorm.io/relations |
+
+---
+
+<!-- parcours-recommande -->
+
+::: tip Parcours recommandé
+1. **Screencast** : [screencast 14 typeorm entites](../screencasts/screencast-14-typeorm-entites.md)
+2. **Lab** : [lab-14-typeorm-entites](../labs/lab-14-typeorm-entites/README)
+3. **Visualisation** : [ORM Query Flow](../visualizations/orm-query-flow.html)
+4. **Quiz** : [quiz 14 typeorm entites](../quizzes/quiz-14-typeorm-entites.html)
+:::

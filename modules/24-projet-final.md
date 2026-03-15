@@ -1,8 +1,8 @@
 # Module 24 — Projet Final — API E-commerce complete
 
-> **Objectif** : Mettre en pratique TOUS les concepts appris dans les modules 1 a 23 en construisant une API e-commerce complete, de la conception au deploiement, en passant par l'authentification, le CRUD, les WebSockets, les taches planifiees et les tests.
+> **Objectif** : Mettre en pratique TOUS les concepts appris dans les modules 1 a 23 en construisant une API e-commerce complete, de la conception au déploiement, en passant par l'authentification, le CRUD, les WebSockets, les taches planifiees et les tests.
 > **Difficulte** : ⭐⭐⭐⭐⭐ (expert)
-> **Prerequis** : Tous les modules precedents (1 a 23)
+> **Prérequis** : Tous les modules précédents (1 a 23)
 > **Duree estimee** : 15-20 heures
 
 ---
@@ -11,7 +11,7 @@
 
 ### 1.1 Description
 
-Vous allez construire **ShopNest**, une API REST complète pour une plateforme e-commerce. Cette API gere les utilisateurs, les produits, les categories, le panier, les commandes et les notifications en temps reel.
+Vous allez construire **ShopNest**, une API REST complète pour une plateforme e-commerce. Cette API géré les utilisateurs, les produits, les categories, le panier, les commandes et les notifications en temps réel.
 
 ### 1.2 Fonctionnalites principales
 
@@ -21,7 +21,7 @@ Vous allez construire **ShopNest**, une API REST complète pour une plateforme e
 | CRUD Produits + Categories | Modules 10-12, 14-17 |
 | Panier d'achat | Modules 14-17 |
 | Commandes transactionnelles | Module 15 ou 17 |
-| Notifications temps reel | Module 21 |
+| Notifications temps réel | Module 21 |
 | Tache de nettoyage des paniers abandonnes | Module 22 |
 | Validation avancee des DTOs | Module 13 |
 | Documentation Swagger | Module 20 |
@@ -286,9 +286,9 @@ model OrderItem {
 
 ---
 
-## 3. Implementation etape par etape
+## 3. Implementation étape par étape
 
-### Etape 1 : Initialisation du projet
+### Étape 1 : Initialisation du projet
 
 ```bash
 # Creer le projet NestJS
@@ -316,7 +316,7 @@ npm install --save-dev @types/passport-local @types/passport-jwt @types/bcrypt @
 npx prisma init --datasource-provider postgresql
 ```
 
-### Etape 2 : Configuration (app.module.ts)
+### Étape 2 : Configuration (app.module.ts)
 
 ```typescript
 // src/app.module.ts
@@ -403,7 +403,7 @@ import { RolesGuard } from './common/guards/roles.guard';
 export class AppModule {}
 ```
 
-### Etape 3 : main.ts complet
+### Étape 3 : main.ts complet
 
 ```typescript
 // src/main.ts
@@ -481,7 +481,7 @@ async function bootstrap() {
 bootstrap();
 ```
 
-### Etape 4 : ProductsService (CRUD complet)
+### Étape 4 : ProductsService (CRUD complet)
 
 ```typescript
 // src/products/products.service.ts
@@ -673,7 +673,7 @@ export class ProductsService {
 }
 ```
 
-### Etape 5 : OrdersService (transactionnel)
+### Étape 5 : OrdersService (transactionnel)
 
 ```typescript
 // src/orders/orders.service.ts
@@ -894,7 +894,7 @@ export class OrdersService {
 }
 ```
 
-### Etape 6 : Tache de nettoyage des paniers abandonnes
+### Étape 6 : Tache de nettoyage des paniers abandonnes
 
 ```typescript
 // src/tasks/tasks.service.ts
@@ -982,7 +982,7 @@ export class TasksService {
 }
 ```
 
-### Etape 7 : NotificationsGateway (WebSocket)
+### Étape 7 : NotificationsGateway (WebSocket)
 
 ```typescript
 // src/notifications/notifications.gateway.ts
@@ -1089,13 +1089,13 @@ export class NotificationsGateway
 
 ---
 
-## 4. Strategie de tests
+## 4. Stratégie de tests
 
 ### 4.1 Tests unitaires
 
 Testez chaque service avec des mocks :
-- `ProductsService` : toutes les methodes CRUD
-- `OrdersService` : creation transactionnelle, annulation
+- `ProductsService` : toutes les méthodes CRUD
+- `OrdersService` : création transactionnelle, annulation
 - `CartService` : ajout, modification, suppression
 - `AuthService` : login, register, refresh, logout
 
@@ -1255,7 +1255,7 @@ npm run test:cov
 
 ---
 
-## 7. Criteres d'evaluation
+## 7. Criteres d'évaluation
 
 | Critere | Points | Description |
 |---------|--------|-------------|
@@ -1264,7 +1264,7 @@ npm run test:cov
 | CRUD Produits + Categories | /15 | Toutes les operations avec validation |
 | Panier d'achat | /10 | Ajout, modification, suppression |
 | Commandes transactionnelles | /15 | Integrite des donnees, gestion du stock |
-| WebSocket notifications | /10 | Temps reel fonctionnel |
+| WebSocket notifications | /10 | Temps réel fonctionnel |
 | Tache planifiee | /5 | Nettoyage des paniers abandonnes |
 | Tests (unitaires + E2E) | /10 | Couverture > 70% |
 | Documentation Swagger | /5 | Complete et a jour |
@@ -1274,14 +1274,14 @@ npm run test:cov
 
 ## 8. Extensions possibles (bonus)
 
-Pour aller plus loin apres le projet de base :
+Pour aller plus loin après le projet de base :
 
-- **Systeme de wishlist** : les utilisateurs peuvent sauvegarder des produits
-- **Systeme d'avis** : notes et commentaires sur les produits
+- **Système de wishlist** : les utilisateurs peuvent sauvegarder des produits
+- **Système d'avis** : notes et commentaires sur les produits
 - **Recherche full-text** : avec PostgreSQL tsvector ou Elasticsearch
 - **Upload d'images** : avec Multer + stockage cloud (S3)
 - **Emails transactionnels** : confirmation de commande via Bull queue
-- **Systeme de coupons** : codes promo avec pourcentage ou montant fixe
+- **Système de coupons** : codes promo avec pourcentage ou montant fixe
 - **Historique de prix** : tracking des changements de prix
 - **Export CSV/PDF** : des commandes et rapports de ventes
 - **Webhook** : notification vers des services externes
@@ -1294,7 +1294,7 @@ Pour aller plus loin apres le projet de base :
 ### Exercice 1 : Implementation du panier
 
 Implementez le `CartService` complet avec :
-1. `addToCart(userId, productId, quantite)` — verifie le stock
+1. `addToCart(userId, productId, quantite)` — vérifié le stock
 2. `updateQuantity(userId, productId, quantite)`
 3. `removeFromCart(userId, productId)`
 4. `getCart(userId)` — retourne le panier avec les prix calcules
@@ -1311,7 +1311,7 @@ Creez un `AdminController` avec :
 ### Exercice 3 : Tests complets
 
 Ecrivez :
-1. Tests unitaires pour `OrdersService` (creation, annulation)
+1. Tests unitaires pour `OrdersService` (création, annulation)
 2. Tests E2E pour le flux complet : inscription → login → ajout au panier → commande
 3. Atteignez une couverture de tests > 80%
 
@@ -1324,9 +1324,19 @@ Ecrivez :
 | Quiz Module 24 | `quiz/24-quiz.md` |
 | Lab Module 24 | `labs/24-lab-projet-final.md` |
 | Screencast | `screencasts/24-screencast.md` |
-| Module precedent | [Module 23 — Performance & Deploiement](23-performance-deploiement.md) |
+| Module précédent | [Module 23 — Performance & Déploiement](23-performance-deploiement.md) |
 | Premier module | [Module 1 — Introduction](01-introduction.md) |
 | NestJS Documentation | https://docs.nestjs.com/ |
 | Prisma Documentation | https://www.prisma.io/docs |
 | Docker Documentation | https://docs.docker.com/ |
-| GitHub du projet | A definir par le formateur |
+| GitHub du projet | A définir par le formateur |
+
+---
+
+<!-- parcours-recommande -->
+
+::: tip Parcours recommandé
+1. **Screencast** : [screencast 24 projet final](../screencasts/screencast-24-projet-final.md)
+2. **Lab** : [lab-24-projet-final](../labs/lab-24-projet-final/README)
+3. **Quiz** : [quiz 24 projet final](../quizzes/quiz-24-projet-final.html)
+:::

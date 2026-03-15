@@ -2,26 +2,26 @@
 
 ## Objectifs
 
-- Utiliser Bull (BullMQ) avec NestJS pour gerer des queues de taches
-- Implementer un systeme d'envoi d'emails en arriere-plan
+- Utiliser Bull (BullMQ) avec NestJS pour gérer des queues de taches
+- Implementer un système d'envoi d'emails en arriere-plan
 - Configurer les tentatives (retry) et le backoff
 - Utiliser @nestjs/schedule pour les taches planifiees (cron, interval)
 
 ## Description
 
-Vous allez creer un systeme de queue pour l'envoi d'emails avec :
+Vous allez créer un système de queue pour l'envoi d'emails avec :
 - Un processeur qui traite les jobs d'email
-- Un service qui ajoute des jobs a la queue
+- Un service qui ajoute des jobs à la queue
 - Un controller HTTP pour declencher l'envoi
 - Des taches planifiees pour le nettoyage et le monitoring
 
-**Note**: Ce lab necessite Redis pour fonctionner en production. Les tests utilisent des mocks.
+**Note**: Ce lab nécessité Redis pour fonctionner en production. Les tests utilisent des mocks.
 
 ## Endpoints
 
-| Methode | Route        | Description                |
+| Méthode | Route        | Description                |
 |---------|-------------|----------------------------|
-| POST    | /email/send | Ajouter un email a la queue |
+| POST    | /email/send | Ajouter un email à la queue |
 
 ## Instructions
 
@@ -29,11 +29,11 @@ Vous allez creer un systeme de queue pour l'envoi d'emails avec :
    - Decorez la classe avec @Processor('email')
    - Implementez un handler @Process() pour traiter les jobs
    - Implementez @Process('welcome') pour les emails de bienvenue
-   - Implementez @OnQueueFailed pour gerer les erreurs
+   - Implementez @OnQueueFailed pour gérer les erreurs
 
 2. **EmailService** (`src/email/email.service.ts`)
    - Injectez la queue Bull avec @InjectQueue('email')
-   - Implementez sendEmail(data) qui ajoute un job a la queue
+   - Implementez sendEmail(data) qui ajoute un job à la queue
    - Configurez les options: attempts, backoff, removeOnComplete
 
 3. **EmailController** (`src/email/email.controller.ts`)

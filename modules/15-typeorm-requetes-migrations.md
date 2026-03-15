@@ -1,17 +1,17 @@
 # Module 15 — TypeORM — Requetes, Transactions & Migrations
 
-> **Objectif** : Maitriser les differentes manieres d'interroger la base de donnees avec TypeORM, gerer les transactions pour garantir l'integrite des donnees, et utiliser les migrations pour evoluer le schema en production.
+> **Objectif** : Maîtriser les différentes manières d'interroger la base de donnees avec TypeORM, gérer les transactions pour garantir l'integrite des donnees, et utiliser les migrations pour evoluer le schema en production.
 > **Difficulte** : ⭐⭐⭐ (avance)
-> **Prerequis** : Module 14 (TypeORM Entites & Relations)
+> **Prérequis** : Module 14 (TypeORM Entites & Relations)
 > **Duree estimee** : 6 heures
 
 ---
 
 ## 1. L'API Repository — Requetes simples
 
-### 1.1 Les methodes de base
+### 1.1 Les méthodes de base
 
-Le `Repository<Entity>` de TypeORM fournit un ensemble complet de methodes pour interagir avec la base de donnees.
+Le `Repository<Entity>` de TypeORM fournit un ensemble complet de méthodes pour interagir avec la base de donnees.
 
 ```typescript
 import { Injectable, NotFoundException } from '@nestjs/common';
@@ -162,7 +162,7 @@ export class ArticlesService {
 }
 ```
 
-> **A retenir** : `save()` fait un INSERT si l'entite n'a pas d'ID, ou un UPDATE si elle en a un. `update()` fait toujours un UPDATE direct sans charger l'entite. La difference cle : `save()` declenche les hooks et les cascades, `update()` non.
+> **A retenir** : `save()` fait un INSERT si l'entite n'a pas d'ID, ou un UPDATE si elle en à un. `update()` fait toujours un UPDATE direct sans charger l'entite. La différence clé : `save()` declenche les hooks et les cascades, `update()` non.
 
 ### 1.2 Les options de find
 
@@ -291,7 +291,7 @@ const articles = await this.articleRepo.find({
 // SQL: WHERE nombreVues > 100
 ```
 
-> **Piege classique** : Quand vous passez un tableau a `where`, TypeORM interprete cela comme un **OR** entre les conditions. Chaque objet du tableau est un ensemble de conditions **AND**. Ne confondez pas avec une liste de valeurs (pour ca, utilisez `In()`).
+> **Piege classique** : Quand vous passez un tableau a `where`, TypeORM interprete cela comme un **OR** entre les conditions. Chaque objet du tableau est un ensemble de conditions **AND**. Ne confondez pas avec une liste de valeurs (pour ça, utilisez `In()`).
 
 ---
 
@@ -299,7 +299,7 @@ const articles = await this.articleRepo.find({
 
 ### 2.1 Introduction au QueryBuilder
 
-Le QueryBuilder est l'outil le plus puissant de TypeORM pour construire des requetes SQL complexes de maniere programmatique.
+Le QueryBuilder est l'outil le plus puissant de TypeORM pour construire des requêtes SQL complexes de manière programmatique.
 
 ```typescript
 // Creer un QueryBuilder a partir du repository
@@ -441,12 +441,12 @@ export class ArticlesService {
 
 ### 2.3 Tableau comparatif : getMany vs getRawMany
 
-| Methode | Retourne | Mapping entite | Cas d'usage |
+| Méthode | Retourne | Mapping entite | Cas d'usage |
 |---------|---------|----------------|-------------|
 | `getMany()` | `Entity[]` | Oui | Donnees standard avec relations |
-| `getOne()` | `Entity \| null` | Oui | Un seul resultat |
-| `getRawMany()` | `any[]` | Non | Agregations, GROUP BY, resultats personnalises |
-| `getRawOne()` | `any` | Non | Un seul resultat brut |
+| `getOne()` | `Entity \| null` | Oui | Un seul résultat |
+| `getRawMany()` | `any[]` | Non | Agregations, GROUP BY, résultats personnalises |
+| `getRawOne()` | `any` | Non | Un seul résultat brut |
 | `getCount()` | `number` | Non | Comptage |
 
 > **Bonne pratique** : Utilisez `getMany()` quand vous voulez des instances d'entites avec leurs relations. Utilisez `getRawMany()` pour les agregations et les statistiques ou le mapping automatique n'est pas utile.
@@ -505,7 +505,7 @@ Une **transaction** garantit que plusieurs operations SQL sont executees comme u
 
 ### 3.2 Transactions avec EntityManager.transaction
 
-La methode la plus simple :
+La méthode la plus simple :
 
 ```typescript
 import { Injectable } from '@nestjs/common';
@@ -679,14 +679,14 @@ await queryRunner.startTransaction('SERIALIZABLE');
 
 ### 4.1 Pourquoi les migrations ?
 
-En developpement, `synchronize: true` ajuste le schema automatiquement. En production, c'est dangereux. Les migrations permettent de :
+En développement, `synchronize: true` ajuste le schema automatiquement. En production, c'est dangereux. Les migrations permettent de :
 
 - Versionner les changements de schema
-- Appliquer les changements de maniere controlee
-- Revenir en arriere si necessaire
-- Collaborer en equipe sur le schema
+- Appliquer les changements de manière controlee
+- Revenir en arriere si nécessaire
+- Collaborer en équipe sur le schema
 
-> **Analogie** : Les migrations sont comme un carnet de bord pour votre base de donnees. Chaque page decrit un changement precis, dans l'ordre chronologique. Vous pouvez avancer page par page (appliquer) ou reculer (annuler).
+> **Analogie** : Les migrations sont comme un carnet de bord pour votre base de donnees. Chaque page decrit un changement précis, dans l'ordre chronologique. Vous pouvez avancer page par page (appliquer) ou reculer (annuler).
 
 ### 4.2 Configuration du CLI TypeORM
 
@@ -727,7 +727,7 @@ Ajouter les scripts dans `package.json` :
 }
 ```
 
-### 4.3 Generer une migration
+### 4.3 Générer une migration
 
 ```bash
 # Generer une migration basee sur les differences entre entites et schema actuel
@@ -736,7 +736,7 @@ npm run migration:generate -- src/migrations/InitialSchema
 # Cela cree un fichier comme : src/migrations/1705320000000-InitialSchema.ts
 ```
 
-Fichier genere :
+Fichier généré :
 
 ```typescript
 // migrations/1705320000000-InitialSchema.ts
@@ -802,7 +802,7 @@ export class InitialSchema1705320000000 implements MigrationInterface {
 }
 ```
 
-### 4.4 Creer une migration vide
+### 4.4 Créer une migration vide
 
 Pour les changements qui ne touchent pas les entites (donnees de seed, index personnalises) :
 
@@ -851,15 +851,15 @@ npm run build
 npx typeorm migration:run -d dist/data-source.js
 ```
 
-> **Bonne pratique** : Toujours generer les migrations avec `migration:generate`, ne les ecrivez pas a la main sauf pour les donnees de seed. Et testez toujours le `down()` avant de deployer.
+> **Bonne pratique** : Toujours générer les migrations avec `migration:generate`, ne les ecrivez pas à la main sauf pour les donnees de seed. Et testez toujours le `down()` avant de déployer.
 
 ---
 
 ## 5. Les Subscribers — Hooks de base de donnees
 
-### 5.1 Creer un Subscriber
+### 5.1 Créer un Subscriber
 
-Les subscribers permettent d'ecouter les evenements de l'ORM (avant/apres insert, update, delete, load).
+Les subscribers permettent d'ecouter les événements de l'ORM (avant/après insert, update, delete, load).
 
 ```typescript
 // subscribers/article.subscriber.ts
@@ -937,13 +937,13 @@ TypeOrmModule.forRootAsync({
 });
 ```
 
-> **Piege classique** : Les subscribers ne sont pas declenches par les methodes `update()` et `delete()` du repository. Ils ne fonctionnent qu'avec `save()`, `remove()`, `softRemove()`. Si vous utilisez des subscribers, assurez-vous d'utiliser les bonnes methodes.
+> **Piege classique** : Les subscribers ne sont pas declenches par les méthodes `update()` et `delete()` du repository. Ils ne fonctionnent qu'avec `save()`, `remove()`, `softRemove()`. Si vous utilisez des subscribers, assurez-vous d'utiliser les bonnes méthodes.
 
 ---
 
 ## 6. Pagination
 
-### 6.1 Helper de pagination reutilisable
+### 6.1 Helper de pagination réutilisable
 
 ```typescript
 // common/pagination.ts
@@ -1067,7 +1067,7 @@ async searchFullText(terme: string): Promise<Article[]> {
 }
 ```
 
-### 7.2 Requete avec sous-requete
+### 7.2 Requête avec sous-requête
 
 ```typescript
 // Trouver les articles des auteurs les plus actifs
@@ -1088,7 +1088,7 @@ async findArticlesFromTopAuthors(): Promise<Article[]> {
 }
 ```
 
-### 7.3 Requete avec agregation et jointure
+### 7.3 Requête avec agregation et jointure
 
 ```typescript
 // Statistiques par tag
@@ -1128,7 +1128,7 @@ async incrementViews(articleId: number): Promise<void> {
 
 ## 8. Requetes SQL brutes
 
-Parfois, le QueryBuilder ne suffit pas. Vous pouvez executer du SQL brut :
+Parfois, le QueryBuilder ne suffit pas. Vous pouvez exécuter du SQL brut :
 
 ```typescript
 // Via le DataSource
@@ -1145,7 +1145,7 @@ const result = await this.dataSource.query(
 // result est un tableau d'objets { nom: string, total: number }
 ```
 
-> **Piege classique** : Utilisez toujours des parametres (`$1`, `$2` pour PostgreSQL, `?` pour MySQL) pour eviter les injections SQL. Ne concatenez **jamais** des valeurs utilisateur directement dans la chaine SQL.
+> **Piege classique** : Utilisez toujours des paramètres (`$1`, `$2` pour PostgreSQL, `?` pour MySQL) pour éviter les injections SQL. Ne concatenez **jamais** des valeurs utilisateur directement dans la chaine SQL.
 
 ---
 
@@ -1160,7 +1160,7 @@ Implementez un `ArticlesService` complet avec :
 
 ### Exercice 2 : Transaction
 
-Implementez une methode `transferArticle(articleId, fromUserId, toUserId)` qui :
+Implementez une méthode `transferArticle(articleId, fromUserId, toUserId)` qui :
 1. Verifie que l'article appartient bien a `fromUserId`
 2. Change l'auteur vers `toUserId`
 3. Cree un log de transfert dans une table `transfer_logs`
@@ -1182,8 +1182,19 @@ Implementez une methode `transferArticle(articleId, fromUserId, toUserId)` qui :
 | Quiz Module 15 | `quiz/15-quiz.md` |
 | Lab Module 15 | `labs/15-lab-typeorm-requetes.md` |
 | Screencast | `screencasts/15-screencast.md` |
-| Module precedent | [Module 14 — TypeORM Entites & Relations](14-typeorm-entites-relations.md) |
+| Module précédent | [Module 14 — TypeORM Entites & Relations](14-typeorm-entites-relations.md) |
 | Module suivant | [Module 16 — Prisma Schema & Client](16-prisma-schema-client.md) |
 | TypeORM QueryBuilder | https://typeorm.io/select-query-builder |
 | TypeORM Transactions | https://typeorm.io/transactions |
 | TypeORM Migrations | https://typeorm.io/migrations |
+
+---
+
+<!-- parcours-recommande -->
+
+::: tip Parcours recommandé
+1. **Screencast** : [screencast 15 typeorm requêtes](../screencasts/screencast-15-typeorm-requetes.md)
+2. **Lab** : [lab-15-typeorm-queries](../labs/lab-15-typeorm-queries/README)
+3. **Visualisation** : [ORM Query Flow](../visualizations/orm-query-flow.html)
+4. **Quiz** : [quiz 15 typeorm requêtes](../quizzes/quiz-15-typeorm-requetes.html)
+:::

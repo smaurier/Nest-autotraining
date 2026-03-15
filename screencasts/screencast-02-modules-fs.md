@@ -4,7 +4,7 @@
 - **Duree estimee** : 12-15 min
 - **Module** : `modules/02-nodejs-modules-et-fs.md`
 - **Lab associe** : `labs/lab-02-modules-fs/`
-- **Prerequis** : Screencast 01 (Event Loop & Asynchrone)
+- **Prérequis** : Screencast 01 (Event Loop & Asynchrone)
 
 ## Setup
 - [ ] Node.js 20+ installe
@@ -16,17 +16,17 @@
 
 ### [00:00-02:30] Introduction — Organiser son code
 
-> Salut ! Aujourd'hui on va parler de trois piliers fondamentaux de Node.js : le systeme de modules, le systeme de fichiers, et l'objet process. Ce sont les briques de base pour construire n'importe quelle application backend.
+> Salut ! Aujourd'hui on va parler de trois piliers fondamentaux de Node.js : le système de modules, le système de fichiers, et l'objet process. Ce sont les briques de base pour construire n'importe quelle application backend.
 
 **Action** : Afficher le slide de titre "Module 02 — Modules, FS & Process".
 
-> Quand votre code grandit, vous ne pouvez pas tout mettre dans un seul fichier. Il faut decouper, organiser, reutiliser. C'est le role du systeme de modules. Node.js en supporte deux : CommonJS et ES Modules.
+> Quand votre code grandit, vous ne pouvez pas tout mettre dans un seul fichier. Il faut découper, organiser, réutiliser. C'est le role du système de modules. Node.js en supporte deux : CommonJS et ES Modules.
 
 ### [02:30-06:00] CommonJS vs ES Modules
 
-> CommonJS, c'est le systeme historique de Node.js. On exporte avec `module.exports` et on importe avec `require()`.
+> CommonJS, c'est le système historique de Node.js. On exporte avec `module.exports` et on importe avec `require()`.
 
-**Action** : Creer deux fichiers pour illustrer CommonJS.
+**Action** : Créer deux fichiers pour illustrer CommonJS.
 
 ```javascript
 // math.js (CommonJS)
@@ -49,22 +49,22 @@ console.log(add(2, 3));       // 5
 console.log(multiply(4, 5));  // 20
 ```
 
-**Action** : Executer le script.
+**Action** : Exécuter le script.
 
 ```bash
 node app.js
 ```
 
-> Ca marche. Maintenant, ES Modules. C'est le standard JavaScript moderne, avec `import` et `export`. Pour l'activer dans Node.js, on a deux options : renommer le fichier en `.mjs`, ou ajouter `"type": "module"` dans le `package.json`.
+> Ça marche. Maintenant, ES Modules. C'est le standard JavaScript moderne, avec `import` et `export`. Pour l'activer dans Node.js, on a deux options : renommer le fichier en `.mjs`, ou ajouter `"type": "module"` dans le `package.json`.
 
-**Action** : Creer un projet avec ES Modules.
+**Action** : Créer un projet avec ES Modules.
 
 ```bash
 mkdir esm-demo && cd esm-demo
 npm init -y
 ```
 
-**Action** : Modifier le `package.json` et creer les fichiers.
+**Action** : Modifier le `package.json` et créer les fichiers.
 
 ```json
 {
@@ -94,11 +94,11 @@ console.log(multiply(4, 5));
 
 > Dans cette formation, on utilisera ES Modules quand on passera a NestJS et TypeScript. Pour l'instant, CommonJS est parfaitement valable pour nos exemples Node.js purs.
 
-### [06:00-09:00] Le module fs — Lire et ecrire des fichiers
+### [06:00-09:00] Le module fs — Lire et écrire des fichiers
 
 > Le module `fs` (file system) permet de manipuler des fichiers. C'est un module built-in, pas besoin de l'installer.
 
-**Action** : Creer un script de demonstration du module fs.
+**Action** : Créer un script de demonstration du module fs.
 
 ```javascript
 // fs-demo.js
@@ -137,7 +137,7 @@ async function main() {
 main().catch(console.error);
 ```
 
-**Action** : Executer et montrer les resultats.
+**Action** : Exécuter et montrer les résultats.
 
 ```bash
 node fs-demo.js
@@ -145,13 +145,13 @@ cat notes.txt
 ls backup/
 ```
 
-> On utilise la version `promises` du module fs pour travailler avec async/await. Notez le module `path` : il gere les chemins de fichiers de maniere portable entre Windows, Mac et Linux.
+> On utilise la version `promises` du module fs pour travailler avec async/await. Notez le module `path` : il géré les chemins de fichiers de manière portable entre Windows, Mac et Linux.
 
-### [09:00-11:30] L'objet process — Le lien avec le systeme
+### [09:00-11:30] L'objet process — Le lien avec le système
 
 > L'objet `process` est disponible partout dans Node.js. Il donne acces aux arguments de la ligne de commande, aux variables d'environnement, et permet de controler le processus.
 
-**Action** : Creer un script qui utilise process.
+**Action** : Créer un script qui utilise process.
 
 ```javascript
 // process-demo.js
@@ -178,17 +178,17 @@ process.on('SIGINT', () => {
 });
 ```
 
-**Action** : Executer avec des arguments et une variable d'environnement.
+**Action** : Exécuter avec des arguments et une variable d'environnement.
 
 ```bash
 NODE_ENV=production node process-demo.js --port 3000 --verbose
 ```
 
-> Les arguments sont dans `process.argv`, les variables d'environnement dans `process.env`. C'est comme ca qu'on configure une application en production : via les variables d'environnement, pas en codant en dur.
+> Les arguments sont dans `process.argv`, les variables d'environnement dans `process.env`. C'est comme ça qu'on configure une application en production : via les variables d'environnement, pas en codant en dur.
 
 ### [11:30-13:30] npm init et package.json
 
-> Chaque projet Node.js commence par un `package.json`. C'est la carte d'identite du projet : nom, version, dependances, scripts.
+> Chaque projet Node.js commence par un `package.json`. C'est la carte d'identite du projet : nom, version, dépendances, scripts.
 
 **Action** : Initialiser un nouveau projet.
 
@@ -197,7 +197,7 @@ mkdir mon-projet && cd mon-projet
 npm init -y
 ```
 
-**Action** : Montrer le package.json genere et installer une dependance.
+**Action** : Montrer le package.json généré et installer une dépendance.
 
 ```bash
 npm install chalk
@@ -212,18 +212,18 @@ console.log(chalk.red.bold('Erreur critique'));
 console.log(chalk.blue.underline('Info'));
 ```
 
-> npm a telecharge chalk dans le dossier `node_modules/` et l'a ajoute aux dependances du `package.json`. Quand quelqu'un clone votre projet, il fait `npm install` et toutes les dependances sont reinstallees.
+> npm a telecharge chalk dans le dossier `node_modules/` et l'a ajoute aux dépendances du `package.json`. Quand quelqu'un clone votre projet, il fait `npm install` et toutes les dépendances sont reinstallees.
 
 ### [13:30-14:30] Recap
 
-> On a vu les modules CommonJS et ES Modules pour organiser son code. Le module fs pour manipuler des fichiers. L'objet process pour interagir avec le systeme. Et npm pour gerer les dependances.
+> On a vu les modules CommonJS et ES Modules pour organiser son code. Le module fs pour manipuler des fichiers. L'objet process pour interagir avec le système. Et npm pour gérer les dépendances.
 
 **Action** : Mentionner le lab associe.
 
-> Dans le lab `labs/lab-02-modules-fs/`, vous allez creer vos propres modules, manipuler des fichiers, et construire un petit outil en ligne de commande. Allez-y, on se retrouve au prochain screencast pour les streams !
+> Dans le lab `labs/lab-02-modules-fs/`, vous allez créer vos propres modules, manipuler des fichiers, et construire un petit outil en ligne de commande. Allez-y, on se retrouve au prochain screencast pour les streams !
 
 ## Points d'attention pour l'enregistrement
-- Nettoyer les fichiers de demo avant de commencer pour eviter les conflits
-- Montrer clairement la difference entre require() et import dans le terminal
+- Nettoyer les fichiers de demo avant de commencer pour éviter les conflits
+- Montrer clairement la différence entre require() et import dans le terminal
 - S'assurer que chalk est compatible avec la version de Node.js utilisee
 - Prendre le temps de montrer le contenu du node_modules/ pour demystifier

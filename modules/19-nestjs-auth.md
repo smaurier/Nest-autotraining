@@ -1,8 +1,8 @@
 # Module 19 — NestJS — Authentification & Autorisation
 
-> **Objectif** : Implementer un systeme complet d'authentification JWT avec refresh tokens, et un systeme d'autorisation base sur les roles (RBAC) dans une application NestJS.
+> **Objectif** : Implementer un système complet d'authentification JWT avec refresh tokens, et un système d'autorisation base sur les roles (RBAC) dans une application NestJS.
 > **Difficulte** : ⭐⭐⭐⭐ (avance+)
-> **Prerequis** : Module 13 (Guards, Decorateurs), Module 14 ou 16 (ORM), Module 18 (Testing)
+> **Prérequis** : Module 13 (Guards, Decorateurs), Module 14 ou 16 (ORM), Module 18 (Testing)
 > **Duree estimee** : 7 heures
 
 ---
@@ -13,10 +13,10 @@
 
 | Concept | Question | Exemple |
 |---------|----------|---------|
-| **Authentification** | "Qui etes-vous ?" | Verifier email + mot de passe |
-| **Autorisation** | "Avez-vous le droit ?" | Verifier si l'utilisateur est admin |
+| **Authentification** | "Qui etes-vous ?" | Vérifier email + mot de passe |
+| **Autorisation** | "Avez-vous le droit ?" | Vérifier si l'utilisateur est admin |
 
-> **Analogie** : L'authentification c'est montrer votre carte d'identite a l'entree d'un immeuble (prouver qui vous etes). L'autorisation c'est verifier que votre badge donne acces a l'etage 5 (verifier vos droits).
+> **Analogie** : L'authentification c'est montrer votre carte d'identite a l'entree d'un immeuble (prouver qui vous etes). L'autorisation c'est vérifier que votre badge donne acces a l'etage 5 (vérifier vos droits).
 
 ### 1.2 Qu'est-ce qu'un JWT ?
 
@@ -34,9 +34,9 @@ SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c    ← Signature (verification)
 |--------|---------|---------|
 | Header | Algorithme + type | `{ "alg": "HS256", "typ": "JWT" }` |
 | Payload | Donnees utilisateur (claims) | `{ "sub": 1, "email": "alice@example.com", "roles": ["admin"] }` |
-| Signature | Verification d'integrite | HMAC-SHA256(header + payload, secret) |
+| Signature | Vérification d'integrite | HMAC-SHA256(header + payload, secret) |
 
-> **Piege classique** : Le payload d'un JWT est **encode en Base64**, pas **chiffre**. N'importe qui peut le decoder et lire son contenu. Ne mettez jamais d'informations sensibles (mot de passe, numero de carte) dans le payload.
+> **Piege classique** : Le payload d'un JWT est **encode en Base64**, pas **chiffre**. N'importe qui peut le decoder et lire son contenu. Ne mettez jamais d'informations sensibles (mot de passe, numéro de carte) dans le payload.
 
 ### 1.3 Flux d'authentification JWT
 
@@ -54,7 +54,7 @@ SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c    ← Signature (verification)
 
 ## 2. Installation et configuration
 
-### 2.1 Packages necessaires
+### 2.1 Packages nécessaires
 
 ```bash
 npm install @nestjs/passport passport passport-local passport-jwt
@@ -65,10 +65,10 @@ npm install --save-dev @types/passport-local @types/passport-jwt @types/bcrypt
 
 | Package | Role |
 |---------|------|
-| `@nestjs/passport` | Integration Passport.js avec NestJS |
+| `@nestjs/passport` | Intégration Passport.js avec NestJS |
 | `passport` | Framework d'authentification pour Node.js |
-| `passport-local` | Strategie email/mot de passe |
-| `passport-jwt` | Strategie JWT |
+| `passport-local` | Stratégie email/mot de passe |
+| `passport-jwt` | Stratégie JWT |
 | `@nestjs/jwt` | Service JWT pour NestJS |
 | `bcrypt` | Hachage de mots de passe |
 
@@ -381,11 +381,11 @@ export class AuthService {
 }
 ```
 
-> **Bonne pratique** : Utilisez deux secrets differents pour l'access token et le refresh token. Si l'access token est compromis, le refresh token reste securise et vice versa.
+> **Bonne pratique** : Utilisez deux secrets différents pour l'access token et le refresh token. Si l'access token est compromis, le refresh token reste sécurisé et vice versa.
 
 ---
 
-## 6. Les Strategies Passport
+## 6. Les Stratégies Passport
 
 ### 6.1 LocalStrategy — Login par email/mot de passe
 
@@ -418,7 +418,7 @@ export class LocalStrategy extends PassportStrategy(Strategy) {
 }
 ```
 
-### 6.2 JwtStrategy — Verification du token JWT
+### 6.2 JwtStrategy — Vérification du token JWT
 
 ```typescript
 // auth/strategies/jwt.strategy.ts
@@ -856,7 +856,7 @@ Le refresh token permet de prolonger la session sans re-demander les identifiant
 6. L'ancien refreshToken est invalide
 ```
 
-> **Bonne pratique** : La **rotation des refresh tokens** signifie qu'a chaque utilisation, un nouveau refresh token est genere et l'ancien est invalide. Si un attaquant vole un refresh token et l'utilise, le vrai utilisateur recevra une erreur au prochain refresh, signalant une compromission.
+> **Bonne pratique** : La **rotation des refresh tokens** signifie qu'à chaque utilisation, un nouveau refresh token est généré et l'ancien est invalide. Si un attaquant vole un refresh token et l'utilise, le vrai utilisateur recevra une erreur au prochain refresh, signalant une compromission.
 
 ---
 
@@ -870,7 +870,7 @@ JWT_ACCESS_EXPIRATION=15m
 JWT_REFRESH_EXPIRATION=7d
 ```
 
-> **Piege classique** : Utilisez des secrets longs et aleatoires (au moins 32 caracteres). Ne reutilisez jamais le meme secret pour l'access token et le refresh token. Ne commitez jamais le fichier `.env` dans Git.
+> **Piege classique** : Utilisez des secrets longs et aleatoires (au moins 32 caracteres). Ne reutilisez jamais le même secret pour l'access token et le refresh token. Ne commitez jamais le fichier `.env` dans Git.
 
 ---
 
@@ -897,8 +897,8 @@ const isInvalid = await bcrypt.compare('MauvaisMotDePasse', hash);
 |-------------|-------------------|-------|
 | 8 | ~40ms | Tests, dev |
 | 10 | ~100ms | Production (recommande) |
-| 12 | ~300ms | Securite renforcee |
-| 14 | ~1s | Tres haute securite |
+| 12 | ~300ms | Sécurité renforcee |
+| 14 | ~1s | Très haute sécurité |
 
 ---
 
@@ -944,20 +944,20 @@ export class ProductsController {
 
 ---
 
-## 16. Securite — Bonnes pratiques
+## 16. Sécurité — Bonnes pratiques
 
 | Pratique | Description |
 |----------|-------------|
-| Secrets forts | Utilisez des cles de 256+ bits pour les secrets JWT |
+| Secrets forts | Utilisez des clés de 256+ bits pour les secrets JWT |
 | Duree courte pour access token | 15 minutes maximum |
-| Rotation des refresh tokens | Nouveau refresh token a chaque utilisation |
+| Rotation des refresh tokens | Nouveau refresh token à chaque utilisation |
 | Hashage bcrypt | Ne stockez JAMAIS les mots de passe en clair |
 | HTTPS obligatoire | Les JWT transitent en clair dans les headers |
 | Rate limiting | Limitez les tentatives de login (voir Module 23) |
 | Validation des entrees | Utilisez le ValidationPipe sur tous les DTOs |
 | Ne pas exposer le mot de passe | `select: false` dans l'entite |
 | CORS configure | Ne pas accepter toutes les origines |
-| Helmet | Ajouter les headers de securite HTTP |
+| Helmet | Ajouter les headers de sécurité HTTP |
 
 ```bash
 # Installer helmet pour les headers de securite
@@ -981,11 +981,11 @@ async function bootstrap() {
 
 ### Exercice 1 : Implementation complete
 
-Implementez le systeme d'authentification complet decrit dans ce module avec : inscription, connexion, refresh, deconnexion.
+Implementez le système d'authentification complet decrit dans ce module avec : inscription, connexion, refresh, deconnexion.
 
 ### Exercice 2 : RBAC avance
 
-Ajoutez un systeme de permissions granulaires : au lieu de simples roles, definissez des permissions (`create:article`, `delete:article`, `manage:users`) et un guard qui les verifie.
+Ajoutez un système de permissions granulaires : au lieu de simples roles, definissez des permissions (`create:article`, `delete:article`, `manage:users`) et un guard qui les vérifié.
 
 ### Exercice 3 : Tests
 
@@ -1000,10 +1000,20 @@ Ecrivez les tests unitaires pour `AuthService` et les tests E2E pour les endpoin
 | Quiz Module 19 | `quiz/19-quiz.md` |
 | Lab Module 19 | `labs/19-lab-auth.md` |
 | Screencast | `screencasts/19-screencast.md` |
-| Module precedent | [Module 18 — Testing](18-nestjs-testing.md) |
+| Module précédent | [Module 18 — Testing](18-nestjs-testing.md) |
 | Module suivant | [Module 20 — Configuration & Swagger](20-nestjs-config-swagger.md) |
 | NestJS Authentication | https://docs.nestjs.com/security/authentication |
 | NestJS Authorization | https://docs.nestjs.com/security/authorization |
 | Passport.js | https://www.passportjs.org/ |
 | JWT.io | https://jwt.io/ |
 | bcrypt | https://github.com/kelektiv/node.bcrypt.js |
+
+---
+
+<!-- parcours-recommande -->
+
+::: tip Parcours recommandé
+1. **Screencast** : [screencast 19 auth nestjs](../screencasts/screencast-19-auth-nestjs.md)
+2. **Lab** : [lab-19-auth-nestjs](../labs/lab-19-auth-nestjs/README)
+3. **Quiz** : [quiz 19 auth nestjs](../quizzes/quiz-19-auth-nestjs.html)
+:::

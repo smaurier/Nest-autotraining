@@ -1,8 +1,8 @@
 # Module 06 — Express — Middleware & Architecture
 
-> **Objectif** : Comprendre le concept central d'Express — les middleware — maitriser le pipeline d'execution, creer des middleware personnalises, organiser le code en architecture MVC avec des Router modulaires.
+> **Objectif** : Comprendre le concept central d'Express — les middleware — maîtriser le pipeline d'exécution, créer des middleware personnalises, organiser le code en architecture MVC avec des Router modulaires.
 >
-> **Difficulte** : ⭐⭐ (intermediaire)
+> **Difficulte** : ⭐⭐ (intermédiaire)
 
 ---
 
@@ -10,7 +10,7 @@
 
 ### 1.1 Definition
 
-Un **middleware** est une fonction qui a acces a l'objet `req`, l'objet `res`, et la fonction `next()`. Les middleware forment une **chaine** (pipeline) — chaque requete traverse les middleware dans l'ordre ou ils sont declares.
+Un **middleware** est une fonction qui a acces a l'objet `req`, l'objet `res`, et la fonction `next()`. Les middleware forment une **chaine** (pipeline) — chaque requête traverse les middleware dans l'ordre ou ils sont declares.
 
 ```typescript
 function monMiddleware(req, res, next) {
@@ -25,7 +25,7 @@ function monMiddleware(req, res, next) {
 }
 ```
 
-> **Analogie** : Les middleware, c'est comme une chaine de montage en usine. Chaque poste (middleware) recoit le produit (requete), effectue une operation (logging, authentification, validation...) et le passe au poste suivant (`next()`). Si un poste detecte un defaut, il peut rejeter le produit (envoyer une erreur) sans le passer au suivant.
+> **Analogie** : Les middleware, c'est comme une chaine de montage en usine. Chaque poste (middleware) recoit le produit (requête), effectue une operation (logging, authentification, validation...) et le passe au poste suivant (`next()`). Si un poste détecté un defaut, il peut rejeter le produit (envoyer une erreur) sans le passer au suivant.
 
 ### 1.2 Le pipeline de middleware
 
@@ -56,7 +56,7 @@ function monMiddleware(req, res, next) {
        Reponse HTTP
 ```
 
-### 1.3 Ordre d'execution
+### 1.3 Ordre d'exécution
 
 L'ordre des `app.use()` est **crucial** — les middleware sont executes dans l'ordre de declaration :
 
@@ -230,7 +230,7 @@ app.use(cors({
 }));
 ```
 
-### 4.2 helmet — Headers de securite
+### 4.2 helmet — Headers de sécurité
 
 ```bash
 npm install helmet
@@ -290,23 +290,23 @@ app.use(compression({
 }));
 ```
 
-### 4.5 Tableau recapitulatif
+### 4.5 Tableau récapitulatif
 
 | Middleware | npm install | Role |
 |---|---|---|
 | `express.json()` | Integre | Parser le body JSON |
 | `express.urlencoded()` | Integre | Parser les formulaires |
 | `express.static()` | Integre | Servir des fichiers statiques |
-| `cors` | `cors` | Gerer le CORS |
-| `helmet` | `helmet` | Headers de securite |
-| `morgan` | `morgan` | Logging des requetes |
+| `cors` | `cors` | Gérer le CORS |
+| `helmet` | `helmet` | Headers de sécurité |
+| `morgan` | `morgan` | Logging des requêtes |
 | `compression` | `compression` | Compression gzip |
 | `cookie-parser` | `cookie-parser` | Parser les cookies |
-| `express-rate-limit` | `express-rate-limit` | Limiter le nombre de requetes |
+| `express-rate-limit` | `express-rate-limit` | Limiter le nombre de requêtes |
 
 ---
 
-## 5. Creer des middleware personnalises
+## 5. Créer des middleware personnalises
 
 ### 5.1 Logger avec timestamps
 
@@ -329,7 +329,7 @@ function logger(req, res, next) {
 app.use(logger);
 ```
 
-### 5.2 Timer de requete
+### 5.2 Timer de requête
 
 ```typescript
 function requestTimer(req, res, next) {
@@ -349,7 +349,7 @@ function requestTimer(req, res, next) {
 app.use(requestTimer);
 ```
 
-### 5.3 Verification d'authentification
+### 5.3 Vérification d'authentification
 
 ```typescript
 function requireAuth(req, res, next) {
@@ -439,7 +439,7 @@ app.use(requestId);
 
 ### 6.1 Pourquoi les Routers
 
-Quand ton API grandit, mettre toutes les routes dans un seul fichier devient ingerable. `express.Router()` permet de **decouper les routes en modules** :
+Quand ton API grandit, mettre toutes les routes dans un seul fichier devient ingerable. `express.Router()` permet de **découper les routes en modules** :
 
 ```typescript
 // routes/books.js
@@ -501,7 +501,7 @@ app.use('/api/users', usersRouter);
 app.listen(3000);
 ```
 
-### 6.2 Middleware specifique a un routeur
+### 6.2 Middleware spécifique à un routeur
 
 ```typescript
 // routes/admin.js
@@ -539,7 +539,7 @@ export default router;
 |---|---|---|
 | **Model** | Donnees et logique metier | `models/`, `services/` |
 | **View** | Presentation (pour une API : le format JSON) | Pas de fichier dedie en API |
-| **Controller** | Orchestre : recoit la requete, appelle les services, envoie la reponse | `controllers/` |
+| **Controller** | Orchestre : recoit la requête, appelle les services, envoie la réponse | `controllers/` |
 
 > **Analogie** : Dans un restaurant, le **serveur** (Controller) prend la commande du client, la transmet au **chef** (Service/Model) qui prepare le plat, et le serveur revient avec le plat dans une **assiette** (View/JSON). Le serveur ne cuisine pas, le chef ne sert pas — chacun son role.
 
@@ -764,7 +764,7 @@ app.get('/api/users/:id', (req, res, next) => {
 });
 ```
 
-> **Bonne pratique** : Place TOUJOURS le middleware d'erreur EN DERNIER, apres toutes les routes et les autres middleware. Express detecte les middleware d'erreur grace a leurs 4 arguments — si tu en oublies un, ca ne fonctionnera pas.
+> **Bonne pratique** : Place TOUJOURS le middleware d'erreur EN DERNIER, après toutes les routes et les autres middleware. Express détecté les middleware d'erreur grâce à leurs 4 arguments — si tu en oublies un, ça ne fonctionnera pas.
 
 ---
 
@@ -772,10 +772,10 @@ app.get('/api/users/:id', (req, res, next) => {
 
 | Scope | Syntaxe | Effet |
 |---|---|---|
-| **Application** | `app.use(fn)` | S'applique a TOUTES les requetes |
-| **Application + chemin** | `app.use('/api', fn)` | S'applique aux requetes commencant par `/api` |
+| **Application** | `app.use(fn)` | S'applique a TOUTES les requêtes |
+| **Application + chemin** | `app.use('/api', fn)` | S'applique aux requêtes commencant par `/api` |
 | **Routeur** | `router.use(fn)` | S'applique uniquement aux routes de ce routeur |
-| **Route specifique** | `app.get('/path', fn, handler)` | S'applique a cette route uniquement |
+| **Route spécifique** | `app.get('/path', fn, handler)` | S'applique a cette route uniquement |
 
 ```typescript
 // Middleware global (toutes les routes)
@@ -800,7 +800,7 @@ app.get('/api/secret', requireAuth, requireAdmin, (req, res) => {
 
 ---
 
-## 10. Resume — Les concepts cles
+## 10. Résumé — Les concepts clés
 
 | Concept | Definition |
 |---|---|
@@ -811,9 +811,9 @@ app.get('/api/secret', requireAuth, requireAdmin, (req, res) => {
 | **MVC** | Pattern d'architecture (Model-View-Controller) |
 | **Error middleware** | Middleware a 4 arguments (err, req, res, next) |
 | **Scoping** | Middleware application, routeur ou route |
-| **Pipeline** | Chaine ordonnee de middleware traversee par chaque requete |
+| **Pipeline** | Chaine ordonnee de middleware traversee par chaque requête |
 
-> **A retenir** : Les middleware sont le coeur d'Express. Tout est middleware — le parsing du body, le CORS, l'authentification, le logging, et meme les route handlers. Comprendre le pipeline d'execution et l'ordre des middleware est essentiel pour debugger et structurer une application Express. L'architecture MVC avec des Routers modulaires est la base d'une application maintenable.
+> **A retenir** : Les middleware sont le coeur d'Express. Tout est middleware — le parsing du body, le CORS, l'authentification, le logging, et même les route handlers. Comprendre le pipeline d'exécution et l'ordre des middleware est essentiel pour debugger et structurer une application Express. L'architecture MVC avec des Routers modulaires est la base d'une application maintenable.
 
 ---
 
@@ -821,11 +821,22 @@ app.get('/api/secret', requireAuth, requireAdmin, (req, res) => {
 
 | | Lien |
 |---|---|
-| Module precedent | [Module 05 — Express — Fondamentaux](./05-express-fondamentaux.md) |
+| Module précédent | [Module 05 — Express — Fondamentaux](./05-express-fondamentaux.md) |
 | Module suivant | [Module 07 — Express — Validation & Gestion d'erreurs](./07-express-validation-erreurs.md) |
 | Quiz | [Quiz Module 06](../quizzes/06-express-middleware.quiz.md) |
 | Lab | [Lab 06 — Middleware et architecture](../labs/06-express-middleware.lab.md) |
 
 ---
 
-> **A retenir** : L'architecture d'une application Express repose sur trois piliers : un pipeline de middleware bien ordonne, des Routers pour decouper les routes en modules, et une separation MVC claire (routes → controllers → services). Cette organisation te prepare naturellement a NestJS, qui formalise et renforce ces patterns avec de l'injection de dependances et des decorateurs TypeScript.
+> **A retenir** : L'architecture d'une application Express repose sur trois piliers : un pipeline de middleware bien ordonne, des Routers pour découper les routes en modules, et une separation MVC claire (routes → controllers → services). Cette organisation te prepare naturellement a NestJS, qui formalise et renforce ces patterns avec de l'injection de dépendances et des decorateurs TypeScript.
+
+---
+
+<!-- parcours-recommande -->
+
+::: tip Parcours recommandé
+1. **Screencast** : [screencast 06 middleware](../screencasts/screencast-06-middleware.md)
+2. **Lab** : [lab-06-middleware](../labs/lab-06-middleware/README)
+3. **Visualisation** : [Middleware Pipeline](../visualizations/middleware-pipeline.html)
+4. **Quiz** : [quiz 06 middleware](../quizzes/quiz-06-middleware.html)
+:::

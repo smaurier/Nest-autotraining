@@ -2,16 +2,16 @@
 
 ## Objectifs
 
-Ce projet final combine tous les concepts appris durant la formation NestJS pour creer une API e-commerce complete :
+Ce projet final combine tous les concepts appris durant la formation NestJS pour créer une API e-commerce complete :
 
 - **Authentification** : JWT, Passport, guards, roles
 - **Base de donnees** : Prisma ORM avec SQLite
 - **Validation** : class-validator, pipes
 - **Documentation** : Swagger/OpenAPI
-- **WebSockets** : notifications en temps reel
+- **WebSockets** : notifications en temps réel
 - **Taches planifiees** : nettoyage automatique des paniers abandonnes
 - **Health checks** : endpoint de surveillance
-- **Docker** : deploiement containerise
+- **Docker** : déploiement containerise
 
 ## Mise en place
 
@@ -21,7 +21,7 @@ npx prisma generate
 npx prisma db push
 ```
 
-Creer un fichier `.env` a partir de `.env.example` :
+Créer un fichier `.env` à partir de `.env.example` :
 ```bash
 cp .env.example .env
 ```
@@ -80,9 +80,9 @@ src/
 3. **`src/auth/auth.module.ts`** — Configurer JwtModule.registerAsync()
 4. **`src/auth/auth.controller.ts`** — Endpoints register, login, profile
 5. **`src/auth/auth.service.ts`** — Register (hash password), validateUser, login (JWT)
-6. **`src/auth/strategies/local.strategy.ts`** — Strategie locale Passport
-7. **`src/auth/strategies/jwt.strategy.ts`** — Strategie JWT Passport
-8. **`src/auth/guards/roles.guard.ts`** — Guard de verification des roles
+6. **`src/auth/strategies/local.strategy.ts`** — Stratégie locale Passport
+7. **`src/auth/strategies/jwt.strategy.ts`** — Stratégie JWT Passport
+8. **`src/auth/guards/roles.guard.ts`** — Guard de vérification des roles
 9. **`src/auth/decorators/current-user.decorator.ts`** — Decorateur pour extraire l'utilisateur
 
 ### Utilisateurs
@@ -97,8 +97,8 @@ src/
 14. **`src/categories/categories.service.ts`** — CRUD basique
 
 ### Commandes
-15. **`src/orders/orders.controller.ts`** — Creer, lister, consulter, changer le statut
-16. **`src/orders/orders.service.ts`** — Creation transactionnelle, mise a jour du statut
+15. **`src/orders/orders.controller.ts`** — Créer, lister, consulter, changer le statut
+16. **`src/orders/orders.service.ts`** — Création transactionnelle, mise a jour du statut
 
 ### Panier
 17. **`src/cart/cart.controller.ts`** — Ajouter, consulter, supprimer, vider
@@ -123,18 +123,18 @@ src/
 ### Products
 - `GET /products` — Liste (public, recherche via ?search=)
 - `GET /products/:id` — Detail (public)
-- `POST /products` — Creer (admin)
+- `POST /products` — Créer (admin)
 - `PATCH /products/:id` — Modifier (admin)
 - `DELETE /products/:id` — Supprimer (admin)
 
 ### Categories
 - `GET /categories` — Liste (public)
 - `GET /categories/:id` — Detail (public)
-- `POST /categories` — Creer (admin)
+- `POST /categories` — Créer (admin)
 - `DELETE /categories/:id` — Supprimer (admin)
 
 ### Orders
-- `POST /orders` — Creer une commande (auth)
+- `POST /orders` — Créer une commande (auth)
 - `GET /orders` — Mes commandes / toutes (admin)
 - `GET /orders/:id` — Detail (auth)
 - `PATCH /orders/:id/status` — Changer statut (admin)
@@ -146,7 +146,7 @@ src/
 - `DELETE /cart` — Vider le panier (auth)
 
 ### Health
-- `GET /health` — Etat de l'application
+- `GET /health` — État de l'application
 
 ## Solutions
 

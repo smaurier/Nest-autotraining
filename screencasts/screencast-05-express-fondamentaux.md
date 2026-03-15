@@ -4,7 +4,7 @@
 - **Duree estimee** : 15-20 min
 - **Module** : `modules/05-express-fondamentaux.md`
 - **Lab associe** : `labs/lab-05-express-crud/`
-- **Prerequis** : Screencast 04 (Serveur HTTP natif)
+- **Prérequis** : Screencast 04 (Serveur HTTP natif)
 
 ## Setup
 - [ ] Node.js 20+ installe
@@ -17,7 +17,7 @@
 
 ### [00:00-03:00] Introduction — Express en action
 
-> Salut ! Dans le screencast precedent, on a construit un serveur HTTP a la main. C'etait instructif mais penible. Aujourd'hui, on passe a Express — le framework web le plus populaire de Node.js. En quelques minutes, on va construire une API CRUD complete.
+> Salut ! Dans le screencast précédent, on a construit un serveur HTTP à la main. C'etait instructif mais penible. Aujourd'hui, on passe a Express — le framework web le plus populaire de Node.js. En quelques minutes, on va construire une API CRUD complete.
 
 **Action** : Afficher le slide de titre "Module 05 — Express Fondamentaux".
 
@@ -29,7 +29,7 @@ npm init -y
 npm install express
 ```
 
-**Action** : Creer le fichier principal.
+**Action** : Créer le fichier principal.
 
 ```javascript
 // app.js
@@ -52,13 +52,13 @@ node app.js
 curl http://localhost:3000
 ```
 
-> Trois lignes et on a un serveur avec parsing JSON automatique. Comparez avec ce qu'on faisait a la main : pas de `parseBody`, pas de `writeHead`, pas de `JSON.stringify`. Express fait tout ca pour nous.
+> Trois lignes et on à un serveur avec parsing JSON automatique. Comparez avec ce qu'on faisait à la main : pas de `parseBody`, pas de `writeHead`, pas de `JSON.stringify`. Express fait tout ça pour nous.
 
 ### [03:00-08:00] CRUD complet — Taches todo
 
-> On va construire une API REST complete pour gerer des taches. Create, Read, Update, Delete.
+> On va construire une API REST complete pour gérer des taches. Create, Read, Update, Delete.
 
-**Action** : Ecrire l'API CRUD.
+**Action** : Écrire l'API CRUD.
 
 ```javascript
 // app.js
@@ -121,7 +121,7 @@ app.delete('/api/todos/:id', (req, res) => {
 app.listen(3000, () => console.log('API sur http://localhost:3000'));
 ```
 
-**Action** : Demarrer le serveur et tester chaque endpoint.
+**Action** : Démarrer le serveur et tester chaque endpoint.
 
 ```bash
 node app.js
@@ -154,11 +154,11 @@ curl -X DELETE http://localhost:3000/api/todos/2
 curl http://localhost:3000/api/todos
 ```
 
-> Chaque methode HTTP a sa route. GET pour lire, POST pour creer, PUT pour modifier, DELETE pour supprimer. C'est le pattern REST. Les parametres de route comme `:id` sont accessibles via `req.params`.
+> Chaque méthode HTTP a sa route. GET pour lire, POST pour créer, PUT pour modifier, DELETE pour supprimer. C'est le pattern REST. Les paramètres de route comme `:id` sont accessibles via `req.params`.
 
 ### [12:00-16:00] Query params et filtrage
 
-> En plus des parametres de route, on peut utiliser les query parameters pour filtrer les resultats.
+> En plus des paramètres de route, on peut utiliser les query parameters pour filtrer les résultats.
 
 **Action** : Ajouter le filtrage par statut.
 
@@ -189,20 +189,20 @@ curl "http://localhost:3000/api/todos?done=false"
 curl "http://localhost:3000/api/todos?search=express"
 ```
 
-> `req.query` contient tous les parametres apres le `?` dans l'URL. C'est parse automatiquement par Express. Pas besoin de decoder l'URL a la main.
+> `req.query` contient tous les paramètres après le `?` dans l'URL. C'est parse automatiquement par Express. Pas besoin de decoder l'URL à la main.
 
 ### [16:00-18:30] Recap — Express simplifie tout
 
-> Resumons ce qu'on a construit. Une API REST complete avec Express : listing, creation, modification, suppression, filtrage. En moins de 50 lignes de code.
+> Resumons ce qu'on a construit. Une API REST complete avec Express : listing, création, modification, suppression, filtrage. En moins de 50 lignes de code.
 
 **Action** : Afficher le slide comparatif http natif vs Express.
 
-> Express nous donne le routing declartif avec `app.get()`, `app.post()`, etc. Le parsing JSON automatique avec `express.json()`. Les parametres de route avec `req.params`. Les query parameters avec `req.query`. Et des methodes de reponse pratiques comme `res.json()` et `res.status()`.
+> Express nous donne le routing declartif avec `app.get()`, `app.post()`, etc. Le parsing JSON automatique avec `express.json()`. Les paramètres de route avec `req.params`. Les query parameters avec `req.query`. Et des méthodes de réponse pratiques comme `res.json()` et `res.status()`.
 
-> Dans le prochain screencast, on va decouvrir les middlewares — c'est la ou la puissance d'Express se revele vraiment. Le lab est dans `labs/lab-05-express-crud/`. Construisez votre propre API CRUD et testez-la avec Thunder Client. A tout de suite !
+> Dans le prochain screencast, on va découvrir les middlewares — c'est la ou la puissance d'Express se revele vraiment. Le lab est dans `labs/lab-05-express-crud/`. Construisez votre propre API CRUD et testez-la avec Thunder Client. A tout de suite !
 
 ## Points d'attention pour l'enregistrement
 - Montrer Thunder Client en parallele de curl pour que le public choisisse son outil
 - Bien montrer le code de statut 201 pour POST et 204 pour DELETE
-- Insister sur la difference entre req.params et req.query
-- S'assurer que les donnees persistent entre les requetes (memoire, pas de redemarrage)
+- Insister sur la différence entre req.params et req.query
+- S'assurer que les donnees persistent entre les requêtes (mémoire, pas de redemarrage)

@@ -4,7 +4,7 @@
 - **Duree estimee** : 18-22 min
 - **Module** : `modules/21-nestjs-websockets-fichiers.md`
 - **Lab associe** : `labs/lab-21-websockets/`
-- **Prerequis** : Screencast 20 (Config & Swagger)
+- **Prérequis** : Screencast 20 (Config & Swagger)
 
 ## Setup
 - [ ] Node.js 20+ installe
@@ -18,21 +18,21 @@
 
 ### [00:00-03:00] Introduction — Au-dela de REST
 
-> Salut ! Jusqu'ici, toutes nos interactions sont en requete-reponse : le client envoie, le serveur repond, c'est fini. Mais certaines fonctionnalites necessitent une communication en temps reel : un chat, des notifications, un dashboard live. C'est la que les WebSockets entrent en jeu.
+> Salut ! Jusqu'ici, toutes nos interactions sont en requête-réponse : le client envoie, le serveur repond, c'est fini. Mais certaines fonctionnalites necessitent une communication en temps réel : un chat, des notifications, un dashboard live. C'est la que les WebSockets entrent en jeu.
 
 **Action** : Afficher le slide de titre "Module 21 — WebSockets & Fichiers".
 
-> Les WebSockets ouvrent une connexion permanente entre le client et le serveur. Les deux peuvent s'envoyer des messages a tout moment, sans attendre une requete. On va construire un chat en temps reel avec NestJS et Socket.IO.
+> Les WebSockets ouvrent une connexion permanente entre le client et le serveur. Les deux peuvent s'envoyer des messages a tout moment, sans attendre une requête. On va construire un chat en temps réel avec NestJS et Socket.IO.
 
-**Action** : Installer les dependances.
+**Action** : Installer les dépendances.
 
 ```bash
 npm install @nestjs/websockets @nestjs/platform-socket.io socket.io
 ```
 
-### [03:00-08:00] Gateway WebSocket — Le serveur temps reel
+### [03:00-08:00] Gateway WebSocket — Le serveur temps réel
 
-**Action** : Creer le gateway de chat.
+**Action** : Créer le gateway de chat.
 
 ```bash
 nest g gateway chat
@@ -106,9 +106,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 }
 ```
 
-> Le decorateur `@WebSocketGateway` fait de cette classe un serveur WebSocket. `@SubscribeMessage` ecoute un evenement specifique. `handleConnection` et `handleDisconnect` gerent les connexions.
+> Le decorateur `@WebSocketGateway` fait de cette classe un serveur WebSocket. `@SubscribeMessage` ecoute un événement spécifique. `handleConnection` et `handleDisconnect` gerent les connexions.
 
-**Action** : Creer une page HTML de test pour le chat.
+**Action** : Créer une page HTML de test pour le chat.
 
 ```html
 <!-- public/chat.html -->
@@ -151,7 +151,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
 **Action** : Ouvrir deux onglets de navigateur et tester le chat.
 
-> On voit les messages apparaitre en temps reel dans les deux onglets. La connexion WebSocket reste ouverte, pas besoin de polling. C'est instantane.
+> On voit les messages apparaître en temps réel dans les deux onglets. La connexion WebSocket reste ouverte, pas besoin de polling. C'est instantane.
 
 ### [08:00-12:00] Upload de fichiers avec Multer
 
@@ -222,7 +222,7 @@ export class FilesController {
 }
 ```
 
-**Action** : Creer le dossier uploads et tester.
+**Action** : Créer le dossier uploads et tester.
 
 ```bash
 mkdir uploads
@@ -239,9 +239,9 @@ curl -F "files=@photo1.jpg" -F "files=@photo2.jpg" http://localhost:3000/files/u
 curl http://localhost:3000/files/nom-du-fichier.jpg --output test.jpg
 ```
 
-> `FileInterceptor` gere l'upload d'un seul fichier. `FilesInterceptor` gere l'upload multiple. `ParseFilePipe` valide la taille et le type. Le stockage sur disque est configure avec Multer.
+> `FileInterceptor` géré l'upload d'un seul fichier. `FilesInterceptor` géré l'upload multiple. `ParseFilePipe` valide la taille et le type. Le stockage sur disque est configure avec Multer.
 
-### [12:00-16:00] Rooms WebSocket et integration
+### [12:00-16:00] Rooms WebSocket et intégration
 
 > Revenons aux WebSockets pour voir les rooms — des sous-groupes de connexions.
 
@@ -277,15 +277,15 @@ handleRoomMessage(
 }
 ```
 
-> Les rooms permettent d'envoyer des messages a un sous-ensemble de clients. Utile pour des channels de chat, des notifications par groupe, ou des tableaux de bord par equipe.
+> Les rooms permettent d'envoyer des messages à un sous-ensemble de clients. Utile pour des channels de chat, des notifications par groupe, ou des tableaux de bord par équipe.
 
 ### [16:00-19:00] Recap
 
-> Les WebSockets avec NestJS utilisent les Gateways et Socket.IO pour la communication temps reel. L'upload de fichiers utilise Multer avec validation via ParseFilePipe. Les rooms permettent de segmenter les connexions.
+> Les WebSockets avec NestJS utilisent les Gateways et Socket.IO pour la communication temps réel. L'upload de fichiers utilise Multer avec validation via ParseFilePipe. Les rooms permettent de segmenter les connexions.
 
 **Action** : Afficher le slide recap.
 
-> Le lab est dans `labs/lab-21-websockets/`. Vous allez construire un chat complet avec rooms et un systeme d'upload de fichiers. Au prochain screencast, les queues et les taches planifiees !
+> Le lab est dans `labs/lab-21-websockets/`. Vous allez construire un chat complet avec rooms et un système d'upload de fichiers. Au prochain screencast, les queues et les taches planifiees !
 
 ## Points d'attention pour l'enregistrement
 - Avoir deux fenêtres de navigateur cote a cote pour la demo du chat

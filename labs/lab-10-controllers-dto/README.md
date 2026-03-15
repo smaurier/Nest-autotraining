@@ -2,7 +2,7 @@
 
 ## Objectifs
 
-- Maitriser les controllers NestJS avec des routes avancees
+- Maîtriser les controllers NestJS avec des routes avancees
 - Utiliser les DTOs avec class-validator pour la validation
 - Implementer des routes imbriquees (nested routes)
 - Utiliser les pipes de transformation (ParseIntPipe, ValidationPipe)
@@ -10,15 +10,15 @@
 
 ## Description
 
-Vous allez creer une API REST pour gerer des articles avec validation des donnees via class-validator et des routes imbriquees pour les commentaires.
+Vous allez créer une API REST pour gérer des articles avec validation des donnees via class-validator et des routes imbriquees pour les commentaires.
 
 ## Endpoints a implementer
 
-| Methode | Route                    | Description                |
+| Méthode | Route                    | Description                |
 |---------|--------------------------|----------------------------|
 | GET     | /articles                | Lister tous les articles   |
 | GET     | /articles/:id            | Obtenir un article         |
-| POST    | /articles                | Creer un article           |
+| POST    | /articles                | Créer un article           |
 | PATCH   | /articles/:id            | Modifier un article        |
 | DELETE  | /articles/:id            | Supprimer un article       |
 | GET     | /articles/:id/comments   | Lister les commentaires    |

@@ -3,20 +3,20 @@
 ## Objectifs
 
 - Hacher des mots de passe avec bcrypt
-- Generer et verifier des tokens JWT
-- Creer un systeme d'inscription et de connexion
+- Générer et vérifier des tokens JWT
+- Créer un système d'inscription et de connexion
 - Proteger des routes avec un middleware d'authentification
-- Implementer un systeme de roles (RBAC)
-- Creer un endpoint de rafraichissement de token
+- Implementer un système de roles (RBAC)
+- Créer un endpoint de rafraichissement de token
 
 ## Pre-requis
 
 - Node.js >= 18 installe
-- Installer les dependances : `npm install` dans ce repertoire
+- Installer les dépendances : `npm install` dans ce répertoire
 
 ## Instructions
 
-1. Installez les dependances : `npm install`
+1. Installez les dépendances : `npm install`
 2. Ouvrez le fichier `exercise.ts`
 3. Completez chaque section marquee `TODO`
 4. Lancez le fichier avec `npx tsx exercise.ts`
@@ -26,12 +26,12 @@
 
 | # | Description |
 |---|-------------|
-| 1 | Implementer `POST /register` — hacher le mot de passe et creer l'utilisateur |
-| 2 | Implementer `POST /login` — verifier le mot de passe et retourner un JWT |
-| 3 | Creer `authMiddleware` — verifier le JWT depuis le header Authorization |
+| 1 | Implementer `POST /register` — hacher le mot de passe et créer l'utilisateur |
+| 2 | Implementer `POST /login` — vérifier le mot de passe et retourner un JWT |
+| 3 | Créer `authMiddleware` — vérifier le JWT depuis le header Authorization |
 | 4 | Implementer `GET /profile` — route protegee retournant l'utilisateur connecte |
 | 5 | Implementer `POST /refresh` — rafraichir un token JWT |
-| 6 | Creer `rolesMiddleware(...roles)` — verifier le role de l'utilisateur |
+| 6 | Créer `rolesMiddleware(...roles)` — vérifier le role de l'utilisateur |
 | 7 | Implementer `GET /admin/users` — route admin-only |
 
 ## Aide

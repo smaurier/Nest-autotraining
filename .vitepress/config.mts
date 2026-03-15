@@ -92,11 +92,11 @@ export default defineConfig({
           text: 'Visualisations',
           items: [
             { text: 'Toutes les visualisations', link: '/visualizations/' },
-            { text: 'Event Loop', link: '/visualizations/event-loop' },
-            { text: 'Middleware Pipeline', link: '/visualizations/middleware-pipeline' },
-            { text: 'Dependency Injection', link: '/visualizations/dependency-injection' },
-            { text: 'ORM Query Flow', link: '/visualizations/orm-query-flow' },
-            { text: 'NestJS Lifecycle', link: '/visualizations/nestjs-lifecycle' }
+            { text: 'Event Loop', link: '/visualizations/event-loop.html' },
+            { text: 'Middleware Pipeline', link: '/visualizations/middleware-pipeline.html' },
+            { text: 'Dependency Injection', link: '/visualizations/dependency-injection.html' },
+            { text: 'ORM Query Flow', link: '/visualizations/orm-query-flow.html' },
+            { text: 'NestJS Lifecycle', link: '/visualizations/nestjs-lifecycle.html' }
           ]
         }
       ]

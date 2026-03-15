@@ -1,28 +1,28 @@
 # Module 09 — NestJS — Introduction & Premiers pas
 
-> **Objectif** : Comprendre pourquoi NestJS existe, installer et explorer un projet NestJS, decouvrir les briques fondamentales (modules, controllers, services) et construire un premier CRUD avec la CLI NestJS.
+> **Objectif** : Comprendre pourquoi NestJS existe, installer et explorer un projet NestJS, découvrir les briques fondamentales (modules, controllers, services) et construire un premier CRUD avec la CLI NestJS.
 >
-> **Difficulte** : ⭐⭐ (intermediaire)
+> **Difficulte** : ⭐⭐ (intermédiaire)
 
 ---
 
-> **⚠️ Changement de paradigme.** Tu passes d'Express (fonctions, middleware) a NestJS (classes, decorateurs, injection de dependances). C'est un saut conceptuel normal — tout le monde galere ici. Le systeme de DI est similaire a Angular. Si tu viens d'Express et que la syntaxe te parait etrange, c'est exactement ca qu'il faut apprendre. Prends le temps.
+> **⚠️ Changement de paradigme.** Tu passes d'Express (fonctions, middleware) a NestJS (classes, decorateurs, injection de dépendances). C'est un saut conceptuel normal — tout le monde galere ici. Le système de DI est similaire a Angular. Si tu viens d'Express et que la syntaxe te parait etrange, c'est exactement ça qu'il faut apprendre. Prends le temps.
 
 ## 1. Pourquoi NestJS
 
-### 1.1 Le probleme qu'il resout
+### 1.1 Le problème qu'il resout
 
-Express est minimaliste — et c'est a la fois sa force et sa faiblesse. Il ne fournit aucune structure, aucune convention, aucune architecture. Chaque equipe organise son code differemment, ce qui rend la maintenance et l'onboarding difficiles.
+Express est minimaliste — et c'est à la fois sa force et sa faiblesse. Il ne fournit aucune structure, aucune convention, aucune architecture. Chaque équipe organise son code differemment, ce qui rend la maintenance et l'onboarding difficiles.
 
-| Probleme avec Express | Solution NestJS |
+| Problème avec Express | Solution NestJS |
 |---|---|
 | Pas de structure imposee | Architecture modulaire avec conventions |
 | Organisation libre (chaos possible) | Modules, controllers, services, providers |
-| Pas d'injection de dependances | DI integre, similaire a Angular |
+| Pas d'injection de dépendances | DI intégré, similaire a Angular |
 | Pas de TypeScript natif | TypeScript par defaut, decorateurs |
 | Middleware artisanal | Guards, Pipes, Interceptors, Filters |
-| Pas d'outil de generation | CLI avec `nest generate` |
-| Pas de testing integre | Jest pre-configure avec mocks DI |
+| Pas d'outil de génération | CLI avec `nest generate` |
+| Pas de testing intégré | Jest pre-configure avec mocks DI |
 
 > **Analogie** : Express c'est comme une feuille blanche — tu peux dessiner ce que tu veux, mais rien ne te guide. NestJS c'est comme un plan d'architecte — la structure est definie, les conventions sont claires, et chaque piece a sa place. Tu es libre de personnaliser, mais le cadre est pose.
 
@@ -41,7 +41,7 @@ NestJS est fortement inspire d'**Angular** :
 | Interceptors (HTTP) | Interceptors (request/response) |
 | Decorateurs TypeScript | Decorateurs TypeScript |
 
-> **A retenir** : Si tu connais Angular, NestJS te semblera tres familier. Les patterns sont les memes — seul le contexte change (frontend → backend). Si tu ne connais pas Angular, pas d'inquietude : les concepts sont expliques de zero dans ce cours.
+> **A retenir** : Si tu connais Angular, NestJS te semblera très familier. Les patterns sont les memes — seul le contexte change (frontend → backend). Si tu ne connais pas Angular, pas d'inquietude : les concepts sont expliques de zero dans ce cours.
 
 ### 1.3 NestJS en chiffres
 
@@ -72,7 +72,7 @@ nest --version
 nest --help
 ```
 
-### 2.2 Creer un nouveau projet
+### 2.2 Créer un nouveau projet
 
 ```bash
 # Creer un projet (installation interactive)
@@ -85,7 +85,7 @@ nest new mon-api
 cd mon-api
 ```
 
-### 2.3 Structure du projet genere
+### 2.3 Structure du projet généré
 
 ```
 mon-api/
@@ -108,7 +108,7 @@ mon-api/
 └── README.md
 ```
 
-### 2.4 Demarrer le projet
+### 2.4 Démarrer le projet
 
 ```bash
 # Mode developpement (avec hot reload)
@@ -149,7 +149,7 @@ async function bootstrap() {
 bootstrap();
 ```
 
-> **Analogie** : `main.ts` c'est comme la fonction `main()` en C ou Java. C'est le point de depart de ton application. Il cree l'application, la configure et la lance. C'est similaire au `main.ts` d'Angular qui bootstrap le `AppModule`.
+> **Analogie** : `main.ts` c'est comme la fonction `main()` en C ou Java. C'est le point de depart de ton application. Il créé l'application, la configure et la lance. C'est similaire au `main.ts` d'Angular qui bootstrap le `AppModule`.
 
 ### 3.2 app.module.ts — Le module racine
 
@@ -200,7 +200,7 @@ export class AppService {
 }
 ```
 
-> **A retenir** : Le trio **Module → Controller → Service** est le pattern fondamental de NestJS. Le Module declare les composants, le Controller recoit les requetes HTTP, et le Service contient la logique metier. C'est exactement le pattern MVC du module 06, mais formalise avec des decorateurs TypeScript.
+> **A retenir** : Le trio **Module → Controller → Service** est le pattern fondamental de NestJS. Le Module declare les composants, le Controller recoit les requêtes HTTP, et le Service contient la logique metier. C'est exactement le pattern MVC du module 06, mais formalise avec des decorateurs TypeScript.
 
 ---
 
@@ -208,7 +208,7 @@ export class AppService {
 
 ### 4.1 Qu'est-ce qu'un decorateur
 
-Un **decorateur** est une fonction speciale qui modifie le comportement d'une classe, methode ou parametre. NestJS utilise massivement les decorateurs :
+Un **decorateur** est une fonction speciale qui modifie le comportement d'une classe, méthode ou paramètre. NestJS utilise massivement les decorateurs :
 
 ```typescript
 // @Controller() — Marque une classe comme controller HTTP
@@ -233,7 +233,7 @@ create(@Body() body: CreateUserDto) { }
 
 ### 4.2 Les decorateurs ne sont PAS magiques
 
-Sous le capot, un decorateur est une fonction qui ajoute des metadonnees a une classe via `Reflect.metadata`. NestJS lit ces metadonnees au demarrage pour configurer le routing, l'injection de dependances, etc.
+Sous le capot, un decorateur est une fonction qui ajoute des metadonnees à une classe via `Reflect.metadata`. NestJS lit ces metadonnees au démarrage pour configurer le routing, l'injection de dépendances, etc.
 
 ```typescript
 // Ce que tu ecris :
@@ -252,7 +252,7 @@ export class UsersController {
 
 ## 5. La CLI NestJS — Generateurs
 
-### 5.1 Commandes de generation
+### 5.1 Commandes de génération
 
 ```bash
 # Generer un module
@@ -271,7 +271,7 @@ nest g resource books
 # Choisis : REST API, puis Yes pour les operations CRUD
 ```
 
-### 5.2 Ce que `nest g resource` genere
+### 5.2 Ce que `nest g resource` généré
 
 ```bash
 nest g resource books
@@ -306,9 +306,9 @@ Et le module est automatiquement importe dans `app.module.ts` :
 export class AppModule {}
 ```
 
-### 5.3 Tableau des commandes de generation
+### 5.3 Tableau des commandes de génération
 
-| Commande | Raccourci | Resultat |
+| Commande | Raccourci | Résultat |
 |---|---|---|
 | `nest g module <name>` | `nest g mo <name>` | Module |
 | `nest g controller <name>` | `nest g co <name>` | Controller + spec |
@@ -320,20 +320,20 @@ export class AppModule {}
 | `nest g interceptor <name>` | `nest g itc <name>` | Interceptor |
 | `nest g filter <name>` | `nest g f <name>` | Exception filter |
 
-> **Bonne pratique** : Utilise TOUJOURS la CLI pour generer des fichiers NestJS. Elle cree les fichiers avec les bonnes conventions de nommage, les bons decorateurs, et met a jour automatiquement les modules parents. Generer manuellement est une source d'erreurs.
+> **Bonne pratique** : Utilise TOUJOURS la CLI pour générer des fichiers NestJS. Elle créé les fichiers avec les bonnes conventions de nommage, les bons decorateurs, et met a jour automatiquement les modules parents. Générer manuellement est une source d'erreurs.
 
 ---
 
 ## 6. Premier CRUD avec NestJS
 
-### 6.1 Generer la resource
+### 6.1 Générer la resource
 
 ```bash
 nest g resource books --no-spec
 # Choisis REST API et oui pour le CRUD
 ```
 
-### 6.2 Definir l'entite
+### 6.2 Définir l'entite
 
 ```typescript
 // src/books/entities/book.entity.ts
@@ -347,7 +347,7 @@ export class Book {
 }
 ```
 
-### 6.3 Definir les DTOs
+### 6.3 Définir les DTOs
 
 ```typescript
 // src/books/dto/create-book.dto.ts
@@ -556,13 +556,13 @@ export class BooksController {
 |---|---|---|
 | **Organisation** | Libre (routes/, controllers/, services/) | Imposee par modules (books/, users/) |
 | **DI** | Manuelle (require/import) | Automatique (constructeur) |
-| **Validation** | Middleware Zod maison | Pipes + class-validator integre |
-| **Erreurs** | Error middleware maison | Exception filters integre |
-| **Auth** | Middleware maison | Guards integre |
-| **Logging** | morgan | Interceptors + Logger integre |
+| **Validation** | Middleware Zod maison | Pipes + class-validator intégré |
+| **Erreurs** | Error middleware maison | Exception filters intégré |
+| **Auth** | Middleware maison | Guards intégré |
+| **Logging** | morgan | Interceptors + Logger intégré |
 | **TypeScript** | Optionnel, configuration manuelle | Natif, pre-configure |
 | **Tests** | Jest a configurer | Jest ou Vitest pre-configure avec DI mocking |
-| **Documentation** | Swagger a configurer | @nestjs/swagger integre |
+| **Documentation** | Swagger a configurer | @nestjs/swagger intégré |
 
 ---
 
@@ -634,7 +634,7 @@ throw new BadRequestException('Le titre est requis');
 throw new HttpException('Erreur metier specifique', 422);
 ```
 
-> **Bonne pratique** : NestJS gere automatiquement les exceptions — pas besoin de try/catch dans les controllers ni de error handler middleware. Lance simplement une exception et NestJS la transforme en reponse HTTP appropriee. C'est un enorme gain par rapport a Express.
+> **Bonne pratique** : NestJS géré automatiquement les exceptions — pas besoin de try/catch dans les controllers ni de error handler middleware. Lance simplement une exception et NestJS la transforme en réponse HTTP appropriee. C'est un enorme gain par rapport a Express.
 
 ---
 
@@ -642,9 +642,9 @@ throw new HttpException('Erreur metier specifique', 422);
 
 ### Exercice 1 — Projet NestJS de zero
 
-Cree un nouveau projet NestJS et genere une resource `tasks` (gestion de taches) avec :
+Cree un nouveau projet NestJS et généré une resource `tasks` (gestion de taches) avec :
 - Les operations CRUD
-- Les DTOs pour creation et mise a jour
+- Les DTOs pour création et mise a jour
 - La gestion des erreurs avec `NotFoundException`
 
 ### Exercice 2 — Migration Express vers NestJS
@@ -662,7 +662,7 @@ Chaque resource dans son propre module avec son service et son controller.
 
 ---
 
-## 10. Resume — Les concepts cles
+## 10. Résumé — Les concepts clés
 
 | Concept | Definition |
 |---|---|
@@ -670,13 +670,13 @@ Chaque resource dans son propre module avec son service et son controller.
 | **@Module** | Decorateur qui declare un module (imports, controllers, providers) |
 | **@Controller** | Decorateur qui marque une classe comme controller HTTP |
 | **@Injectable** | Decorateur qui marque une classe comme injectable (service) |
-| **DI** | Injection de dependances — les services sont injectes automatiquement |
+| **DI** | Injection de dépendances — les services sont injectes automatiquement |
 | **DTO** | Data Transfer Object — classe decrivant la forme des donnees |
-| **CLI** | `nest g resource` genere module + controller + service + DTOs |
+| **CLI** | `nest g resource` généré module + controller + service + DTOs |
 | **Exceptions** | `NotFoundException`, `BadRequestException`, etc. |
 | **main.ts** | Point d'entree qui bootstrap l'application |
 
-> **A retenir** : NestJS apporte a Node.js ce qu'Angular apporte au frontend : une architecture claire, une injection de dependances puissante, et des conventions qui rendent le code previsible et maintenable. La CLI genere le boilerplate pour toi — tu te concentres sur la logique metier. Les modules suivants approfondiront les controllers, les providers et l'architecture modulaire.
+> **A retenir** : NestJS apporte a Node.js ce qu'Angular apporte au frontend : une architecture claire, une injection de dépendances puissante, et des conventions qui rendent le code previsible et maintenable. La CLI généré le boilerplate pour toi — tu te concentres sur la logique metier. Les modules suivants approfondiront les controllers, les providers et l'architecture modulaire.
 
 ---
 
@@ -684,7 +684,7 @@ Chaque resource dans son propre module avec son service et son controller.
 
 | | Lien |
 |---|---|
-| Module precedent | [Module 08 — Express — Authentification & Securite](./08-express-auth-securite.md) |
+| Module précédent | [Module 08 — Express — Authentification & Sécurité](./08-express-auth-securite.md) |
 | Module suivant | [Module 10 — NestJS — Controllers & Routing](./10-nestjs-controllers.md) |
 | Quiz | [Quiz Module 09](../quizzes/09-nestjs-introduction.quiz.md) |
 | Lab | [Lab 09 — Premier projet NestJS](../labs/09-nestjs-introduction.lab.md) |
@@ -693,4 +693,14 @@ Chaque resource dans son propre module avec son service et son controller.
 
 > **NestJS 11 (janvier 2025)** : NestJS 11 apporte Express 5 comme runtime par defaut, un logger repense, le support natif de Vitest, et des ameliorations de performance. La migration depuis NestJS 10 est fluide : `npm i @nestjs/core@11 @nestjs/common@11 @nestjs/platform-express@11`.
 
-> **A retenir** : NestJS n'est pas "mieux" qu'Express — c'est Express + structure + TypeScript + DI. Il resout les problemes d'organisation que tu rencontres des que ton API Express depasse quelques fichiers. Le trio Module → Controller → Service est le pattern fondamental que tu retrouveras dans chaque module de cette section du cours.
+> **A retenir** : NestJS n'est pas "mieux" qu'Express — c'est Express + structure + TypeScript + DI. Il resout les problèmes d'organisation que tu rencontres des que ton API Express dépasse quelques fichiers. Le trio Module → Controller → Service est le pattern fondamental que tu retrouveras dans chaque module de cette section du cours.
+
+---
+
+<!-- parcours-recommande -->
+
+::: tip Parcours recommandé
+1. **Screencast** : [screencast 09 nestjs introduction](../screencasts/screencast-09-nestjs-introduction.md)
+2. **Lab** : [lab-09-nestjs-premiers-pas](../labs/lab-09-nestjs-premiers-pas/README)
+3. **Quiz** : [quiz 09 nestjs introduction](../quizzes/quiz-09-nestjs-introduction.html)
+:::

@@ -1,6 +1,6 @@
 # Module 25 — MongoDB & Mongoose — Base de donnees NoSQL
 
-> **Objectif** : Comprendre les differences fondamentales entre SQL et NoSQL, installer et configurer MongoDB avec NestJS via @nestjs/mongoose, maitriser les schemas, les operations CRUD, les relations, les indexes, l'aggregation pipeline et les transactions.
+> **Objectif** : Comprendre les différences fondamentales entre SQL et NoSQL, installer et configurer MongoDB avec NestJS via @nestjs/mongoose, maîtriser les schemas, les operations CRUD, les relations, les indexes, l'aggregation pipeline et les transactions.
 >
 > **Difficulte** : ⭐⭐⭐ (avance)
 
@@ -8,9 +8,9 @@
 
 ## 1. SQL vs NoSQL — Deux philosophies
 
-### 1.1 Le modele relationnel (PostgreSQL, MySQL)
+### 1.1 Le modèle relationnel (PostgreSQL, MySQL)
 
-Les bases relationnelles organisent les donnees en **tables** avec des **schemas fixes**. Les relations sont explicites via les cles etrangeres. C'est le modele que tu connais si tu as suivi les modules TypeORM et Prisma.
+Les bases relationnelles organisent les donnees en **tables** avec des **schemas fixes**. Les relations sont explicites via les clés etrangeres. C'est le modèle que tu connais si tu as suivi les modules TypeORM et Prisma.
 
 ```sql
 CREATE TABLE products (
@@ -21,7 +21,7 @@ CREATE TABLE products (
 );
 ```
 
-### 1.2 Le modele document (MongoDB)
+### 1.2 Le modèle document (MongoDB)
 
 MongoDB stocke des **documents JSON** (BSON) dans des **collections**. Pas de schema fixe impose par la base — la structure est flexible.
 
@@ -42,7 +42,7 @@ MongoDB stocke des **documents JSON** (BSON) dans des **collections**. Pas de sc
 }
 ```
 
-> **Analogie** : Imagine deux facons de ranger une bibliotheque. SQL, c'est une bibliotheque traditionnelle : chaque livre a une fiche dans un catalogue central, chaque fiche respecte exactement le meme format (titre, auteur, ISBN, emplacement). NoSQL, c'est plutot une bibliotheque ou chaque etagere peut organiser ses livres differemment — certains par theme, d'autres par taille, et tu peux ajouter des annotations directement dans le livre sans modifier le catalogue.
+> **Analogie** : Imagine deux facons de ranger une bibliotheque. SQL, c'est une bibliotheque traditionnelle : chaque livre à une fiche dans un catalogue central, chaque fiche respecte exactement le même format (titre, auteur, ISBN, emplacement). NoSQL, c'est plutot une bibliotheque ou chaque etagere peut organiser ses livres differemment — certains par theme, d'autres par taille, et tu peux ajouter des annotations directement dans le livre sans modifier le catalogue.
 
 ### 1.3 Tableau comparatif
 
@@ -96,7 +96,7 @@ MongoDB stocke des **documents JSON** (BSON) dans des **collections**. Pas de sc
 
 - Donnees semi-structurees ou dont le schema evolue frequemment
 - Catalogues produits avec des attributs variables
-- Logs, evenements, donnees IoT
+- Logs, événements, donnees IoT
 - Prototypage rapide (pas besoin de migrations)
 - Applications necessitant du scaling horizontal
 - Documents imbriques naturels (profils utilisateur, configurations)
@@ -109,7 +109,7 @@ MongoDB stocke des **documents JSON** (BSON) dans des **collections**. Pas de sc
 - Contraintes d'integrite critiques
 - Donnees financieres, comptabilite
 
-> **Regle pragmatique** : Si tes donnees ressemblent a un tableur avec des colonnes fixes et des relations → PostgreSQL. Si tes donnees ressemblent a des documents JSON avec des structures variables → MongoDB. En pratique, beaucoup de projets utilisent les deux (polyglot persistence).
+> **Regle pragmatique** : Si tes donnees ressemblent à un tableur avec des colonnes fixes et des relations → PostgreSQL. Si tes donnees ressemblent a des documents JSON avec des structures variables → MongoDB. En pratique, beaucoup de projets utilisent les deux (polyglot persistence).
 
 ---
 
@@ -156,14 +156,14 @@ MongoDB stocke les documents en **BSON** (Binary JSON), une extension binaire de
 
 ### 2.3 ObjectId
 
-Chaque document a un champ `_id` unique. Par defaut, MongoDB genere un `ObjectId` de 12 octets :
+Chaque document à un champ `_id` unique. Par defaut, MongoDB généré un `ObjectId` de 12 octets :
 
 ```
 |  4 bytes  |  5 bytes  | 3 bytes |
 | timestamp | random    | counter |
 ```
 
-Cela signifie que les ObjectId sont **ordonnes chronologiquement** — utile pour le tri par date de creation sans champ supplementaire.
+Cela signifie que les ObjectId sont **ordonnes chronologiquement** — utile pour le tri par date de création sans champ supplementaire.
 
 ### 2.4 MongoDB Shell — Commandes essentielles
 
@@ -197,13 +197,13 @@ db.products.aggregate([
 ])
 ```
 
-> **Bonne pratique** : Meme si MongoDB est "schema-less", en pratique on utilise toujours Mongoose ou la validation de schema MongoDB pour imposer une structure coherente. Un schema flexible ne veut pas dire "pas de schema" — ca veut dire "schema evolutif".
+> **Bonne pratique** : Même si MongoDB est "schema-less", en pratique on utilise toujours Mongoose ou la validation de schema MongoDB pour imposer une structure coherente. Un schema flexible ne veut pas dire "pas de schema" — ça veut dire "schema evolutif".
 
 ---
 
 ## 3. Mongoose avec NestJS — Installation et configuration
 
-### 3.1 Prerequis
+### 3.1 Prérequis
 
 ```bash
 # Lancer MongoDB avec Docker (methode recommandee)
@@ -218,7 +218,7 @@ docker run -d --name mongodb \
 docker exec -it mongodb mongosh --username admin --password secret
 ```
 
-### 3.2 Installer les dependances
+### 3.2 Installer les dépendances
 
 ```bash
 npm install @nestjs/mongoose mongoose
@@ -226,7 +226,7 @@ npm install @nestjs/mongoose mongoose
 
 ### 3.3 MongooseModule.forRoot — Connexion globale
 
-La methode la plus simple pour connecter MongoDB a NestJS :
+La méthode la plus simple pour connecter MongoDB a NestJS :
 
 ```typescript
 // app.module.ts
@@ -330,9 +330,9 @@ export class ProductsModule {}
 
 ## 4. Schemas et validation avec decorateurs
 
-### 4.1 Definir un schema avec @Schema et @Prop
+### 4.1 Définir un schema avec @Schema et @Prop
 
-Mongoose utilise des schemas pour definir la structure des documents. Avec `@nestjs/mongoose`, on utilise des decorateurs TypeScript :
+Mongoose utilise des schemas pour définir la structure des documents. Avec `@nestjs/mongoose`, on utilise des decorateurs TypeScript :
 
 ```typescript
 // product.schema.ts
@@ -651,7 +651,7 @@ export class ProductsService {
 }
 ```
 
-### 5.2 Create — Creer un document
+### 5.2 Create — Créer un document
 
 ```typescript
 async create(createProductDto: CreateProductDto): Promise<Product> {
@@ -747,11 +747,11 @@ async findByPriceRange(min: number, max: number): Promise<Product[]> {
 }
 ```
 
-> **Piege classique** : N'oublie pas `.exec()` a la fin de tes requetes Mongoose. Sans `.exec()`, Mongoose retourne un "thenable" qui fonctionne avec `await`, mais ce n'est pas une vraie Promise. Avec `.exec()`, tu obtiens une vraie Promise avec un meilleur stack trace en cas d'erreur.
+> **Piege classique** : N'oublie pas `.exec()` à la fin de tes requêtes Mongoose. Sans `.exec()`, Mongoose retourne un "thenable" qui fonctionne avec `await`, mais ce n'est pas une vraie Promise. Avec `.exec()`, tu obtiens une vraie Promise avec un meilleur stack trace en cas d'erreur.
 
 ### 5.4 lean() — Documents legers
 
-Par defaut, Mongoose retourne des **documents hydrates** (avec des methodes comme `.save()`, `.toObject()`, etc.). Si tu as juste besoin des donnees (pour une API par exemple), utilise `lean()` :
+Par defaut, Mongoose retourne des **documents hydrates** (avec des méthodes comme `.save()`, `.toObject()`, etc.). Si tu as juste besoin des donnees (pour une API par exemple), utilise `lean()` :
 
 ```typescript
 // Sans lean() — retourne un document Mongoose complet (~2x plus lent)
@@ -765,7 +765,7 @@ const product = await this.productModel.findById(id).lean().exec();
 // C'est un simple objet { _id, name, price, ... }
 ```
 
-> **Bonne pratique** : Utilise `lean()` pour toutes les requetes de lecture (GET) ou tu n'as pas besoin de modifier le document ensuite. C'est significativement plus rapide et consomme moins de memoire.
+> **Bonne pratique** : Utilise `lean()` pour toutes les requêtes de lecture (GET) ou tu n'as pas besoin de modifier le document ensuite. C'est significativement plus rapide et consomme moins de mémoire.
 
 ### 5.5 Update — Mettre a jour un document
 
@@ -962,9 +962,9 @@ export class UpdateProductDto extends PartialType(CreateProductDto) {}
 
 ## 6. Relations — Embedding vs Referencing
 
-### 6.1 Deux strategies
+### 6.1 Deux stratégies
 
-MongoDB offre deux approches pour gerer les relations entre donnees :
+MongoDB offre deux approches pour gérer les relations entre donnees :
 
 ```
   Embedding (imbrication)                  Referencing (reference)
@@ -1002,7 +1002,7 @@ MongoDB offre deux approches pour gerer les relations entre donnees :
 └─────────────────────────────────┴──────────────────────────────────┘
 ```
 
-> **Regle d'or** : Imbrique ce qui est toujours lu ensemble. Reference ce qui est lu independamment ou qui est partage entre plusieurs documents.
+> **Regle d'or** : Imbrique ce qui est toujours lu ensemble. Référence ce qui est lu independamment ou qui est partage entre plusieurs documents.
 
 ### 6.3 Embedding — Exemple
 
@@ -1031,8 +1031,8 @@ export class Product {
 }
 ```
 
-**Avantages** : une seule requete, pas de JOIN, atomique.
-**Inconvenients** : duplication, limite de 16 MB par document, pas de requetes independantes.
+**Avantages** : une seule requête, pas de JOIN, atomique.
+**Inconvenients** : duplication, limite de 16 MB par document, pas de requêtes independantes.
 
 ### 6.4 Referencing — Exemple
 
@@ -1058,7 +1058,7 @@ export class Product {
 }
 ```
 
-### 6.5 populate() — Resoudre les references
+### 6.5 populate() — Resoudre les références
 
 ```typescript
 // Charger le produit avec sa categorie
@@ -1094,7 +1094,7 @@ const order = await this.orderModel
   .exec();
 ```
 
-> **Attention performance** : `populate()` effectue des requetes supplementaires a MongoDB (l'equivalent d'un JOIN cote application). Pour des listes de documents, c'est le probleme N+1. Pour des requetes frequentes sur de gros volumes, prefere l'aggregation `$lookup` ou l'embedding.
+> **Attention performance** : `populate()` effectue des requêtes supplementaires a MongoDB (l'équivalent d'un JOIN cote application). Pour des listes de documents, c'est le problème N+1. Pour des requêtes frequentes sur de gros volumes, préféré l'aggregation `$lookup` ou l'embedding.
 
 ---
 
@@ -1102,7 +1102,7 @@ const order = await this.orderModel
 
 ### 7.1 Pourquoi les index sont importants
 
-Sans index, MongoDB effectue un **collection scan** — il parcourt TOUS les documents pour trouver ceux qui correspondent a ta requete. Avec un index, MongoDB utilise une structure en arbre (B-tree) pour trouver directement les bons documents.
+Sans index, MongoDB effectue un **collection scan** — il parcourt TOUS les documents pour trouver ceux qui correspondent a ta requête. Avec un index, MongoDB utilise une structure en arbre (B-tree) pour trouver directement les bons documents.
 
 ```
   Sans index (collection scan)           Avec index (index scan)
@@ -1117,7 +1117,7 @@ Sans index, MongoDB effectue un **collection scan** — il parcourt TOUS les doc
                                         O(log N) — rapide
 ```
 
-### 7.2 Creer des indexes avec @nestjs/mongoose
+### 7.2 Créer des indexes avec @nestjs/mongoose
 
 ```typescript
 @Schema()
@@ -1219,7 +1219,7 @@ console.log(JSON.stringify(explanation, null, 2));
   Mauvais : totalDocsExamined >> nReturned (collection scan partiel)
 ```
 
-> **Attention** : Un index non utilise consomme de la memoire et ralentit les ecritures. Surveillez vos indexes avec `db.collection.getIndexes()` et supprimez ceux qui ne sont pas utilises.
+> **Attention** : Un index non utilise consomme de la mémoire et ralentit les ecritures. Surveillez vos indexes avec `db.collection.getIndexes()` et supprimez ceux qui ne sont pas utilises.
 
 ---
 
@@ -1227,7 +1227,7 @@ console.log(JSON.stringify(explanation, null, 2));
 
 ### 8.1 Qu'est-ce que l'aggregation ?
 
-L'aggregation pipeline est le systeme de traitement de donnees de MongoDB. C'est l'equivalent des requetes `GROUP BY`, `HAVING`, `JOIN` en SQL, mais en plus puissant et flexible.
+L'aggregation pipeline est le système de traitement de donnees de MongoDB. C'est l'équivalent des requêtes `GROUP BY`, `HAVING`, `JOIN` en SQL, mais en plus puissant et flexible.
 
 ```
   Donnees d'entree
@@ -1416,7 +1416,7 @@ async getDashboardStats(): Promise<{
 }
 ```
 
-### 8.8 $facet — Plusieurs aggregations en une requete
+### 8.8 $facet — Plusieurs aggregations en une requête
 
 ```typescript
 async getProductOverview(): Promise<any> {
@@ -1461,9 +1461,9 @@ async getProductOverview(): Promise<any> {
 
 ### 9.1 Pourquoi les transactions ?
 
-Les transactions garantissent que plusieurs operations sont executees de maniere **atomique** — soit toutes reussissent, soit aucune n'est appliquee. C'est indispensable pour des operations comme une commande e-commerce (debit stock + creation commande).
+Les transactions garantissent que plusieurs operations sont executees de manière **atomique** — soit toutes reussissent, soit aucune n'est appliquee. C'est indispensable pour des operations comme une commande e-commerce (debit stock + création commande).
 
-> **Prerequis** : Les transactions MongoDB necessitent un **replica set** (meme en developpement avec un seul noeud) :
+> **Prérequis** : Les transactions MongoDB necessitent un **replica set** (même en développement avec un seul noeud) :
 > ```bash
 > docker run -d -p 27017:27017 --name mongodb mongo:7 --replSet rs0
 > docker exec mongodb mongosh --eval "rs.initiate()"
@@ -1543,7 +1543,7 @@ export class OrdersService {
 
 ### 9.3 Transaction avec withTransaction()
 
-Mongoose propose aussi une API simplifiee qui gere automatiquement le commit/abort :
+Mongoose propose aussi une API simplifiee qui géré automatiquement le commit/abort :
 
 ```typescript
 async createOrder(createOrderDto: CreateOrderDto): Promise<Order> {
@@ -1581,7 +1581,7 @@ async createOrder(createOrderDto: CreateOrderDto): Promise<Order> {
 }
 ```
 
-> **Bonne pratique** : Les transactions ajoutent de la latence (~5-10ms de plus par operation). N'utilise pas de transaction quand une seule operation atomique suffit (ex: `findOneAndUpdate` est deja atomique au niveau du document).
+> **Bonne pratique** : Les transactions ajoutent de la latence (~5-10ms de plus par operation). N'utilise pas de transaction quand une seule operation atomique suffit (ex: `findOneAndUpdate` est déjà atomique au niveau du document).
 
 ---
 
@@ -1936,7 +1936,7 @@ const module = await Test.createTestingModule({
 await mongod.stop();
 ```
 
-### 12.4 Securite — Eviter les injections MongoDB
+### 12.4 Sécurité — Éviter les injections MongoDB
 
 ```typescript
 // Sanitize les query params pour eviter les injections d'operateurs
@@ -1958,7 +1958,7 @@ function sanitizeQuery(input: any): any {
 
 ### 13.1 Pourquoi les operations en masse ?
 
-Quand tu dois inserer, mettre a jour ou supprimer des milliers de documents, envoyer une requete par document est extremement lent. Les operations en masse regroupent plusieurs operations dans un seul aller-retour vers MongoDB.
+Quand tu dois inserer, mettre a jour ou supprimer des milliers de documents, envoyer une requête par document est extremement lent. Les operations en masse regroupent plusieurs operations dans un seul aller-retour vers MongoDB.
 
 ```
   Approche naive (N requetes)          Approche bulk (1 requete)
@@ -1980,7 +1980,7 @@ async importProducts(products: CreateProductDto[]): Promise<Product[]> {
 }
 ```
 
-> **`ordered: false`** : Par defaut, `insertMany()` s'arrete a la premiere erreur. Avec `ordered: false`, MongoDB continue l'insertion des documents restants et collecte toutes les erreurs a la fin. Indispensable pour les imports de donnees ou certains doublons sont attendus.
+> **`ordered: false`** : Par defaut, `insertMany()` s'arrete à la première erreur. Avec `ordered: false`, MongoDB continue l'insertion des documents restants et collecte toutes les erreurs à la fin. Indispensable pour les imports de donnees ou certains doublons sont attendus.
 
 ### 13.3 bulkWrite() — Operations mixtes
 
@@ -2020,7 +2020,7 @@ async syncCatalog(changes: CatalogChange[]): Promise<BulkWriteResult> {
 
 ### 13.4 Taille de batch optimale
 
-Pour de tres gros volumes (100k+ documents), decoupe en batches pour eviter de saturer la memoire :
+Pour de très gros volumes (100k+ documents), découpé en batches pour éviter de saturer la mémoire :
 
 ```typescript
 async bulkImport(products: CreateProductDto[]): Promise<number> {
@@ -2041,7 +2041,7 @@ async bulkImport(products: CreateProductDto[]): Promise<number> {
 
 ### 13.5 Gestion des erreurs partielles
 
-Avec `ordered: false`, certains documents peuvent echouer alors que d'autres reussissent. Il faut gerer ces erreurs partielles :
+Avec `ordered: false`, certains documents peuvent echouer alors que d'autres reussissent. Il faut gérer ces erreurs partielles :
 
 ```typescript
 import { MongoServerError } from 'mongodb';
@@ -2070,15 +2070,15 @@ async safeImport(products: CreateProductDto[]): Promise<{
 }
 ```
 
-> **Conseil performance** : Pour les imports massifs, desactive temporairement les index non essentiels, importe les donnees, puis recree les index. C'est beaucoup plus rapide que d'indexer a chaque insertion.
+> **Conseil performance** : Pour les imports massifs, désactivé temporairement les index non essentiels, importe les donnees, puis recree les index. C'est beaucoup plus rapide que d'indexer à chaque insertion.
 
 ---
 
-## 14. Change Streams : temps reel
+## 14. Change Streams : temps réel
 
 ### 14.1 Qu'est-ce qu'un Change Stream ?
 
-Les Change Streams permettent d'ecouter en temps reel les modifications d'une collection MongoDB. Chaque insertion, mise a jour ou suppression declenche un evenement. C'est l'equivalent d'un trigger SQL, mais cote application.
+Les Change Streams permettent d'ecouter en temps réel les modifications d'une collection MongoDB. Chaque insertion, mise a jour ou suppression declenche un événement. C'est l'équivalent d'un trigger SQL, mais cote application.
 
 ```
   ┌──────────────────┐     change event      ┌──────────────────┐
@@ -2101,13 +2101,13 @@ Les Change Streams permettent d'ecouter en temps reel les modifications d'une co
                                                └──────────────────┘     → Dashboard
 ```
 
-> **Prerequis** : Les Change Streams necessitent un **replica set** (meme en developpement avec un seul noeud) :
+> **Prérequis** : Les Change Streams necessitent un **replica set** (même en développement avec un seul noeud) :
 > ```bash
 > docker run -d -p 27017:27017 --name mongodb mongo:7 --replSet rs0
 > docker exec mongodb mongosh --eval "rs.initiate()"
 > ```
 
-### 14.2 Integration NestJS avec WebSocket Gateway
+### 14.2 Intégration NestJS avec WebSocket Gateway
 
 ```typescript
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
@@ -2157,9 +2157,9 @@ export class ProductWatcher implements OnModuleInit, OnModuleDestroy {
 }
 ```
 
-### 14.3 Filtrage des evenements
+### 14.3 Filtrage des événements
 
-Tu peux filtrer les evenements pour ne recevoir que ceux qui t'interessent :
+Tu peux filtrer les événements pour ne recevoir que ceux qui t'interessent :
 
 ```typescript
 // Ecouter uniquement les insertions et mises a jour de prix
@@ -2177,9 +2177,9 @@ const pipeline = [
 this.changeStream = this.productModel.watch(pipeline);
 ```
 
-### 14.4 Resumabilite — Reprendre apres une deconnexion
+### 14.4 Resumabilite — Reprendre après une deconnexion
 
-Chaque evenement contient un `resumeToken`. En cas de deconnexion, tu peux reprendre la ou tu t'etais arrete :
+Chaque événement contient un `resumeToken`. En cas de deconnexion, tu peux reprendre la ou tu t'etais arrete :
 
 ```typescript
 private lastResumeToken: any;
@@ -2203,7 +2203,7 @@ onModuleInit() {
 }
 ```
 
-> **Cas d'usage** : dashboard d'inventaire en temps reel, notifications de changement de prix, synchronisation inter-services dans une architecture microservices.
+> **Cas d'usage** : dashboard d'inventaire en temps réel, notifications de changement de prix, synchronisation inter-services dans une architecture microservices.
 
 ---
 
@@ -2211,7 +2211,7 @@ onModuleInit() {
 
 ### 15.1 Pourquoi mongodb-memory-server ?
 
-`mongodb-memory-server` lance une instance MongoDB en memoire, sans Docker ni installation. Chaque suite de tests obtient sa propre base, completement isolee. C'est la reference pour les tests unitaires et d'integration avec Mongoose.
+`mongodb-memory-server` lance une instance MongoDB en mémoire, sans Docker ni installation. Chaque suite de tests obtient sa propre base, complètement isolee. C'est la référence pour les tests unitaires et d'intégration avec Mongoose.
 
 ```bash
 pnpm add -D mongodb-memory-server
@@ -2257,7 +2257,7 @@ describe('ProductsService', () => {
 
 ### 15.3 Nettoyage entre les tests
 
-Chaque test doit partir d'un etat propre pour eviter les effets de bord :
+Chaque test doit partir d'un état propre pour éviter les effets de bord :
 
 ```typescript
 import { Model } from 'mongoose';
@@ -2278,7 +2278,7 @@ afterEach(async () => {
 
 ### 15.4 Factories de donnees de test
 
-Cree des factories pour generer des donnees de test coherentes et reutilisables :
+Cree des factories pour générer des donnees de test coherentes et réutilisables :
 
 ```typescript
 // test/factories/product.factory.ts
@@ -2363,11 +2363,11 @@ it('should compute stats by category', async () => {
 });
 ```
 
-> **Bonne pratique** : Les tests avec `MongoMemoryServer` sont plus lents que des tests unitaires purs (~100-500ms par test). Reserve-les aux couches service et repository. Pour les controllers, prefere des mocks classiques du service.
+> **Bonne pratique** : Les tests avec `MongoMemoryServer` sont plus lents que des tests unitaires purs (~100-500ms par test). Reserve-les aux couches service et repository. Pour les controllers, préféré des mocks classiques du service.
 
 ---
 
-## 16. Recapitulatif
+## 16. Récapitulatif
 
 ### Ce que tu as appris
 
@@ -2419,7 +2419,7 @@ db.products.find().explain()      # Analyser une requete
 ## Exercices
 
 Passe au **Lab 25** (`labs/lab-25-mongodb-mongoose/`) pour mettre en pratique :
-- Creation de schemas avec validation
+- Création de schemas avec validation
 - CRUD complet avec pagination
 - Aggregation pipeline (stats par categorie)
 - Tests E2E avec `mongodb-memory-server`
@@ -2432,4 +2432,14 @@ Passe au **Lab 25** (`labs/lab-25-mongodb-mongoose/`) pour mettre en pratique :
 - [Documentation @nestjs/mongoose](https://docs.nestjs.com/techniques/mongodb)
 - [MongoDB University](https://university.mongodb.com/) — Cours gratuits
 - [MongoDB Schema Design Best Practices](https://www.mongodb.com/developer/products/mongodb/schema-design-anti-pattern-massive-arrays/)
-- [Aggregation Pipeline Reference](https://www.mongodb.com/docs/manual/reference/operator/aggregation-pipeline/)
+- [Aggregation Pipeline Référence](https://www.mongodb.com/docs/manual/reference/operator/aggregation-pipeline/)
+
+---
+
+<!-- parcours-recommande -->
+
+::: tip Parcours recommandé
+1. **Screencast** : [screencast 25 mongodb mongoose](../screencasts/screencast-25-mongodb-mongoose.md)
+2. **Lab** : [lab-25-mongodb-mongoose](../labs/lab-25-mongodb-mongoose/README)
+3. **Quiz** : [quiz 25 mongodb mongoose](../quizzes/quiz-25-mongodb-mongoose.html)
+:::

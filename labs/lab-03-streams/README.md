@@ -4,13 +4,13 @@
 
 - Comprendre les streams Node.js (Readable, Writable, Transform)
 - Copier un fichier avec des streams
-- Creer des Transform streams personnalises
+- Créer des Transform streams personnalises
 - Utiliser `pipeline()` pour chainer des streams
 
 ## Pre-requis
 
 - Node.js >= 18 installe
-- Aucune dependance externe (pure Node.js)
+- Aucune dépendance externe (pure Node.js)
 
 ## Instructions
 
@@ -24,14 +24,14 @@
 | # | Description |
 |---|-------------|
 | 1 | Implementer `copyFile(src, dest)` — copie avec streams et pipeline |
-| 2 | Creer `UppercaseTransform` — Transform stream qui convertit en majuscules |
-| 3 | Creer `LineCounterTransform` — Transform stream qui compte les lignes |
-| 4 | Creer `CsvToJsonTransform` — Transform stream qui convertit CSV en JSON |
+| 2 | Créer `UppercaseTransform` — Transform stream qui convertit en majuscules |
+| 3 | Créer `LineCounterTransform` — Transform stream qui compte les lignes |
+| 4 | Créer `CsvToJsonTransform` — Transform stream qui convertit CSV en JSON |
 | 5 | Implementer `processFile(src, dest)` — chaine plusieurs transforms avec pipeline |
 
 ## Fichiers de donnees
 
-Le lab cree automatiquement les fichiers de test suivants :
+Le lab créé automatiquement les fichiers de test suivants :
 - `input.txt` — texte multi-ligne pour les tests
 - `data.csv` — donnees CSV pour le test de conversion
 

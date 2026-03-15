@@ -2,8 +2,8 @@
 
 ## Objectifs
 
-- Creer une application Express avec une API REST complete
-- Gerer les routes CRUD (Create, Read, Update, Delete)
+- Créer une application Express avec une API REST complete
+- Gérer les routes CRUD (Create, Read, Update, Delete)
 - Utiliser les bons codes de statut HTTP
 - Valider les donnees entrantes
 - Implementer un middleware d'erreur
@@ -11,11 +11,11 @@
 ## Pre-requis
 
 - Node.js >= 18 installe
-- Installer les dependances : `npm install` dans ce repertoire
+- Installer les dépendances : `npm install` dans ce répertoire
 
 ## Instructions
 
-1. Installez les dependances : `npm install`
+1. Installez les dépendances : `npm install`
 2. Ouvrez le fichier `exercise.ts`
 3. Completez chaque section marquee `TODO`
 4. Lancez le fichier avec `npx tsx exercise.ts`
@@ -25,7 +25,7 @@
 
 | # | Description |
 |---|-------------|
-| 1 | Creer l'application Express avec `express.json()` |
+| 1 | Créer l'application Express avec `express.json()` |
 | 2 | Implementer `GET /products` avec filtre optionnel `?category=` |
 | 3 | Implementer `GET /products/:id` |
 | 4 | Implementer `POST /products` avec validation (name, price, category requis) |
@@ -33,11 +33,11 @@
 | 6 | Implementer `PATCH /products/:id` (modification partielle) |
 | 7 | Implementer `DELETE /products/:id` |
 | 8 | Utiliser les bons status codes (201, 204, 400, 404) |
-| 9 | Creer un middleware d'erreur centralise |
+| 9 | Créer un middleware d'erreur centralise |
 
-## API Reference
+## API Référence
 
-| Methode | Route | Description | Status |
+| Méthode | Route | Description | Status |
 |---------|-------|-------------|--------|
 | GET | /products | Liste tous les produits (filtre ?category=) | 200 |
 | GET | /products/:id | Recupere un produit | 200 / 404 |

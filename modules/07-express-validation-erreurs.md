@@ -1,6 +1,6 @@
 # Module 07 — Express — Validation & Gestion d'erreurs
 
-> **Objectif** : Implementer une validation robuste des donnees entrantes avec Zod, creer un systeme centralise de gestion d'erreurs avec des classes d'erreurs personnalisees, et eliminer le boilerplate try/catch avec un wrapper async.
+> **Objectif** : Implementer une validation robuste des donnees entrantes avec Zod, créer un système centralise de gestion d'erreurs avec des classes d'erreurs personnalisees, et eliminer le boilerplate try/catch avec un wrapper async.
 >
 > **Difficulte** : ⭐⭐⭐ (avance)
 
@@ -10,7 +10,7 @@
 
 ### 1.1 Ne jamais faire confiance au client
 
-Le client (navigateur, application mobile, Postman) peut envoyer **n'importe quoi**. Meme si ton formulaire Angular a une validation cote client, un attaquant peut :
+Le client (navigateur, application mobile, Postman) peut envoyer **n'importe quoi**. Même si ton formulaire Angular à une validation cote client, un attaquant peut :
 
 - Modifier le body JSON directement avec les DevTools ou curl
 - Envoyer des types inattendus (string au lieu de number)
@@ -30,18 +30,18 @@ null
 "une string au lieu d'un objet"
 ```
 
-> **Analogie** : La validation backend, c'est comme le controle de securite a l'aeroport. La compagnie aerienne (frontend) peut verifier ton billet, mais la securite (backend) verifie quand meme — parce que n'importe qui peut se presenter a la porte.
+> **Analogie** : La validation backend, c'est comme le controle de sécurité a l'aeroport. La compagnie aerienne (frontend) peut vérifier ton billet, mais la sécurité (backend) vérifié quand même — parce que n'importe qui peut se présenter à la porte.
 
 ### 1.2 La validation frontend ne suffit JAMAIS
 
 | Validation | Frontend | Backend |
 |---|---|---|
-| **Objectif** | UX — guider l'utilisateur | **Securite** — proteger les donnees |
+| **Objectif** | UX — guider l'utilisateur | **Sécurité** — proteger les donnees |
 | **Contournable** | Oui (DevTools, curl, scripts) | Non (seul le serveur controle) |
 | **Obligatoire** | Recommandee | **Indispensable** |
 | **Quand** | Avant l'envoi | A la reception |
 
-> **Piege classique** : "J'ai deja la validation dans mon formulaire Angular/React, pas besoin de la refaire au backend." FAUX. La validation frontend est un confort utilisateur, pas une protection. Un attaquant contourne la validation frontend en 5 secondes.
+> **Piege classique** : "J'ai déjà la validation dans mon formulaire Angular/React, pas besoin de la refaire au backend." FAUX. La validation frontend est un confort utilisateur, pas une protection. Un attaquant contourne la validation frontend en 5 secondes.
 
 ---
 
@@ -52,7 +52,7 @@ null
 **Zod** est une librairie de validation et de parsing de schemas pour TypeScript/JavaScript. Elle est :
 
 - **Type-safe** : infere automatiquement les types TypeScript
-- **Zero dependance** : tres legere
+- **Zero dépendance** : très legere
 - **Composable** : les schemas se combinent facilement
 - **Immutable** : chaque transformation retourne un nouveau schema
 
@@ -277,9 +277,9 @@ if (!result.success) {
 
 ---
 
-## 3. Middleware de validation generique
+## 3. Middleware de validation générique
 
-### 3.1 Un middleware reutilisable
+### 3.1 Un middleware réutilisable
 
 ```typescript
 // middleware/validate.js
@@ -369,7 +369,7 @@ router.patch('/:id',
 export default router;
 ```
 
-> **Bonne pratique** : Avec ce pattern, la validation est declarative et separee de la logique metier. Tu declares le schema, tu l'appliques comme middleware, et ton controller recoit toujours des donnees valides et correctement typees. C'est le meme principe que NestJS utilise avec les Pipes et les DTO.
+> **Bonne pratique** : Avec ce pattern, la validation est declarative et separee de la logique metier. Tu declares le schema, tu l'appliques comme middleware, et ton controller recoit toujours des donnees valides et correctement typees. C'est le même principe que NestJS utilise avec les Pipes et les DTO.
 
 ---
 
@@ -514,7 +514,7 @@ export function create(req, res) {
 
 ## 5. Async handler wrapper
 
-### 5.1 Le probleme du try/catch repetitif
+### 5.1 Le problème du try/catch repetitif
 
 ```typescript
 // SANS wrapper — try/catch dans CHAQUE handler async
@@ -538,7 +538,7 @@ app.post('/api/books', async (req, res, next) => {
 });
 ```
 
-> **Piege classique** : Si tu oublies le `try/catch` et le `next(err)` dans un handler async, Express ne capte PAS l'erreur. La requete reste en attente indefiniment (timeout). C'est un des bugs les plus courants en Express.
+> **Piege classique** : Si tu oublies le `try/catch` et le `next(err)` dans un handler async, Express ne capte PAS l'erreur. La requête reste en attente indefiniment (timeout). C'est un des bugs les plus courants en Express.
 
 ### 5.2 La solution : asyncHandler
 
@@ -578,15 +578,15 @@ router.post('/', asyncHandler(async (req, res) => {
 // l'erreur est automatiquement passee a next() → error handler
 ```
 
-> **Bonne pratique** : Utilise `asyncHandler` (ou la librairie `express-async-errors`) pour TOUS tes handlers async. C'est un petit utilitaire qui elimine des dizaines de blocs try/catch et empeche les erreurs silencieuses. Express 5 (sorti en octobre 2024) integre ce comportement nativement.
+> **Bonne pratique** : Utilise `asyncHandler` (où la librairie `express-async-errors`) pour TOUS tes handlers async. C'est un petit utilitaire qui elimine des dizaines de blocs try/catch et empeche les erreurs silencieuses. Express 5 (sorti en octobre 2024) intégré ce comportement nativement.
 >
-> **Note Express 5** : Express 5 gere nativement les erreurs dans les handlers async — plus besoin de `express-async-errors` ni de `asyncHandler`. Si vous demarrez un nouveau projet, privilegiez Express 5.
+> **Note Express 5** : Express 5 géré nativement les erreurs dans les handlers async — plus besoin de `express-async-errors` ni de `asyncHandler`. Si vous demarrez un nouveau projet, privilegiez Express 5.
 
 ---
 
 ## 6. Gestion globale des erreurs Node.js
 
-### 6.1 Filets de securite globaux
+### 6.1 Filets de sécurité globaux
 
 ```typescript
 // A mettre au debut de ton fichier principal (src/index.js)
@@ -700,7 +700,7 @@ app.get('/api/data', async (req, res, next) => {
 });
 ```
 
-### 7.3 Piege : Envoyer deux reponses
+### 7.3 Piege : Envoyer deux réponses
 
 ```typescript
 // MAUVAIS — res.json() est appele deux fois
@@ -765,7 +765,7 @@ Cree un schema Zod pour une API de blog avec les regles suivantes :
 
 Ameliore le error handler pour :
 - Logger les erreurs dans un fichier `errors.log`
-- Ajouter un identifiant unique a chaque erreur (pour la retrouver dans les logs)
+- Ajouter un identifiant unique à chaque erreur (pour la retrouver dans les logs)
 - Retourner cet identifiant au client pour le support
 
 ### Exercice 3 — Middleware de validation avance
@@ -781,20 +781,20 @@ router.post('/:id',
 
 ---
 
-## 10. Resume — Les concepts cles
+## 10. Résumé — Les concepts clés
 
 | Concept | Definition |
 |---|---|
 | **Zod** | Librairie de validation de schemas TypeScript-first |
-| **parse vs safeParse** | parse lance une erreur, safeParse retourne un resultat |
-| **validate middleware** | Middleware generique qui valide req.body/query/params |
+| **parse vs safeParse** | parse lance une erreur, safeParse retourne un résultat |
+| **validate middleware** | Middleware générique qui valide req.body/query/params |
 | **AppError** | Classe de base pour les erreurs applicatives |
 | **Error handler** | Middleware Express a 4 arguments pour centraliser les erreurs |
 | **asyncHandler** | Wrapper qui passe les rejections async a next() |
 | **Operationnelle vs Bug** | Erreur prevue (404) vs erreur de code (TypeError) |
-| **unhandledRejection** | Evenement global pour les Promises non gerees |
+| **unhandledRejection** | Événement global pour les Promises non gerees |
 
-> **A retenir** : Une bonne gestion des erreurs et une validation robuste sont les deux piliers d'une API fiable. Zod pour valider les entrees, des classes d'erreurs pour structurer les cas d'erreur, un error handler centralise pour formater les reponses, et asyncHandler pour eliminer le boilerplate — ces patterns sont la base de toute API Express professionnelle. NestJS formalisera ces concepts avec les Pipes, Filters et Exception Filters.
+> **A retenir** : Une bonne gestion des erreurs et une validation robuste sont les deux piliers d'une API fiable. Zod pour valider les entrees, des classes d'erreurs pour structurer les cas d'erreur, un error handler centralise pour formater les réponses, et asyncHandler pour eliminer le boilerplate — ces patterns sont la base de toute API Express professionnelle. NestJS formalisera ces concepts avec les Pipes, Filters et Exception Filters.
 
 ---
 
@@ -802,11 +802,22 @@ router.post('/:id',
 
 | | Lien |
 |---|---|
-| Module precedent | [Module 06 — Express — Middleware & Architecture](./06-express-middleware.md) |
-| Module suivant | [Module 08 — Express — Authentification & Securite](./08-express-auth-securite.md) |
+| Module précédent | [Module 06 — Express — Middleware & Architecture](./06-express-middleware.md) |
+| Module suivant | [Module 08 — Express — Authentification & Sécurité](./08-express-auth-securite.md) |
 | Quiz | [Quiz Module 07](../quizzes/07-express-validation-erreurs.quiz.md) |
 | Lab | [Lab 07 — Validation et erreurs](../labs/07-express-validation-erreurs.lab.md) |
 
 ---
 
-> **A retenir** : Ne fais jamais confiance aux donnees du client. Valide TOUT avec Zod, centralise tes erreurs avec un error handler, et utilise asyncHandler pour eviter les erreurs silencieuses. Ces pratiques ne sont pas optionnelles — elles sont la difference entre une API amateur et une API de production.
+> **A retenir** : Ne fais jamais confiance aux donnees du client. Valide TOUT avec Zod, centralise tes erreurs avec un error handler, et utilise asyncHandler pour éviter les erreurs silencieuses. Ces pratiques ne sont pas optionnelles — elles sont la différence entre une API amateur et une API de production.
+
+---
+
+<!-- parcours-recommande -->
+
+::: tip Parcours recommandé
+1. **Screencast** : [screencast 07 validation erreurs](../screencasts/screencast-07-validation-erreurs.md)
+2. **Lab** : [lab-07-validation-erreurs](../labs/lab-07-validation-erreurs/README)
+3. **Visualisation** : [Middleware Pipeline](../visualizations/middleware-pipeline.html)
+4. **Quiz** : [quiz 07 validation erreurs](../quizzes/quiz-07-validation-erreurs.html)
+:::

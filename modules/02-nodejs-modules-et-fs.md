@@ -1,22 +1,22 @@
 # Module 02 — Node.js — Modules, FS & Process
 
-> **Objectif** : Maitriser le systeme de modules de Node.js (CommonJS et ESM), manipuler le systeme de fichiers (fs), comprendre l'objet process et gerer les dependances avec npm.
+> **Objectif** : Maîtriser le système de modules de Node.js (CommonJS et ESM), manipuler le système de fichiers (fs), comprendre l'objet process et gérer les dépendances avec npm.
 >
-> **Difficulte** : ⭐ (debutant)
+> **Difficulte** : ⭐ (débutant)
 
 ---
 
-## 1. Les systemes de modules en Node.js
+## 1. Les systèmes de modules en Node.js
 
 ### 1.1 Pourquoi les modules existent
 
-En JavaScript navigateur, tout code charge partage un scope global unique. Cela cause des collisions de noms, des dependances implicites et une maintenance cauchemardesque. Les modules resolvent ce probleme en isolant chaque fichier dans son propre scope.
+En JavaScript navigateur, tout code charge partage un scope global unique. Cela cause des collisions de noms, des dépendances implicites et une maintenance cauchemardesque. Les modules resolvent ce problème en isolant chaque fichier dans son propre scope.
 
-> **Analogie** : Sans modules, ton code c'est comme un open space ou tout le monde crie en meme temps — impossible de savoir qui parle a qui. Avec les modules, chaque fichier est un bureau ferme avec une porte (les exports) et une sonnette (les imports). Chacun travaille tranquillement et communique via des interfaces claires.
+> **Analogie** : Sans modules, ton code c'est comme un open space ou tout le monde crie en même temps — impossible de savoir qui parle a qui. Avec les modules, chaque fichier est un bureau ferme avec une porte (les exports) et une sonnette (les imports). Chacun travaille tranquillement et communique via des interfaces claires.
 
-### 1.2 CommonJS (CJS) — Le systeme originel
+### 1.2 CommonJS (CJS) — Le système originel
 
-CommonJS est le systeme de modules historique de Node.js. Il utilise `require()` et `module.exports` :
+CommonJS est le système de modules historique de Node.js. Il utilise `require()` et `module.exports` :
 
 ```typescript
 // math.js — Exporter des fonctions
@@ -50,7 +50,7 @@ console.log(math.additionner(2, 3));
 
 ### 1.3 ESM (ECMAScript Modules) — Le standard moderne
 
-ESM est le systeme de modules standard du langage JavaScript. Il utilise `import` et `export` :
+ESM est le système de modules standard du langage JavaScript. Il utilise `import` et `export` :
 
 ```typescript
 // math.mjs (ou .js avec "type": "module" dans package.json)
@@ -120,7 +120,7 @@ Avec cette option, tous les fichiers `.js` du projet sont traites comme ESM. Si 
 
 > **Bonne pratique** : Pour un nouveau projet, utilise ESM (`"type": "module"` dans package.json). C'est le standard JavaScript et c'est l'avenir. NestJS utilise aussi ESM (via TypeScript). Cependant, tu rencontreras encore beaucoup de code CommonJS dans des projets existants.
 
-### 1.6 L'algorithme de resolution des modules
+### 1.6 L'algorithme de résolution des modules
 
 Quand tu fais `require('express')` ou `import express from 'express'`, Node.js cherche le module dans cet ordre :
 
@@ -151,7 +151,7 @@ Quand tu fais `require('express')` ou `import express from 'express'`, Node.js c
 
 ## 2. Le module path
 
-Le module `path` permet de manipuler les chemins de fichiers de maniere cross-platform (Windows utilise `\`, Linux/Mac utilise `/`).
+Le module `path` permet de manipuler les chemins de fichiers de manière cross-platform (Windows utilise `\`, Linux/Mac utilise `/`).
 
 ```typescript
 import path from 'path';
@@ -214,7 +214,7 @@ path.normalize('/home//user/../user/./projet');
 // '/home/user/projet'
 ```
 
-> **Bonne pratique** : Utilise TOUJOURS `path.join()` ou `path.resolve()` pour construire des chemins. Ne concatene JAMAIS des chemins avec `+` ou des template literals — ca ne marchera pas sur tous les OS.
+> **Bonne pratique** : Utilise TOUJOURS `path.join()` ou `path.resolve()` pour construire des chemins. Ne concatene JAMAIS des chemins avec `+` ou des template literals — ça ne marchera pas sur tous les OS.
 
 ```typescript
 // MAUVAIS — ne fonctionne pas sur Windows
@@ -230,7 +230,7 @@ const filePath = path.join(__dirname, 'data', filename);
 
 ### 3.1 Les trois API de fs
 
-Node.js fournit **trois API** differentes pour manipuler les fichiers :
+Node.js fournit **trois API** différentes pour manipuler les fichiers :
 
 | API | Syntaxe | Quand l'utiliser |
 |---|---|---|
@@ -263,7 +263,7 @@ async function lire() {
 lire();
 ```
 
-> **Piege classique** : N'utilise JAMAIS les methodes synchrones (`readFileSync`, `writeFileSync`, etc.) dans un serveur HTTP. Elles bloquent le thread unique de Node.js — pendant la lecture, AUCUNE autre requete ne peut etre traitee. Les API sync ne sont acceptables que dans des scripts de demarrage ou des outils CLI.
+> **Piege classique** : N'utilise JAMAIS les méthodes synchrones (`readFileSync`, `writeFileSync`, etc.) dans un serveur HTTP. Elles bloquent le thread unique de Node.js — pendant la lecture, AUCUNE autre requête ne peut etre traitee. Les API sync ne sont acceptables que dans des scripts de démarrage ou des outils CLI.
 
 ### 3.2 Lire des fichiers
 
@@ -316,7 +316,7 @@ async function listerDossier(dirPath) {
 listerDossier('.');
 ```
 
-### 3.3 Ecrire des fichiers
+### 3.3 Écrire des fichiers
 
 ```typescript
 import { writeFile, appendFile, copyFile, rename } from 'fs/promises';
@@ -358,7 +358,7 @@ async function deplacer() {
 }
 ```
 
-### 3.4 Creer et supprimer des dossiers
+### 3.4 Créer et supprimer des dossiers
 
 ```typescript
 import { mkdir, rmdir, rm, access, constants } from 'fs/promises';
@@ -409,8 +409,8 @@ if (await existe('config.json')) {
 | Code | Signification | Cause typique |
 |---|---|---|
 | `ENOENT` | No such file or directory | Fichier ou dossier introuvable |
-| `EACCES` | Permission denied | Pas les droits de lecture/ecriture |
-| `EEXIST` | File already exists | Le fichier/dossier existe deja |
+| `EACCES` | Permission denied | Pas les droits de lecture/écriture |
+| `EEXIST` | File already exists | Le fichier/dossier existe déjà |
 | `EISDIR` | Is a directory | Tu essaies de lire un dossier comme un fichier |
 | `ENOTDIR` | Not a directory | Tu essaies de lister un fichier comme un dossier |
 | `EMFILE` | Too many open files | Trop de fichiers ouverts simultanement |
@@ -481,7 +481,7 @@ const config = JSON.parse(await readFile(configPath, 'utf-8'));
 
 ### 5.1 Qu'est-ce que process
 
-`process` est un objet global de Node.js qui represente le processus en cours d'execution. Il donne acces a l'environnement systeme, aux arguments, aux flux standard et au cycle de vie du processus.
+`process` est un objet global de Node.js qui represente le processus en cours d'exécution. Il donne acces a l'environnement système, aux arguments, aux flux standard et au cycle de vie du processus.
 
 ### 5.2 process.env — Variables d'environnement
 
@@ -602,7 +602,7 @@ process.chdir('/tmp');
 console.log(process.cwd()); // '/tmp'
 ```
 
-> **A retenir** : `process.cwd()` retourne le repertoire depuis lequel tu as lance `node`. `__dirname` retourne le repertoire du fichier source. Ce n'est pas la meme chose si tu lances `node src/main.js` depuis le dossier parent.
+> **A retenir** : `process.cwd()` retourne le répertoire depuis lequel tu as lance `node`. `__dirname` retourne le répertoire du fichier source. Ce n'est pas la même chose si tu lances `node src/main.js` depuis le dossier parent.
 
 ### 5.6 process.stdin et process.stdout
 
@@ -756,11 +756,11 @@ Les prefixes dans package.json :
 | Aucun | Version exacte | `4.18.2` | Exactement `4.18.2` |
 | `*` | N'importe quelle version | `*` | Toutes |
 
-> **Bonne pratique** : Le prefixe `^` (defaut de npm) est generalement un bon choix. Il permet les mises a jour mineures et de patch tout en protegeant contre les breaking changes. Utilise le `package-lock.json` pour verrouiller les versions exactes et avoir des builds reproductibles.
+> **Bonne pratique** : Le prefixe `^` (defaut de npm) est généralement un bon choix. Il permet les mises a jour mineures et de patch tout en protegeant contre les breaking changes. Utilise le `package-lock.json` pour verrouiller les versions exactes et avoir des builds reproductibles.
 
 ### 7.3 Le fichier package-lock.json
 
-Le `package-lock.json` **verrouille** les versions exactes de toutes les dependances (directes et transitives) :
+Le `package-lock.json` **verrouille** les versions exactes de toutes les dépendances (directes et transitives) :
 
 ```
 package.json      → "express": "^4.18.2" (range)
@@ -771,9 +771,9 @@ package-lock.json → "express": "4.18.2"  (version exacte)
 |---|---|
 | `npm install` | Installe selon le lock file (si present) |
 | `npm update` | Met a jour dans les ranges du package.json |
-| `npm install express@latest` | Installe la derniere version et met a jour le lock |
+| `npm install express@latest` | Installe la dernière version et met a jour le lock |
 
-> **Piege classique** : NE SUPPRIME JAMAIS `package-lock.json` pour "resoudre un probleme". Le lock file garantit que tous les developpeurs et le CI ont les memes versions. Commite-le TOUJOURS dans Git.
+> **Piege classique** : NE SUPPRIME JAMAIS `package-lock.json` pour "résoudre un problème". Le lock file garantit que tous les développeurs et le CI ont les memes versions. Commite-le TOUJOURS dans Git.
 
 ### 7.4 Le dossier node_modules
 
@@ -788,7 +788,7 @@ mon-projet/
 └── package-lock.json
 ```
 
-> **A retenir** : Ne commite JAMAIS `node_modules` dans Git. Ajoute-le a ton `.gitignore`. Le dossier peut contenir des dizaines de milliers de fichiers et peser des centaines de Mo. Chaque developpeur fait `npm install` pour regenerer son `node_modules` a partir du `package-lock.json`.
+> **A retenir** : Ne commite JAMAIS `node_modules` dans Git. Ajoute-le a ton `.gitignore`. Le dossier peut contenir des dizaines de milliers de fichiers et peser des centaines de Mo. Chaque développeur fait `npm install` pour regenerer son `node_modules` à partir du `package-lock.json`.
 
 ### 7.5 Commandes npm utiles
 
@@ -825,7 +825,7 @@ npx ts-node script.ts
 
 ---
 
-## 8. Creer et structurer un module
+## 8. Créer et structurer un module
 
 ### 8.1 Un module utilitaire
 
@@ -943,7 +943,7 @@ tree(targetDir);
 
 ### Exercice 2 — Gestionnaire de notes
 
-Ecris un script CLI qui gere des notes stockees dans un fichier JSON :
+Ecris un script CLI qui géré des notes stockees dans un fichier JSON :
 
 ```bash
 node notes.js add "Ma premiere note"
@@ -961,14 +961,14 @@ node csv-to-json.js data.csv output.json
 
 ---
 
-## 10. Resume — Les concepts cles
+## 10. Résumé — Les concepts clés
 
 | Concept | Definition |
 |---|---|
-| **CommonJS** | Systeme de modules avec `require`/`module.exports` |
-| **ESM** | Systeme de modules standard avec `import`/`export` |
+| **CommonJS** | Système de modules avec `require`/`module.exports` |
+| **ESM** | Système de modules standard avec `import`/`export` |
 | **path** | Module pour manipuler les chemins de fichiers cross-platform |
-| **fs/promises** | API asynchrone pour le systeme de fichiers |
+| **fs/promises** | API asynchrone pour le système de fichiers |
 | **process.env** | Variables d'environnement (toujours des strings) |
 | **process.argv** | Arguments de la ligne de commande |
 | **process.exit** | Arreter le processus avec un code de sortie |
@@ -976,7 +976,7 @@ node csv-to-json.js data.csv output.json
 | **semver** | Versioning semantique (MAJOR.MINOR.PATCH) |
 | **package-lock.json** | Verrouillage des versions exactes |
 
-> **A retenir** : Les modules sont la brique de base de toute application Node.js. Utilise ESM pour les nouveaux projets, `path.join()` pour les chemins, `fs/promises` pour le systeme de fichiers et `process.env` pour la configuration. npm et package.json sont les outils indispensables pour gerer les dependances.
+> **A retenir** : Les modules sont la brique de base de toute application Node.js. Utilise ESM pour les nouveaux projets, `path.join()` pour les chemins, `fs/promises` pour le système de fichiers et `process.env` pour la configuration. npm et package.json sont les outils indispensables pour gérer les dépendances.
 
 ---
 
@@ -984,11 +984,21 @@ node csv-to-json.js data.csv output.json
 
 | | Lien |
 |---|---|
-| Module precedent | [Module 01 — Node.js — Event Loop & Asynchrone](./01-nodejs-event-loop.md) |
+| Module précédent | [Module 01 — Node.js — Event Loop & Asynchrone](./01-nodejs-event-loop.md) |
 | Module suivant | [Module 03 — Node.js — Streams & Buffers](./03-nodejs-streams-et-buffers.md) |
 | Quiz | [Quiz Module 02](../quizzes/02-nodejs-modules-et-fs.quiz.md) |
 | Lab | [Lab 02 — Modules et File System](../labs/02-nodejs-modules-et-fs.lab.md) |
 
 ---
 
-> **A retenir** : Maitriser les modules, le systeme de fichiers et l'objet process est fondamental pour tout projet Node.js. Ces API natives sont la base sur laquelle tous les frameworks (Express, NestJS) sont construits. Un developpeur backend qui connait bien ces outils est capable de comprendre et debugger n'importe quelle application Node.js.
+> **A retenir** : Maîtriser les modules, le système de fichiers et l'objet process est fondamental pour tout projet Node.js. Ces API natives sont la base sur laquelle tous les frameworks (Express, NestJS) sont construits. Un développeur backend qui connait bien ces outils est capable de comprendre et debugger n'importe quelle application Node.js.
+
+---
+
+<!-- parcours-recommande -->
+
+::: tip Parcours recommandé
+1. **Screencast** : [screencast 02 modules fs](../screencasts/screencast-02-modules-fs.md)
+2. **Lab** : [lab-02-modules-fs](../labs/lab-02-modules-fs/README)
+3. **Quiz** : [quiz 02 modules fs](../quizzes/quiz-02-modules-fs.html)
+:::

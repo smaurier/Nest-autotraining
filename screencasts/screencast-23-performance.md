@@ -1,10 +1,10 @@
-# Screencast 23 — Performance & Deploiement
+# Screencast 23 — Performance & Déploiement
 
 ## Informations
 - **Duree estimee** : 18-22 min
 - **Module** : `modules/23-performance-deploiement.md`
 - **Lab associe** : `labs/lab-23-docker-deploy/`
-- **Prerequis** : Screencast 22 (Queues & Taches)
+- **Prérequis** : Screencast 22 (Queues & Taches)
 
 ## Setup
 - [ ] Node.js 20+ installe
@@ -17,15 +17,15 @@
 
 ### [00:00-03:00] Introduction — De dev a production
 
-> Salut ! On a construit une API NestJS complete : auth, base de donnees, WebSockets, queues. Mais tout ca tourne sur votre machine. Aujourd'hui on va la containeriser avec Docker et la preparer pour la production.
+> Salut ! On a construit une API NestJS complete : auth, base de donnees, WebSockets, queues. Mais tout ça tourne sur votre machine. Aujourd'hui on va la containeriser avec Docker et la preparer pour la production.
 
-**Action** : Afficher le slide de titre "Module 23 — Performance & Deploiement".
+**Action** : Afficher le slide de titre "Module 23 — Performance & Déploiement".
 
-> Le deploiement, c'est trois etapes : containeriser l'application, orchestrer les services (API, base de donnees, Redis), et monitorer la sante de l'application.
+> Le déploiement, c'est trois étapes : containeriser l'application, orchestrer les services (API, base de donnees, Redis), et monitorer la sante de l'application.
 
 ### [03:00-08:00] Dockerfile — Containeriser l'application
 
-**Action** : Creer le Dockerfile multi-stage.
+**Action** : Créer le Dockerfile multi-stage.
 
 ```dockerfile
 # Dockerfile
@@ -58,9 +58,9 @@ HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
 CMD ["node", "dist/main.js"]
 ```
 
-> Le Dockerfile multi-stage separe le build de la production. Le premier stage compile le TypeScript. Le deuxieme copie uniquement les fichiers necessaires. L'image finale est legere et securisee — on ne lance pas en root.
+> Le Dockerfile multi-stage separe le build de la production. Le premier stage compile le TypeScript. Le deuxieme copie uniquement les fichiers nécessaires. L'image finale est legere et securisee — on ne lance pas en root.
 
-**Action** : Creer le .dockerignore.
+**Action** : Créer le .dockerignore.
 
 ```
 node_modules
@@ -80,7 +80,7 @@ docker run -p 3000:3000 --env-file .env nest-api
 
 ### [08:00-13:00] Docker Compose — Orchestrer les services
 
-**Action** : Creer le docker-compose.yml.
+**Action** : Créer le docker-compose.yml.
 
 ```yaml
 # docker-compose.yml
@@ -145,7 +145,7 @@ docker-compose ps
 docker-compose logs -f api
 ```
 
-> Docker Compose lance les trois services : l'API, PostgreSQL et Redis. Les healthchecks s'assurent que chaque service est pret avant de demarrer les services dependants. Les volumes persistent les donnees entre les redemarrages.
+> Docker Compose lance les trois services : l'API, PostgreSQL et Redis. Les healthchecks s'assurent que chaque service est pret avant de démarrer les services dependants. Les volumes persistent les donnees entre les redemarrages.
 
 **Action** : Tester l'application.
 
@@ -222,7 +222,7 @@ curl http://localhost:3000/health | jq
 }
 ```
 
-> Le health check verifie la base de donnees, le disque et la memoire. Les orchestrateurs (Kubernetes, Docker Swarm, AWS ECS) utilisent ces endpoints pour redemarrer les conteneurs defaillants.
+> Le health check vérifié la base de donnees, le disque et la mémoire. Les orchestrateurs (Kubernetes, Docker Swarm, AWS ECS) utilisent ces endpoints pour redemarrer les conteneurs defaillants.
 
 ### [16:00-19:00] PM2 et optimisations de production
 
@@ -255,7 +255,7 @@ pm2 monit
 pm2 logs
 ```
 
-> PM2 en mode cluster lance une instance par CPU. Si une instance crashe, PM2 la redemarre automatiquement. `max_memory_restart` tue les instances qui consomment trop de memoire.
+> PM2 en mode cluster lance une instance par CPU. Si une instance crashe, PM2 la redemarre automatiquement. `max_memory_restart` tue les instances qui consomment trop de mémoire.
 
 **Action** : Montrer les optimisations de production.
 
@@ -285,7 +285,7 @@ async function bootstrap() {
 
 ### [19:00-21:00] Recap
 
-> On a containerise l'application avec un Dockerfile multi-stage. Docker Compose orchestre l'API, PostgreSQL et Redis. Les health checks surveillent la sante de l'application. PM2 gere le mode cluster et le redemarrage automatique.
+> On a containerise l'application avec un Dockerfile multi-stage. Docker Compose orchestre l'API, PostgreSQL et Redis. Les health checks surveillent la sante de l'application. PM2 géré le mode cluster et le redemarrage automatique.
 
 **Action** : Afficher le slide recap.
 
@@ -294,5 +294,5 @@ async function bootstrap() {
 ## Points d'attention pour l'enregistrement
 - Docker doit etre lance avant de commencer la demo
 - Le build Docker peut prendre du temps — couper la video pendant l'attente
-- Montrer les logs docker-compose pour voir les services demarrer dans l'ordre
+- Montrer les logs docker-compose pour voir les services démarrer dans l'ordre
 - Le health check doit afficher un JSON bien formate avec jq

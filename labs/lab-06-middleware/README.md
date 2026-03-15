@@ -3,19 +3,19 @@
 ## Objectifs
 
 - Comprendre le concept de middleware dans Express
-- Creer des middleware personnalises (logger, timer, auth)
-- Creer une factory de middleware (validation)
+- Créer des middleware personnalises (logger, timer, auth)
+- Créer une factory de middleware (validation)
 - Organiser les routes avec `express.Router()`
 - Appliquer des middleware selectivement sur certaines routes
 
 ## Pre-requis
 
 - Node.js >= 18 installe
-- Installer les dependances : `npm install` dans ce repertoire
+- Installer les dépendances : `npm install` dans ce répertoire
 
 ## Instructions
 
-1. Installez les dependances : `npm install`
+1. Installez les dépendances : `npm install`
 2. Ouvrez le fichier `exercise.ts`
 3. Completez chaque section marquee `TODO`
 4. Lancez le fichier avec `npx tsx exercise.ts`
@@ -25,12 +25,12 @@
 
 | # | Description |
 |---|-------------|
-| 1 | Creer `loggerMiddleware` — log method, url et timestamp sur chaque requete |
-| 2 | Creer `timerMiddleware` — mesure le temps de reponse et ajoute `X-Response-Time` |
-| 3 | Creer `authMiddleware` — verifie le header `Authorization: Bearer secret-token` |
-| 4 | Creer `validateBody(schema)` — factory qui retourne un middleware de validation |
-| 5 | Creer un Router `/users` avec les routes CRUD |
-| 6 | Creer un Router `/products` avec les routes CRUD |
+| 1 | Créer `loggerMiddleware` — log method, url et timestamp sur chaque requête |
+| 2 | Créer `timerMiddleware` — mesure le temps de réponse et ajoute `X-Response-Time` |
+| 3 | Créer `authMiddleware` — vérifié le header `Authorization: Bearer secret-token` |
+| 4 | Créer `validateBody(schema)` — factory qui retourne un middleware de validation |
+| 5 | Créer un Router `/users` avec les routes CRUD |
+| 6 | Créer un Router `/products` avec les routes CRUD |
 | 7 | Assembler l'app : middleware globaux + routers + middleware selectif |
 
 ## Aide

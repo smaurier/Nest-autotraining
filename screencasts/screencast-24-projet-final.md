@@ -4,7 +4,7 @@
 - **Duree estimee** : 25-30 min
 - **Module** : `modules/24-projet-final.md`
 - **Lab associe** : `labs/lab-24-projet-final/`
-- **Prerequis** : Tous les screencasts precedents (00-23)
+- **Prérequis** : Tous les screencasts précédents (00-23)
 
 ## Setup
 - [ ] Node.js 20+ installe
@@ -18,11 +18,11 @@
 
 ### [00:00-04:00] Introduction — Le projet final
 
-> Salut ! Bienvenue dans le dernier screencast de cette formation. On va assembler tout ce qu'on a appris en construisant une API e-commerce complete : produits, panier, commandes, paiement, auth, et deploiement. C'est la synthese de 24 modules.
+> Salut ! Bienvenue dans le dernier screencast de cette formation. On va assembler tout ce qu'on a appris en construisant une API e-commerce complete : produits, panier, commandes, paiement, auth, et déploiement. C'est la synthese de 24 modules.
 
 **Action** : Afficher le slide de titre "Module 24 — Projet Final E-commerce".
 
-> Voici ce qu'on va construire : une API e-commerce avec la gestion des produits et categories, un systeme d'authentification avec roles (client, vendeur, admin), un panier et un processus de commande, des notifications par email via queues, et le tout dockerise.
+> Voici ce qu'on va construire : une API e-commerce avec la gestion des produits et categories, un système d'authentification avec roles (client, vendeur, admin), un panier et un processus de commande, des notifications par email via queues, et le tout dockerise.
 
 **Action** : Montrer l'architecture du projet.
 
@@ -47,9 +47,9 @@ e-commerce-api/
   Dockerfile
 ```
 
-### [04:00-09:00] Schema Prisma — Le modele de donnees
+### [04:00-09:00] Schema Prisma — Le modèle de donnees
 
-**Action** : Creer le schema Prisma complet.
+**Action** : Créer le schema Prisma complet.
 
 ```prisma
 // prisma/schema.prisma
@@ -295,7 +295,7 @@ export class OrdersService {
 }
 ```
 
-> La creation de commande est une transaction : elle verifie le stock, cree la commande, decremente le stock, vide le panier, et envoie une notification. Si une etape echoue, tout est annule.
+> La création de commande est une transaction : elle vérifié le stock, créé la commande, decremente le stock, vide le panier, et envoie une notification. Si une étape echoue, tout est annule.
 
 ### [14:00-18:00] Auth, Guards et Swagger
 
@@ -380,7 +380,7 @@ curl -X POST -H "Authorization: Bearer <TOKEN>" \
   http://localhost:3000/orders/checkout
 ```
 
-### [18:00-22:00] Docker et deploiement final
+### [18:00-22:00] Docker et déploiement final
 
 **Action** : Lancer toute l'application avec docker-compose.
 
@@ -395,9 +395,9 @@ docker-compose ps
 # Ouvrir http://localhost:3000/api/docs
 ```
 
-> Swagger affiche toutes les routes de l'API : auth, produits, panier, commandes. Chaque route est documentee avec ses parametres, ses codes de reponse, et ses schemas. Un developpeur frontend peut integrer l'API sans lire le code backend.
+> Swagger affiche toutes les routes de l'API : auth, produits, panier, commandes. Chaque route est documentee avec ses paramètres, ses codes de réponse, et ses schemas. Un développeur frontend peut intégrer l'API sans lire le code backend.
 
-**Action** : Verifier la sante de l'application.
+**Action** : Vérifier la sante de l'application.
 
 ```bash
 curl http://localhost:3000/health | jq
@@ -411,20 +411,20 @@ curl http://localhost:3000/health | jq
 
 > On a commence par les fondamentaux : l'event loop, les modules, les streams. On a construit un serveur HTTP from scratch pour comprendre les bases. Puis Express pour simplifier. Validation, erreurs, authentification.
 
-> Ensuite NestJS : controllers, providers, modules, pipes, guards, interceptors. Deux ORMs : TypeORM et Prisma. Le testing. L'auth avancee avec Passport. Config et Swagger pour la production. WebSockets pour le temps reel. Queues pour le traitement asynchrone. Et finalement, Docker pour le deploiement.
+> Ensuite NestJS : controllers, providers, modules, pipes, guards, interceptors. Deux ORMs : TypeORM et Prisma. Le testing. L'auth avancee avec Passport. Config et Swagger pour la production. WebSockets pour le temps réel. Queues pour le traitement asynchrone. Et finalement, Docker pour le déploiement.
 
-> Ce projet e-commerce utilise tout ca. C'est une API de production complete, pas un exemple jouet.
+> Ce projet e-commerce utilise tout ça. C'est une API de production complete, pas un exemple jouet.
 
 ### [26:00-28:00] Recap final
 
-> Felicitations si vous etes arrives jusqu'ici ! Vous avez les competences pour construire des APIs backend professionnelles avec Node.js et NestJS. Le code du projet final est dans `labs/lab-24-projet-final/`. Clonez-le, explorez-le, modifiez-le.
+> Felicitations si vous etes arrives jusqu'ici ! Vous avez les compétences pour construire des APIs backend professionnelles avec Node.js et NestJS. Le code du projet final est dans `labs/lab-24-projet-final/`. Clonez-le, explorez-le, modifiez-le.
 
 **Action** : Afficher le slide de conclusion.
 
 > Quelques pistes pour aller plus loin : GraphQL avec NestJS, les microservices, le serverless, le monitoring avec Prometheus et Grafana. Le backend est un monde vaste — cette formation vous a donne les fondations solides pour l'explorer. Merci et bonne continuation !
 
 ## Points d'attention pour l'enregistrement
-- C'est le screencast le plus long — prevoir des pauses si necessaire
+- C'est le screencast le plus long — prevoir des pauses si nécessaire
 - Le flux complet (register -> login -> browse -> cart -> checkout) doit fonctionner du premier coup
 - Swagger doit etre impressionnant avec toutes les routes documentees
 - Terminer sur une note positive et encourageante — c'est la fin de la formation

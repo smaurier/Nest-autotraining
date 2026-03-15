@@ -1,8 +1,8 @@
 # Module 10 — NestJS — Controllers & Routing
 
-> **Objectif** : Maitriser les controllers NestJS en profondeur — decorateurs HTTP, decorateurs de parametres, DTOs, versioning d'API, sous-routes, et bonnes pratiques pour des controllers propres et maintenables.
+> **Objectif** : Maîtriser les controllers NestJS en profondeur — decorateurs HTTP, decorateurs de paramètres, DTOs, versioning d'API, sous-routes, et bonnes pratiques pour des controllers propres et maintenables.
 >
-> **Difficulte** : ⭐⭐ (intermediaire)
+> **Difficulte** : ⭐⭐ (intermédiaire)
 
 ---
 
@@ -10,9 +10,9 @@
 
 ### 1.1 Definition
 
-Un **controller** dans NestJS est une classe decoree avec `@Controller()` qui recoit les requetes HTTP entrantes et renvoie les reponses au client. Son role est d'**orchestrer** — pas de contenir la logique metier.
+Un **controller** dans NestJS est une classe decoree avec `@Controller()` qui recoit les requêtes HTTP entrantes et renvoie les réponses au client. Son role est d'**orchestrer** — pas de contenir la logique metier.
 
-> **Analogie** : Le controller est un aiguilleur du ciel. Il recoit les avions (requetes), verifie leur identite et destination, et les dirige vers la bonne piste (service). Il ne fait pas atterrir l'avion lui-meme — il coordonne.
+> **Analogie** : Le controller est un aiguilleur du ciel. Il recoit les avions (requêtes), vérifié leur identite et destination, et les dirige vers la bonne piste (service). Il ne fait pas atterrir l'avion lui-même — il coordonne.
 
 ```
   Requete HTTP
@@ -39,13 +39,13 @@ Un **controller** dans NestJS est une classe decoree avec `@Controller()` qui re
 
 | Le controller fait | Le controller ne fait PAS |
 |---|---|
-| Recevoir les requetes HTTP | Logique metier complexe |
-| Extraire les parametres (body, params, query) | Acces direct a la base de donnees |
+| Recevoir les requêtes HTTP | Logique metier complexe |
+| Extraire les paramètres (body, params, query) | Acces direct à la base de donnees |
 | Appeler le(s) service(s) | Calculs, transformations de donnees |
-| Renvoyer la reponse HTTP | Validation complexe (delegue aux Pipes) |
-| Definir le status code | Gestion d'erreurs globale (delegue aux Filters) |
+| Renvoyer la réponse HTTP | Validation complexe (délégué aux Pipes) |
+| Définir le status code | Gestion d'erreurs globale (délégué aux Filters) |
 
-> **Bonne pratique** : Un controller devrait etre "maigre" (thin controller). Si ton controller contient plus de 5-10 lignes par methode, tu as probablement de la logique metier qui devrait etre dans un service.
+> **Bonne pratique** : Un controller devrait etre "maigre" (thin controller). Si ton controller contient plus de 5-10 lignes par méthode, tu as probablement de la logique metier qui devrait etre dans un service.
 
 ---
 
@@ -86,9 +86,9 @@ app.setGlobalPrefix('api');
 
 ---
 
-## 3. Decorateurs de methodes HTTP
+## 3. Decorateurs de méthodes HTTP
 
-### 3.1 Les methodes standard
+### 3.1 Les méthodes standard
 
 ```typescript
 import {
@@ -143,7 +143,7 @@ export class BooksController {
 }
 ```
 
-### 3.2 Routes multiples sur une methode
+### 3.2 Routes multiples sur une méthode
 
 ```typescript
 // Une methode peut repondre a plusieurs routes
@@ -155,7 +155,7 @@ findAll() {
 
 ---
 
-## 4. Decorateurs de parametres
+## 4. Decorateurs de paramètres
 
 ### 4.1 Liste complete
 
@@ -306,7 +306,7 @@ enum UserRole {
 
 ### 5.1 Qu'est-ce qu'un DTO
 
-Un **DTO** est une classe qui definit la forme des donnees envoyees ou recues. C'est l'equivalent des schemas Zod du module 07, mais sous forme de classe TypeScript.
+Un **DTO** est une classe qui définit la forme des donnees envoyees ou recues. C'est l'équivalent des schemas Zod du module 07, mais sous forme de classe TypeScript.
 
 ```typescript
 // dto/create-user.dto.ts
@@ -326,7 +326,7 @@ import { CreateUserDto } from './create-user.dto';
 export class UpdateUserDto extends PartialType(CreateUserDto) {}
 ```
 
-> **Analogie** : Un DTO c'est comme un formulaire papier. Il definit quels champs existent, lesquels sont obligatoires, et quel type de donnees est attendu. Le formulaire n'est pas la donnee elle-meme — c'est un contrat qui dit "voila ce que j'attends de toi".
+> **Analogie** : Un DTO c'est comme un formulaire papier. Il définit quels champs existent, lesquels sont obligatoires, et quel type de donnees est attendu. Le formulaire n'est pas la donnee elle-même — c'est un contrat qui dit "voila ce que j'attends de toi".
 
 ### 5.2 Helpers de @nestjs/mapped-types
 
@@ -401,7 +401,7 @@ async function bootstrap() {
 
 ---
 
-## 6. Decorateurs de reponse
+## 6. Decorateurs de réponse
 
 ### 6.1 @HttpCode — Status code personnalise
 
@@ -433,7 +433,7 @@ export class BooksController {
 }
 ```
 
-### 6.2 @Header — Ajouter des headers de reponse
+### 6.2 @Header — Ajouter des headers de réponse
 
 ```typescript
 import { Header } from '@nestjs/common';
@@ -580,7 +580,7 @@ export class TenantController {
 
 ---
 
-## 8. Le cycle de vie d'une requete dans NestJS
+## 8. Le cycle de vie d'une requête dans NestJS
 
 ```
   Requete HTTP entrante
@@ -621,7 +621,7 @@ export class TenantController {
        Reponse HTTP
 ```
 
-> **A retenir** : Ce pipeline est le coeur de NestJS. Chaque couche a un role precis : les Guards decidident si la requete a le droit de passer, les Pipes valident et transforment les donnees, les Interceptors peuvent modifier la requete et la reponse, et les Exception Filters gerent les erreurs. Les controllers ne sont qu'un maillon de cette chaine.
+> **A retenir** : Ce pipeline est le coeur de NestJS. Chaque couche à un role précis : les Guards decidident si la requête a le droit de passer, les Pipes valident et transforment les donnees, les Interceptors peuvent modifier la requête et la réponse, et les Exception Filters gerent les erreurs. Les controllers ne sont qu'un maillon de cette chaine.
 
 ---
 
@@ -629,7 +629,7 @@ export class TenantController {
 
 | Pratique | Explication |
 |---|---|
-| **Controllers maigres** | Maximum 5-10 lignes par methode, deleguer au service |
+| **Controllers maigres** | Maximum 5-10 lignes par méthode, déléguer au service |
 | **Un controller par ressource** | `BooksController`, `UsersController` — pas de mega-controller |
 | **DTOs pour les entrees** | Toujours typer les `@Body()` avec un DTO |
 | **Pipes pour la validation** | Utiliser le `ValidationPipe` global |
@@ -668,11 +668,21 @@ Implemente deux versions d'un endpoint `/books` :
 
 | | Lien |
 |---|---|
-| Module precedent | [Module 09 — NestJS — Introduction & Premiers pas](./09-nestjs-introduction.md) |
+| Module précédent | [Module 09 — NestJS — Introduction & Premiers pas](./09-nestjs-introduction.md) |
 | Module suivant | [Module 11 — NestJS — Providers & Injection de Dependances](./11-nestjs-providers-di.md) |
 | Quiz | [Quiz Module 10](../quizzes/10-nestjs-controllers.quiz.md) |
 | Lab | [Lab 10 — Controllers NestJS](../labs/10-nestjs-controllers.lab.md) |
 
 ---
 
-> **A retenir** : Les controllers NestJS sont la porte d'entree de ton API. Avec les decorateurs de methodes HTTP, les decorateurs de parametres et les pipes de transformation, tu as un controle total sur le routing et l'extraction des donnees. Mais rappelle-toi : le controller orchestre, le service travaille. Garde tes controllers maigres et tes services riches en logique metier.
+> **A retenir** : Les controllers NestJS sont la porte d'entree de ton API. Avec les decorateurs de méthodes HTTP, les decorateurs de paramètres et les pipes de transformation, tu as un controle total sur le routing et l'extraction des donnees. Mais rappelle-toi : le controller orchestre, le service travaille. Garde tes controllers maigres et tes services riches en logique metier.
+
+---
+
+<!-- parcours-recommande -->
+
+::: tip Parcours recommandé
+1. **Screencast** : [screencast 10 controllers](../screencasts/screencast-10-controllers.md)
+2. **Lab** : [lab-10-controllers-dto](../labs/lab-10-controllers-dto/README)
+3. **Quiz** : [quiz 10 controllers](../quizzes/quiz-10-controllers.html)
+:::

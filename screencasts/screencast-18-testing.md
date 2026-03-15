@@ -4,26 +4,26 @@
 - **Duree estimee** : 18-22 min
 - **Module** : `modules/18-nestjs-testing.md`
 - **Lab associe** : `labs/lab-18-testing/`
-- **Prerequis** : Screencast 17 (Prisma Avance & Comparaison)
+- **Prérequis** : Screencast 17 (Prisma Avance & Comparaison)
 
 ## Setup
 - [ ] Node.js 20+ installe
 - [ ] Terminal ouvert dans `nest-course/`
 - [ ] Projet NestJS avec services et controllers fonctionnels
 - [ ] Editeur de code ouvert
-- [ ] Jest deja installe (fourni par NestJS)
+- [ ] Jest déjà installe (fourni par NestJS)
 
 ## Script
 
 ### [00:00-03:00] Introduction — Pourquoi tester ?
 
-> Salut ! Aujourd'hui, on va apprendre a tester une application NestJS. Les tests, c'est votre filet de securite. Ils vous permettent de modifier le code en toute confiance, de detecter les regressions, et de documenter le comportement attendu.
+> Salut ! Aujourd'hui, on va apprendre à tester une application NestJS. Les tests, c'est votre filet de sécurité. Ils vous permettent de modifier le code en toute confiance, de détecter les regressions, et de documenter le comportement attendu.
 
 **Action** : Afficher le slide de titre "Module 18 — Testing NestJS".
 
 > NestJS est livre avec Jest, un framework de test complet. On a deux types de tests : les tests unitaires (qui testent une classe isolee) et les tests end-to-end (qui testent l'API de bout en bout).
 
-**Action** : Verifier que les tests existants passent.
+**Action** : Vérifier que les tests existants passent.
 
 ```bash
 npm run test
@@ -31,9 +31,9 @@ npm run test
 
 ### [03:00-09:00] Tests unitaires — Tester un service avec des mocks
 
-> Un test unitaire isole une classe de ses dependances. On remplace les dependances reelles par des mocks.
+> Un test unitaire isole une classe de ses dépendances. On remplace les dépendances reelles par des mocks.
 
-**Action** : Ecrire un test unitaire pour le TasksService.
+**Action** : Écrire un test unitaire pour le TasksService.
 
 ```typescript
 // src/tasks/tasks.service.spec.ts
@@ -116,17 +116,17 @@ describe('TasksService', () => {
 });
 ```
 
-**Action** : Executer les tests unitaires.
+**Action** : Exécuter les tests unitaires.
 
 ```bash
 npm run test -- --watch tasks.service
 ```
 
-> Le `Test.createTestingModule` cree un module de test avec des providers mockes. On remplace PrismaService par un objet avec des `jest.fn()`. Chaque test verifie le comportement du service sans toucher a la base de donnees.
+> Le `Test.createTestingModule` créé un module de test avec des providers mockes. On remplace PrismaService par un objet avec des `jest.fn()`. Chaque test vérifié le comportement du service sans toucher à la base de donnees.
 
 ### [09:00-14:00] Tests unitaires — Tester un controller
 
-**Action** : Ecrire un test pour le controller.
+**Action** : Écrire un test pour le controller.
 
 ```typescript
 // src/tasks/tasks.controller.spec.ts
@@ -183,11 +183,11 @@ describe('TasksController', () => {
 });
 ```
 
-> Le test du controller mocke le service. On verifie que le controller appelle les bonnes methodes du service avec les bons arguments. C'est la separation des responsabilites en action.
+> Le test du controller mocke le service. On vérifié que le controller appelle les bonnes méthodes du service avec les bons arguments. C'est la separation des responsabilites en action.
 
 ### [14:00-19:00] Tests E2E — Tester l'API de bout en bout
 
-**Action** : Ecrire un test E2E avec supertest.
+**Action** : Écrire un test E2E avec supertest.
 
 ```typescript
 // test/tasks.e2e-spec.ts
@@ -248,13 +248,13 @@ describe('Tasks API (e2e)', () => {
 });
 ```
 
-**Action** : Executer les tests E2E.
+**Action** : Exécuter les tests E2E.
 
 ```bash
 npm run test:e2e
 ```
 
-> Les tests E2E utilisent supertest pour envoyer de vraies requetes HTTP a l'application. Ils testent tout le pipeline : routing, validation, service, base de donnees. C'est le test le plus realiste.
+> Les tests E2E utilisent supertest pour envoyer de vraies requêtes HTTP a l'application. Ils testent tout le pipeline : routing, validation, service, base de donnees. C'est le test le plus realiste.
 
 ### [19:00-21:00] Recap
 
@@ -262,10 +262,10 @@ npm run test:e2e
 
 **Action** : Afficher le slide recap.
 
-> Le lab est dans `labs/lab-18-testing/`. Vous allez ecrire des tests unitaires et E2E pour votre API. Visez au moins 80% de couverture. Au prochain screencast, l'authentification NestJS !
+> Le lab est dans `labs/lab-18-testing/`. Vous allez écrire des tests unitaires et E2E pour votre API. Visez au moins 80% de couverture. Au prochain screencast, l'authentification NestJS !
 
 ## Points d'attention pour l'enregistrement
 - Montrer les tests en mode watch pour un feedback instantane
-- Bien expliquer la difference entre mock, spy et stub
+- Bien expliquer la différence entre mock, spy et stub
 - Les tests E2E necessitent une base de test separee — le mentionner
 - Montrer le rapport de couverture avec `npm run test:cov`

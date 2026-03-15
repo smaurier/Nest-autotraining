@@ -2,15 +2,15 @@
 
 ## Objectifs
 
-- Comprendre l'ordre d'execution dans l'event loop de Node.js
-- Maitriser les APIs de concurrence : `Promise.all`, `Promise.race`, `Promise.allSettled`
+- Comprendre l'ordre d'exécution dans l'event loop de Node.js
+- Maîtriser les APIs de concurrence : `Promise.all`, `Promise.race`, `Promise.allSettled`
 - Implementer un pattern allSettled manuellement
-- Utiliser la classe `EventEmitter` pour creer un systeme d'evenements personnalise
+- Utiliser la classe `EventEmitter` pour créer un système d'événements personnalise
 
 ## Pre-requis
 
 - Node.js >= 18 installe
-- Aucune dependance externe (pure Node.js)
+- Aucune dépendance externe (pure Node.js)
 
 ## Instructions
 
@@ -23,11 +23,11 @@
 
 | # | Description |
 |---|-------------|
-| 1 | Implementer `predictOrder()` — predire l'ordre d'execution dans l'event loop |
-| 2 | Implementer `fetchAllParallel(tasks)` — executer des taches en parallele avec `Promise.all` |
-| 3 | Implementer `fetchFirstResolved(tasks)` — obtenir le premier resultat avec `Promise.race` |
+| 1 | Implementer `predictOrder()` — predire l'ordre d'exécution dans l'event loop |
+| 2 | Implementer `fetchAllParallel(tasks)` — exécuter des taches en parallele avec `Promise.all` |
+| 3 | Implementer `fetchFirstResolved(tasks)` — obtenir le premier résultat avec `Promise.race` |
 | 4 | Implementer `allSettledManual(promises)` — reproduire `Promise.allSettled` sans l'utiliser |
-| 5 | Creer la classe `TaskRunner` basee sur `EventEmitter` avec les evenements `start`, `progress`, `complete`, `error` |
+| 5 | Créer la classe `TaskRunner` basee sur `EventEmitter` avec les événements `start`, `progress`, `complete`, `error` |
 
 ## Rappels
 
@@ -41,7 +41,7 @@
 ### APIs de concurrence
 
 - `Promise.all(promises)` — attend que toutes les promesses soient resolues (echoue si une echoue)
-- `Promise.race(promises)` — retourne la premiere promesse resolue ou rejetee
+- `Promise.race(promises)` — retourne la première promesse resolue ou rejetee
 - `Promise.allSettled(promises)` — attend toutes les promesses et retourne leur statut
 
 ### EventEmitter

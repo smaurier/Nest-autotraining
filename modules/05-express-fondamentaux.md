@@ -1,8 +1,8 @@
 # Module 05 — Express — Fondamentaux
 
-> **Objectif** : Maitriser les bases d'Express.js — creation d'une application, routing, objets req et res, middleware de base, et construire un premier CRUD complet.
+> **Objectif** : Maîtriser les bases d'Express.js — création d'une application, routing, objets req et res, middleware de base, et construire un premier CRUD complet.
 >
-> **Difficulte** : ⭐⭐ (intermediaire)
+> **Difficulte** : ⭐⭐ (intermédiaire)
 
 ---
 
@@ -10,7 +10,7 @@
 
 ### 1.1 Le framework web minimaliste
 
-Express est un **framework web minimaliste** pour Node.js. Il ajoute une couche d'abstraction au-dessus du module `http` natif pour simplifier le developpement d'API et d'applications web.
+Express est un **framework web minimaliste** pour Node.js. Il ajoute une couche d'abstraction au-dessus du module `http` natif pour simplifier le développement d'API et d'applications web.
 
 > **Analogie** : Si le module `http` natif est une boite a outils avec des marteaux, des clous et des planches, Express c'est un kit de construction IKEA — les pieces sont pre-decoupees, le manuel est fourni, et tu assembles beaucoup plus vite. Tu peux toujours utiliser les outils bruts si tu veux, mais pour 99% des cas, le kit suffit.
 
@@ -22,7 +22,7 @@ Express est un **framework web minimaliste** pour Node.js. Il ajoute une couche 
 | Stars GitHub | ~65 000 |
 | Premiere release | 2010 |
 | Taille (installe) | ~200 Ko |
-| Dependances | Tres peu (~30) |
+| Dependances | Très peu (~30) |
 
 ### 1.3 Initialiser un projet Express
 
@@ -58,7 +58,7 @@ Ajouter les scripts dans `package.json` :
 }
 ```
 
-> **Express 5 (2024)** : Express 5.0 est sorti en octobre 2024. Les differences cles : gestion native des erreurs async (plus besoin de `express-async-errors`), `req.query` retourne un objet pur (`Object.create(null)`), `res.render()` est async, et les chemins regex utilisant des caracteres non-echappes levent une erreur. Pour un nouveau projet, privilegiez Express 5. NestJS 11 l'utilise par defaut.
+> **Express 5 (2024)** : Express 5.0 est sorti en octobre 2024. Les différences clés : gestion native des erreurs async (plus besoin de `express-async-errors`), `req.query` retourne un objet pur (`Object.create(null)`), `res.render()` est async, et les chemins regex utilisant des caracteres non-echappes levent une erreur. Pour un nouveau projet, privilegiez Express 5. NestJS 11 l'utilise par defaut.
 
 ---
 
@@ -113,7 +113,7 @@ const app = express();
 
 ## 3. Le Routing
 
-### 3.1 Les methodes HTTP
+### 3.1 Les méthodes HTTP
 
 ```typescript
 import express from 'express';
@@ -181,7 +181,7 @@ app.get('/api/docs/*', (req, res) => {
 });
 ```
 
-> **Bonne pratique** : Les parametres de route sont toujours des **strings**. Si tu attends un nombre (comme un ID), pense a le convertir : `const id = parseInt(req.params.id, 10)`. Ou mieux, valide-le avec une librairie comme Zod (voir module 07).
+> **Bonne pratique** : Les paramètres de route sont toujours des **strings**. Si tu attends un nombre (comme un ID), pense a le convertir : `const id = parseInt(req.params.id, 10)`. Ou mieux, valide-le avec une librairie comme Zod (voir module 07).
 
 ---
 
@@ -282,7 +282,7 @@ app.get('/api/demo', (req, res) => {
 });
 ```
 
-> **Piege classique** : Tu ne peux envoyer qu'UNE SEULE reponse par requete. Si tu appelles `res.json()` ou `res.send()` deux fois, Express leve une erreur `Error: Cannot set headers after they are sent`. Utilise `return` pour arreter la fonction apres avoir envoye la reponse.
+> **Piege classique** : Tu ne peux envoyer qu'UNE SEULE réponse par requête. Si tu appelles `res.json()` ou `res.send()` deux fois, Express leve une erreur `Error: Cannot set headers after they are sent`. Utilise `return` pour arreter la fonction après avoir envoye la réponse.
 
 ```typescript
 app.get('/api/users/:id', (req, res) => {
@@ -317,7 +317,7 @@ app.post('/api/users', (req, res) => {
 });
 ```
 
-> **Piege classique** : Si `req.body` est `undefined`, tu as probablement oublie `app.use(express.json())`. C'est l'erreur la plus frequente chez les debutants Express. Mets-le toujours au debut de ta configuration middleware.
+> **Piege classique** : Si `req.body` est `undefined`, tu as probablement oublie `app.use(express.json())`. C'est l'erreur la plus frequente chez les débutants Express. Mets-le toujours au debut de ta configuration middleware.
 
 ### 6.2 express.urlencoded() — Parser les formulaires HTML
 
@@ -351,9 +351,9 @@ app.use('/static', express.static(path.join(__dirname, 'public')));
 
 ---
 
-## 7. Nodemon pour le developpement
+## 7. Nodemon pour le développement
 
-**Nodemon** surveille les fichiers et redemarre automatiquement le serveur a chaque modification :
+**Nodemon** surveille les fichiers et redemarre automatiquement le serveur à chaque modification :
 
 ```bash
 npm install -D nodemon
@@ -380,7 +380,7 @@ Ou avec un fichier `nodemon.json` pour plus d'options :
 }
 ```
 
-> **Bonne pratique** : Utilise TOUJOURS nodemon (ou `--watch` de Node.js 18+) en developpement. Redemarrer manuellement le serveur a chaque modification est une perte de temps enorme. En production, utilise `node` directement (pas nodemon).
+> **Bonne pratique** : Utilise TOUJOURS nodemon (où `--watch` de Node.js 18+) en développement. Redemarrer manuellement le serveur à chaque modification est une perte de temps enorme. En production, utilise `node` directement (pas nodemon).
 
 ---
 
@@ -612,7 +612,7 @@ app.listen(PORT, () => {
 
 | Fonctionnalite | HTTP natif | Express |
 |---|---|---|
-| Creer un serveur | `http.createServer(handler)` | `const app = express()` |
+| Créer un serveur | `http.createServer(handler)` | `const app = express()` |
 | Routing GET | `if (method === 'GET' && url === '/path')` | `app.get('/path', handler)` |
 | Parametres de route | Regex manuelle | `req.params.id` |
 | Query params | `new URL(url).searchParams` | `req.query` |
@@ -623,7 +623,7 @@ app.listen(PORT, () => {
 | Middleware | Implementation manuelle | `app.use(fn)` |
 | Gestion d'erreurs | try/catch partout | Error middleware |
 
-> **A retenir** : Express ne fait rien de magique — il simplifie les patterns que tu as implementes manuellement au module 04. Connaitre le HTTP natif te permet de comprendre ce qu'Express fait "sous le capot" et de debugger quand quelque chose ne fonctionne pas.
+> **A retenir** : Express ne fait rien de magique — il simplifie les patterns que tu as implementes manuellement au module 04. Connaître le HTTP natif te permet de comprendre ce qu'Express fait "sous le capot" et de debugger quand quelque chose ne fonctionne pas.
 
 ---
 
@@ -631,7 +631,7 @@ app.listen(PORT, () => {
 
 ### Exercice 1 — API de contacts
 
-Cree une API CRUD pour gerer des contacts (nom, email, telephone, entreprise) avec :
+Cree une API CRUD pour gérer des contacts (nom, email, telephone, entreprise) avec :
 - Recherche par nom ou entreprise via query params
 - Pagination (`?page=1&limit=10`)
 - Tri (`?sort=nom&order=asc`)
@@ -644,7 +644,7 @@ Reprends l'API Todo du module 04 et convertis-la en Express. Compare le nombre d
 
 Cree une API avec des sous-ressources :
 - `GET /api/authors/:authorId/books` — Livres d'un auteur
-- `POST /api/authors/:authorId/books` — Ajouter un livre a un auteur
+- `POST /api/authors/:authorId/books` — Ajouter un livre à un auteur
 
 ---
 
@@ -652,11 +652,21 @@ Cree une API avec des sous-ressources :
 
 | | Lien |
 |---|---|
-| Module precedent | [Module 04 — Node.js — Serveur HTTP natif](./04-nodejs-serveur-http.md) |
+| Module précédent | [Module 04 — Node.js — Serveur HTTP natif](./04-nodejs-serveur-http.md) |
 | Module suivant | [Module 06 — Express — Middleware & Architecture](./06-express-middleware.md) |
 | Quiz | [Quiz Module 05](../quizzes/05-express-fondamentaux.quiz.md) |
 | Lab | [Lab 05 — Express CRUD](../labs/05-express-fondamentaux.lab.md) |
 
 ---
 
-> **A retenir** : Express est le framework web Node.js le plus utilise au monde. Il simplifie enormement le routing, la gestion des requetes/reponses et l'ajout de middleware. Maitriser les bases d'Express (app.get/post/..., req.params/query/body, res.json/status) est une competence indispensable pour tout developpeur backend Node.js. Le module suivant approfondira le concept central d'Express : les middleware.
+> **A retenir** : Express est le framework web Node.js le plus utilise au monde. Il simplifie enormement le routing, la gestion des requêtes/réponses et l'ajout de middleware. Maîtriser les bases d'Express (app.get/post/..., req.params/query/body, res.json/status) est une compétence indispensable pour tout développeur backend Node.js. Le module suivant approfondira le concept central d'Express : les middleware.
+
+---
+
+<!-- parcours-recommande -->
+
+::: tip Parcours recommandé
+1. **Screencast** : [screencast 05 express fondamentaux](../screencasts/screencast-05-express-fondamentaux.md)
+2. **Lab** : [lab-05-express-crud](../labs/lab-05-express-crud/README)
+3. **Quiz** : [quiz 05 express fondamentaux](../quizzes/quiz-05-express-fondamentaux.html)
+:::

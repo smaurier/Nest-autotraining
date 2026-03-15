@@ -2,16 +2,16 @@
 
 ## Objectifs
 
-- Creer un serveur HTTP avec le module `http` natif de Node.js
+- Créer un serveur HTTP avec le module `http` natif de Node.js
 - Implementer une API REST complete (CRUD) sans framework
-- Parser les corps de requete JSON manuellement
-- Gerer le routage, les codes de statut et les erreurs
+- Parser les corps de requête JSON manuellement
+- Gérer le routage, les codes de statut et les erreurs
 - Ajouter des headers CORS
 
 ## Pre-requis
 
 - Node.js >= 18 installe
-- Aucune dependance externe (pure Node.js)
+- Aucune dépendance externe (pure Node.js)
 
 ## Instructions
 
@@ -24,19 +24,19 @@
 
 | # | Description |
 |---|-------------|
-| 1 | Implementer `parseBody(req)` — parser le corps JSON d'une requete |
-| 2 | Implementer `sendJson(res, statusCode, data)` — envoyer une reponse JSON |
+| 1 | Implementer `parseBody(req)` — parser le corps JSON d'une requête |
+| 2 | Implementer `sendJson(res, statusCode, data)` — envoyer une réponse JSON |
 | 3 | Implementer `addCorsHeaders(res)` — ajouter les headers CORS |
 | 4 | Implementer `GET /users` — lister tous les utilisateurs |
-| 5 | Implementer `GET /users/:id` — recuperer un utilisateur par ID |
-| 6 | Implementer `POST /users` — creer un utilisateur |
+| 5 | Implementer `GET /users/:id` — récupérer un utilisateur par ID |
+| 6 | Implementer `POST /users` — créer un utilisateur |
 | 7 | Implementer `PUT /users/:id` — modifier un utilisateur |
 | 8 | Implementer `DELETE /users/:id` — supprimer un utilisateur |
-| 9 | Gerer les routes inconnues (404) et les erreurs JSON (400) |
+| 9 | Gérer les routes inconnues (404) et les erreurs JSON (400) |
 
-## API Reference
+## API Référence
 
-| Methode | Route | Description | Status |
+| Méthode | Route | Description | Status |
 |---------|-------|-------------|--------|
 | GET | /users | Liste tous les utilisateurs | 200 |
 | GET | /users/:id | Recupere un utilisateur | 200 / 404 |

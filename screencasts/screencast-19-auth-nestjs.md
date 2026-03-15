@@ -4,7 +4,7 @@
 - **Duree estimee** : 20-25 min
 - **Module** : `modules/19-nestjs-auth.md`
 - **Lab associe** : `labs/lab-19-auth-nestjs/`
-- **Prerequis** : Screencast 18 (Testing NestJS), Screencast 08 (Auth & Securite)
+- **Prérequis** : Screencast 18 (Testing NestJS), Screencast 08 (Auth & Sécurité)
 
 ## Setup
 - [ ] Node.js 20+ installe
@@ -21,9 +21,9 @@
 
 **Action** : Afficher le slide de titre "Module 19 — Auth NestJS".
 
-> Passport est la librairie d'authentification la plus utilisee dans l'ecosysteme Node.js. Elle supporte plus de 500 strategies : JWT, OAuth, Google, GitHub, etc. NestJS l'integre parfaitement via `@nestjs/passport`.
+> Passport est la librairie d'authentification la plus utilisee dans l'ecosysteme Node.js. Elle supporte plus de 500 stratégies : JWT, OAuth, Google, GitHub, etc. NestJS l'intégré parfaitement via `@nestjs/passport`.
 
-**Action** : Installer les dependances.
+**Action** : Installer les dépendances.
 
 ```bash
 npm install @nestjs/passport passport @nestjs/jwt passport-jwt passport-local bcryptjs
@@ -32,7 +32,7 @@ npm install -D @types/passport-jwt @types/passport-local @types/bcryptjs
 
 ### [03:00-08:00] Strategy Local — Login avec email/password
 
-**Action** : Creer le module auth.
+**Action** : Créer le module auth.
 
 ```bash
 nest g module auth
@@ -86,7 +86,7 @@ export class AuthService {
 }
 ```
 
-**Action** : Creer la strategy locale.
+**Action** : Créer la strategy locale.
 
 ```typescript
 // src/auth/strategies/local.strategy.ts
@@ -113,7 +113,7 @@ export class LocalStrategy extends PassportStrategy(Strategy) {
 
 ### [08:00-13:00] Strategy JWT — Proteger les routes
 
-**Action** : Creer la strategy JWT.
+**Action** : Créer la strategy JWT.
 
 ```typescript
 // src/auth/strategies/jwt.strategy.ts
@@ -164,7 +164,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 export class AuthModule {}
 ```
 
-**Action** : Creer les guards et le controller.
+**Action** : Créer les guards et le controller.
 
 ```typescript
 // src/auth/guards/local-auth.guard.ts
@@ -231,7 +231,7 @@ curl -H "Authorization: Bearer <TOKEN>" \
 
 > On va ajouter le controle d'acces base sur les roles.
 
-**Action** : Creer le decorateur et le guard de roles.
+**Action** : Créer le decorateur et le guard de roles.
 
 ```typescript
 // src/auth/decorators/roles.decorator.ts
@@ -300,7 +300,7 @@ export class TasksController {
 }
 ```
 
-> Le decorateur `@CurrentUser` extrait l'utilisateur du token JWT. `@Roles('admin')` restreint l'acces aux administrateurs. Le RolesGuard verifie le role et renvoie un 403 Forbidden si necessaire.
+> Le decorateur `@CurrentUser` extrait l'utilisateur du token JWT. `@Roles('admin')` restreint l'acces aux administrateurs. Le RolesGuard vérifié le role et renvoie un 403 Forbidden si nécessaire.
 
 ### [18:00-22:00] Decorateur Public et Guard global
 
@@ -337,11 +337,11 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
 }
 ```
 
-> Avec le guard global, toutes les routes sont protegees par defaut. On utilise `@Public()` pour marquer les routes publiques. C'est plus securise que l'inverse.
+> Avec le guard global, toutes les routes sont protegees par defaut. On utilise `@Public()` pour marquer les routes publiques. C'est plus sécurisé que l'inverse.
 
 ### [22:00-24:00] Recap
 
-> On a implemente un systeme d'auth complet : Passport avec strategies Local et JWT, guards pour proteger les routes, RBAC pour le controle d'acces, decorateur @CurrentUser pour acceder a l'utilisateur courant, et guard global avec exemption @Public.
+> On a implemente un système d'auth complet : Passport avec stratégies Local et JWT, guards pour proteger les routes, RBAC pour le controle d'acces, decorateur @CurrentUser pour acceder a l'utilisateur courant, et guard global avec exemption @Public.
 
 **Action** : Afficher le slide recap.
 
@@ -349,6 +349,6 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
 
 ## Points d'attention pour l'enregistrement
 - Bien montrer le flux complet : register -> login -> profil avec token
-- Copier-coller le token depuis la reponse login, ne pas le taper a la main
+- Copier-coller le token depuis la réponse login, ne pas le taper à la main
 - Tester le cas 403 Forbidden avec un utilisateur non-admin
 - Le JWT_SECRET doit venir d'une variable d'environnement, le rappeler
