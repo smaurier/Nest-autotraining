@@ -6,6 +6,8 @@
 
 ---
 
+> **⚠️ Changement de paradigme.** Tu passes d'Express (fonctions, middleware) a NestJS (classes, decorateurs, injection de dependances). C'est un saut conceptuel normal — tout le monde galere ici. Le systeme de DI est similaire a Angular. Si tu viens d'Express et que la syntaxe te parait etrange, c'est exactement ca qu'il faut apprendre. Prends le temps.
+
 ## 1. Pourquoi NestJS
 
 ### 1.1 Le probleme qu'il resout

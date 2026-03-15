@@ -1954,7 +1954,420 @@ function sanitizeQuery(input: any): any {
 
 ---
 
-## 13. Recapitulatif
+## 13. Operations en masse (Bulk)
+
+### 13.1 Pourquoi les operations en masse ?
+
+Quand tu dois inserer, mettre a jour ou supprimer des milliers de documents, envoyer une requete par document est extremement lent. Les operations en masse regroupent plusieurs operations dans un seul aller-retour vers MongoDB.
+
+```
+  Approche naive (N requetes)          Approche bulk (1 requete)
+  ┌───┐  ┌───┐  ┌───┐                ┌─────────────────────────┐
+  │ 1 │→ │ 2 │→ │...│→ N requetes    │  bulkWrite([op1, op2,   │
+  └───┘  └───┘  └───┘                │   ..., opN])            │
+  N allers-retours reseau             └─────────────────────────┘
+  ~500ms pour 1000 docs               1 aller-retour reseau
+                                       ~20ms pour 1000 docs
+```
+
+### 13.2 insertMany() — Insertion par lots
+
+```typescript
+// Inserer plusieurs documents en une seule operation
+async importProducts(products: CreateProductDto[]): Promise<Product[]> {
+  // ordered: false → continue meme si un document echoue
+  return this.productModel.insertMany(products, { ordered: false });
+}
+```
+
+> **`ordered: false`** : Par defaut, `insertMany()` s'arrete a la premiere erreur. Avec `ordered: false`, MongoDB continue l'insertion des documents restants et collecte toutes les erreurs a la fin. Indispensable pour les imports de donnees ou certains doublons sont attendus.
+
+### 13.3 bulkWrite() — Operations mixtes
+
+`bulkWrite()` permet de combiner des insertions, mises a jour et suppressions dans un seul appel :
+
+```typescript
+async importProducts(products: CreateProductDto[]): Promise<BulkWriteResult> {
+  const operations = products.map(p => ({
+    insertOne: { document: p },
+  }));
+  return this.productModel.bulkWrite(operations, { ordered: false });
+}
+```
+
+```typescript
+// Exemple avance : mix d'operations differentes
+async syncCatalog(changes: CatalogChange[]): Promise<BulkWriteResult> {
+  const operations = changes.map(change => {
+    switch (change.type) {
+      case 'create':
+        return { insertOne: { document: change.data } };
+      case 'update':
+        return {
+          updateOne: {
+            filter: { _id: change.id },
+            update: { $set: change.data },
+          },
+        };
+      case 'delete':
+        return { deleteOne: { filter: { _id: change.id } } };
+    }
+  });
+
+  return this.productModel.bulkWrite(operations, { ordered: false });
+}
+```
+
+### 13.4 Taille de batch optimale
+
+Pour de tres gros volumes (100k+ documents), decoupe en batches pour eviter de saturer la memoire :
+
+```typescript
+async bulkImport(products: CreateProductDto[]): Promise<number> {
+  const BATCH_SIZE = 2000; // 1000-5000 docs par batch est optimal
+  let totalInserted = 0;
+
+  for (let i = 0; i < products.length; i += BATCH_SIZE) {
+    const batch = products.slice(i, i + BATCH_SIZE);
+    const result = await this.productModel.insertMany(batch, {
+      ordered: false,
+    });
+    totalInserted += result.length;
+  }
+
+  return totalInserted;
+}
+```
+
+### 13.5 Gestion des erreurs partielles
+
+Avec `ordered: false`, certains documents peuvent echouer alors que d'autres reussissent. Il faut gerer ces erreurs partielles :
+
+```typescript
+import { MongoServerError } from 'mongodb';
+
+async safeImport(products: CreateProductDto[]): Promise<{
+  inserted: number;
+  errors: string[];
+}> {
+  try {
+    const result = await this.productModel.insertMany(products, {
+      ordered: false,
+    });
+    return { inserted: result.length, errors: [] };
+  } catch (error) {
+    if (error instanceof MongoServerError && error.code === 11000) {
+      // BulkWriteError : certains documents ont ete inseres
+      const insertedCount = (error as any).result?.insertedCount ?? 0;
+      const writeErrors = (error as any).writeErrors ?? [];
+      const errorMessages = writeErrors.map(
+        (e: any) => `Index ${e.index}: ${e.errmsg}`,
+      );
+      return { inserted: insertedCount, errors: errorMessages };
+    }
+    throw error;
+  }
+}
+```
+
+> **Conseil performance** : Pour les imports massifs, desactive temporairement les index non essentiels, importe les donnees, puis recree les index. C'est beaucoup plus rapide que d'indexer a chaque insertion.
+
+---
+
+## 14. Change Streams : temps reel
+
+### 14.1 Qu'est-ce qu'un Change Stream ?
+
+Les Change Streams permettent d'ecouter en temps reel les modifications d'une collection MongoDB. Chaque insertion, mise a jour ou suppression declenche un evenement. C'est l'equivalent d'un trigger SQL, mais cote application.
+
+```
+  ┌──────────────────┐     change event      ┌──────────────────┐
+  │   Client HTTP     │ ──── POST /products ──→│   NestJS API      │
+  └──────────────────┘                        │                   │
+                                               │  productModel     │
+                                               │    .create(dto)   │
+                                               └────────┬──────────┘
+                                                        │ insert
+                                                        ▼
+                                               ┌──────────────────┐
+                                               │    MongoDB        │
+                                               │  (replica set)    │
+                                               └────────┬──────────┘
+                                                        │ change event
+                                                        ▼
+                                               ┌──────────────────┐
+                                               │  Change Stream    │
+                                               │  Watcher          │──→ WebSocket
+                                               └──────────────────┘     → Dashboard
+```
+
+> **Prerequis** : Les Change Streams necessitent un **replica set** (meme en developpement avec un seul noeud) :
+> ```bash
+> docker run -d -p 27017:27017 --name mongodb mongo:7 --replSet rs0
+> docker exec mongodb mongosh --eval "rs.initiate()"
+> ```
+
+### 14.2 Integration NestJS avec WebSocket Gateway
+
+```typescript
+import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model, ChangeStream } from 'mongoose';
+import { Product, ProductDocument } from './schemas/product.schema';
+import { ProductGateway } from './product.gateway';
+
+@Injectable()
+export class ProductWatcher implements OnModuleInit, OnModuleDestroy {
+  private changeStream: ChangeStream;
+
+  constructor(
+    @InjectModel(Product.name)
+    private readonly productModel: Model<ProductDocument>,
+    private readonly gateway: ProductGateway,
+  ) {}
+
+  onModuleInit() {
+    this.changeStream = this.productModel.watch();
+
+    this.changeStream.on('change', (change) => {
+      switch (change.operationType) {
+        case 'insert':
+          this.gateway.server.emit('product:created', change.fullDocument);
+          break;
+        case 'update':
+          this.gateway.server.emit('product:updated', {
+            id: change.documentKey._id,
+            changes: change.updateDescription?.updatedFields,
+          });
+          break;
+        case 'delete':
+          this.gateway.server.emit('product:deleted', {
+            id: change.documentKey._id,
+          });
+          break;
+      }
+    });
+  }
+
+  onModuleDestroy() {
+    if (this.changeStream) {
+      this.changeStream.close();
+    }
+  }
+}
+```
+
+### 14.3 Filtrage des evenements
+
+Tu peux filtrer les evenements pour ne recevoir que ceux qui t'interessent :
+
+```typescript
+// Ecouter uniquement les insertions et mises a jour de prix
+const pipeline = [
+  {
+    $match: {
+      $or: [
+        { operationType: 'insert' },
+        { 'updateDescription.updatedFields.price': { $exists: true } },
+      ],
+    },
+  },
+];
+
+this.changeStream = this.productModel.watch(pipeline);
+```
+
+### 14.4 Resumabilite — Reprendre apres une deconnexion
+
+Chaque evenement contient un `resumeToken`. En cas de deconnexion, tu peux reprendre la ou tu t'etais arrete :
+
+```typescript
+private lastResumeToken: any;
+
+onModuleInit() {
+  const options = this.lastResumeToken
+    ? { resumeAfter: this.lastResumeToken }
+    : {};
+
+  this.changeStream = this.productModel.watch([], options);
+
+  this.changeStream.on('change', (change) => {
+    this.lastResumeToken = change._id; // Sauvegarder le token
+    this.gateway.server.emit('product:change', change);
+  });
+
+  this.changeStream.on('error', () => {
+    // Reconnecter automatiquement apres un delai
+    setTimeout(() => this.onModuleInit(), 5000);
+  });
+}
+```
+
+> **Cas d'usage** : dashboard d'inventaire en temps reel, notifications de changement de prix, synchronisation inter-services dans une architecture microservices.
+
+---
+
+## 15. Tester avec MongoMemoryServer
+
+### 15.1 Pourquoi mongodb-memory-server ?
+
+`mongodb-memory-server` lance une instance MongoDB en memoire, sans Docker ni installation. Chaque suite de tests obtient sa propre base, completement isolee. C'est la reference pour les tests unitaires et d'integration avec Mongoose.
+
+```bash
+pnpm add -D mongodb-memory-server
+```
+
+### 15.2 Configuration du module de test NestJS
+
+```typescript
+import { MongoMemoryServer } from 'mongodb-memory-server';
+import { MongooseModule } from '@nestjs/mongoose';
+import { Test, TestingModule } from '@nestjs/testing';
+import { ProductsService } from './products.service';
+import { Product, ProductSchema } from './schemas/product.schema';
+
+describe('ProductsService', () => {
+  let mongod: MongoMemoryServer;
+  let module: TestingModule;
+  let service: ProductsService;
+
+  beforeAll(async () => {
+    mongod = await MongoMemoryServer.create();
+    const uri = mongod.getUri();
+
+    module = await Test.createTestingModule({
+      imports: [
+        MongooseModule.forRoot(uri),
+        MongooseModule.forFeature([
+          { name: Product.name, schema: ProductSchema },
+        ]),
+      ],
+      providers: [ProductsService],
+    }).compile();
+
+    service = module.get<ProductsService>(ProductsService);
+  });
+
+  afterAll(async () => {
+    await module.close();
+    await mongod.stop();
+  });
+});
+```
+
+### 15.3 Nettoyage entre les tests
+
+Chaque test doit partir d'un etat propre pour eviter les effets de bord :
+
+```typescript
+import { Model } from 'mongoose';
+import { getModelToken } from '@nestjs/mongoose';
+
+let productModel: Model<Product>;
+
+beforeAll(async () => {
+  // ... setup ci-dessus
+  productModel = module.get<Model<Product>>(getModelToken(Product.name));
+});
+
+afterEach(async () => {
+  // Nettoyer toutes les donnees entre chaque test
+  await productModel.deleteMany({});
+});
+```
+
+### 15.4 Factories de donnees de test
+
+Cree des factories pour generer des donnees de test coherentes et reutilisables :
+
+```typescript
+// test/factories/product.factory.ts
+import { CreateProductDto } from '../../src/products/dto/create-product.dto';
+
+let counter = 0;
+
+export function buildProduct(
+  overrides: Partial<CreateProductDto> = {},
+): CreateProductDto {
+  counter++;
+  return {
+    name: `Product ${counter}`,
+    price: 29.99,
+    stock: 100,
+    tags: ['test'],
+    ...overrides,
+  };
+}
+
+// Utilisation dans un test :
+it('should create a product', async () => {
+  const dto = buildProduct({ name: 'MacBook Pro', price: 2499 });
+  const product = await service.create(dto);
+  expect(product.name).toBe('MacBook Pro');
+  expect(product.price).toBe(2499);
+});
+
+it('should find products by price range', async () => {
+  await productModel.create([
+    buildProduct({ price: 10 }),
+    buildProduct({ price: 50 }),
+    buildProduct({ price: 200 }),
+  ]);
+
+  const results = await service.findByPriceRange(20, 100);
+  expect(results).toHaveLength(1);
+  expect(results[0].price).toBe(50);
+});
+```
+
+### 15.5 Configuration Vitest pour MongoDB
+
+```typescript
+// vitest.config.ts
+import { defineConfig } from 'vitest/config';
+import swc from 'unplugin-swc';
+
+export default defineConfig({
+  test: {
+    globals: true,
+    root: './',
+    // Timeout plus long pour le demarrage de MongoMemoryServer
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
+    // Execution sequentielle pour eviter les conflits de port
+    pool: 'forks',
+    poolOptions: {
+      forks: { singleFork: true },
+    },
+  },
+  plugins: [swc.vite()],
+});
+```
+
+### 15.6 Tester les aggregations
+
+```typescript
+it('should compute stats by category', async () => {
+  const catId = new Types.ObjectId();
+  await productModel.create([
+    buildProduct({ category: catId, price: 100, stock: 10 }),
+    buildProduct({ category: catId, price: 200, stock: 5 }),
+  ]);
+
+  const stats = await service.getStatsByCategory();
+
+  expect(stats).toHaveLength(1);
+  expect(stats[0].totalProducts).toBe(2);
+  expect(stats[0].averagePrice).toBe(150);
+  expect(stats[0].totalStock).toBe(15);
+});
+```
+
+> **Bonne pratique** : Les tests avec `MongoMemoryServer` sont plus lents que des tests unitaires purs (~100-500ms par test). Reserve-les aux couches service et repository. Pour les controllers, prefere des mocks classiques du service.
+
+---
+
+## 16. Recapitulatif
 
 ### Ce que tu as appris
 
@@ -1975,6 +2388,9 @@ function sanitizeQuery(input: any): any {
   │ 10. Decision : quand choisir MongoDB vs PostgreSQL          │
   │ 11. Migration : depuis TypeORM/Prisma vers Mongoose         │
   │ 12. Bonnes pratiques : patterns, erreurs, securite          │
+  │ 13. Bulk : insertMany, bulkWrite, batches, erreurs partielles│
+  │ 14. Change Streams : temps reel, WebSocket, resumabilite    │
+  │ 15. Tests : MongoMemoryServer, factories, Vitest            │
   │                                                             │
   └─────────────────────────────────────────────────────────────┘
 ```

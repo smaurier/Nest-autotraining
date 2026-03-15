@@ -60,6 +60,9 @@ import { TypeOrmModule } from '@nestjs/typeorm';
       password: 'postgres',
       database: 'nest_course',
       entities: [__dirname + '/**/*.entity{.ts,.js}'],
+      // ⚠️ Sur Windows, ce glob peut ne pas fonctionner correctement.
+      // Alternative recommandee (compatible Windows) :
+      // entities: [User, Article, Comment, Tag],
       synchronize: true, // ATTENTION : uniquement en developpement !
     }),
   ],
@@ -497,6 +500,9 @@ export class Article {
 ```
 
 > **Piege classique** : La relation `@OneToMany` ne cree pas de colonne en base de donnees. C'est toujours le cote `@ManyToOne` qui possede la cle etrangere. Si vous n'avez qu'un `@OneToMany` sans son `@ManyToOne` correspondant, TypeORM ne creera aucune cle etrangere.
+
+> ⚠️ **Piege N+1** : charger `user.articles` pour chaque user dans une boucle genere N+1 requetes.
+> Solution : utiliser `relations: ['articles']` dans `find()`, ou le QueryBuilder avec `leftJoinAndSelect()` (module 15).
 
 #### Le comportement onDelete
 
