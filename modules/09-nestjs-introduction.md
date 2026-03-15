@@ -51,7 +51,7 @@ NestJS est fortement inspire d'**Angular** :
 | Stars GitHub | ~68 000 |
 | Premiere release | 2017 |
 | Createur | Kamil Mysliwiec |
-| Runtime sous-jacent | Express (par defaut) ou Fastify |
+| Runtime sous-jacent | Express 5 (par defaut depuis NestJS 11) ou Fastify |
 | Langage | TypeScript (JavaScript possible mais deconseille) |
 
 ---
@@ -66,7 +66,7 @@ npm install -g @nestjs/cli
 
 # Verifier l'installation
 nest --version
-# 10.x.x
+# 11.x.x
 
 # Voir toutes les commandes disponibles
 nest --help
@@ -561,7 +561,7 @@ export class BooksController {
 | **Auth** | Middleware maison | Guards integre |
 | **Logging** | morgan | Interceptors + Logger integre |
 | **TypeScript** | Optionnel, configuration manuelle | Natif, pre-configure |
-| **Tests** | Jest a configurer | Jest pre-configure avec DI mocking |
+| **Tests** | Jest a configurer | Jest ou Vitest pre-configure avec DI mocking |
 | **Documentation** | Swagger a configurer | @nestjs/swagger integre |
 
 ---
@@ -690,5 +690,7 @@ Chaque resource dans son propre module avec son service et son controller.
 | Lab | [Lab 09 — Premier projet NestJS](../labs/09-nestjs-introduction.lab.md) |
 
 ---
+
+> **NestJS 11 (janvier 2025)** : NestJS 11 apporte Express 5 comme runtime par defaut, un logger repense, le support natif de Vitest, et des ameliorations de performance. La migration depuis NestJS 10 est fluide : `npm i @nestjs/core@11 @nestjs/common@11 @nestjs/platform-express@11`.
 
 > **A retenir** : NestJS n'est pas "mieux" qu'Express — c'est Express + structure + TypeScript + DI. Il resout les problemes d'organisation que tu rencontres des que ton API Express depasse quelques fichiers. Le trio Module → Controller → Service est le pattern fondamental que tu retrouveras dans chaque module de cette section du cours.

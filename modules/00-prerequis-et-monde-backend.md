@@ -332,7 +332,7 @@ Node.js est un **runtime JavaScript** qui permet d'executer du JavaScript en deh
 **Installation (Windows)** :
 
 1. Va sur https://nodejs.org
-2. Telecharge la version **LTS** (Long Term Support) — actuellement Node.js 20 ou 22
+2. Telecharge la version **LTS** (Long Term Support) — actuellement Node.js 22 LTS (recommande) ou 24
 3. Execute l'installateur, coche toutes les options par defaut
 4. Verifie l'installation :
 

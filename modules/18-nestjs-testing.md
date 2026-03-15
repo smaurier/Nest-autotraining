@@ -7,6 +7,8 @@
 
 ---
 
+> **Note NestJS 11+** : NestJS supporte officiellement Vitest en plus de Jest. Pour utiliser Vitest : `npm i -D vitest unplugin-swc @swc/core` et configurez `vitest.config.ts`. Le cours 04-testing couvre Vitest en detail.
+
 ## 1. Introduction au testing dans NestJS
 
 ### 1.1 Pourquoi tester ?

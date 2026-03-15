@@ -58,6 +58,8 @@ Ajouter les scripts dans `package.json` :
 }
 ```
 
+> **Express 5 (2024)** : Express 5.0 est sorti en octobre 2024. Les differences cles : gestion native des erreurs async (plus besoin de `express-async-errors`), `req.query` retourne un objet pur (`Object.create(null)`), `res.render()` est async, et les chemins regex utilisant des caracteres non-echappes levent une erreur. Pour un nouveau projet, privilegiez Express 5. NestJS 11 l'utilise par defaut.
+
 ---
 
 ## 2. Premier serveur Express

@@ -578,7 +578,9 @@ router.post('/', asyncHandler(async (req, res) => {
 // l'erreur est automatiquement passee a next() → error handler
 ```
 
-> **Bonne pratique** : Utilise `asyncHandler` (ou la librairie `express-async-errors`) pour TOUS tes handlers async. C'est un petit utilitaire qui elimine des dizaines de blocs try/catch et empeche les erreurs silencieuses. Express 5 (en beta) integrera ce comportement nativement.
+> **Bonne pratique** : Utilise `asyncHandler` (ou la librairie `express-async-errors`) pour TOUS tes handlers async. C'est un petit utilitaire qui elimine des dizaines de blocs try/catch et empeche les erreurs silencieuses. Express 5 (sorti en octobre 2024) integre ce comportement nativement.
+>
+> **Note Express 5** : Express 5 gere nativement les erreurs dans les handlers async — plus besoin de `express-async-errors` ni de `asyncHandler`. Si vous demarrez un nouveau projet, privilegiez Express 5.
 
 ---
 

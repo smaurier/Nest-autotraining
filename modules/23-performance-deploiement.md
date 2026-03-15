@@ -549,6 +549,8 @@ Reponse JSON :
 
 ---
 
+> **SWC (alternative rapide)** : NestJS supporte SWC comme compilateur alternatif a tsc. `nest start --builder swc` compile 5-10x plus vite, ideal pour le dev. Ajoutez `"builder": "swc"` dans `nest-cli.json` pour l'activer par defaut.
+
 ## 7. Docker — Conteneurisation
 
 ### 7.1 Dockerfile multi-stage
