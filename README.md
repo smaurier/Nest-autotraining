@@ -126,3 +126,13 @@ A la fin de ce cursus, tu es capable de :
 ## Niveau
 
 **Débutant -> Expert.** Ce cours part des bases de Node.js et progresse jusqu'à la construction et le déploiement d'une API NestJS enterprise-grade complete.
+
+
+## Lancer le cours
+
+```bash
+npm install          # une seule fois
+npm run docs:dev     # ouvre http://localhost:5173
+```
+
+Le site s'ouvre avec une sidebar navigable. Commence par le premier module (00).
