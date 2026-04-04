@@ -96,6 +96,18 @@ class ValidationError extends AppError {
   }
 }
 
+let jsonParseAttempts = 0;
+
+function safeJsonParse<T>(raw: string): T {
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    throw new ValidationError('Invalid JSON payload');
+  } finally {
+    jsonParseAttempts++;
+  }
+}
+
 // =============================================================================
 // SOLUTION 5 : asyncHandler(fn)
 // =============================================================================
@@ -175,6 +187,29 @@ const { baseUrl, close } = await startServer(app);
 
 try {
   resetDb();
+
+  await test('safeJsonParse parse un JSON valide', () => {
+    jsonParseAttempts = 0;
+    const parsed = safeJsonParse<{ ok: boolean; count: number }>('{"ok":true,"count":2}');
+    assertEqual(parsed.ok, true, 'ok parse');
+    assertEqual(parsed.count, 2, 'count parse');
+    assertEqual(jsonParseAttempts, 1, 'finally execute meme en succes');
+  });
+
+  await test('safeJsonParse transforme une erreur JSON en ValidationError', () => {
+    jsonParseAttempts = 0;
+
+    let error: unknown;
+    try {
+      safeJsonParse('{invalid json');
+    } catch (err) {
+      error = err;
+    }
+
+    assert(error instanceof ValidationError, 'ValidationError attendue');
+    assertIncludes((error as Error).message, 'Invalid JSON payload', 'Message correct');
+    assertEqual(jsonParseAttempts, 1, 'finally execute meme en echec');
+  });
 
   // -- Test 1 : GET /users -------------------------------------------------
   await test('GET /users retourne la liste', async () => {

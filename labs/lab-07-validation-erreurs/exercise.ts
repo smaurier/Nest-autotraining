@@ -115,6 +115,21 @@ class ValidationError extends AppError {
 }
 
 // =============================================================================
+// TODO 4 bis : Rappel JS — JSON.parse avec try/catch/finally
+// =============================================================================
+// safeJsonParse<T>(raw) doit :
+// - dans le try : parser raw avec JSON.parse et retourner T
+// - dans le catch : lancer ValidationError('Invalid JSON payload')
+// - dans le finally : incrementer jsonParseAttempts
+
+let jsonParseAttempts = 0;
+
+function safeJsonParse<T>(raw: string): T {
+  // TODO: Implementer avec try/catch/finally
+  throw new Error('TODO: implementer safeJsonParse()');
+}
+
+// =============================================================================
 // TODO 5 : Creer asyncHandler(fn)
 // =============================================================================
 // Wrapper pour les handlers async d'Express.
@@ -172,6 +187,29 @@ const { baseUrl, close } = await startServer(app);
 
 try {
   resetDb();
+
+  await test('safeJsonParse parse un JSON valide', () => {
+    jsonParseAttempts = 0;
+    const parsed = safeJsonParse<{ ok: boolean; count: number }>('{"ok":true,"count":2}');
+    assertEqual(parsed.ok, true, 'ok parse');
+    assertEqual(parsed.count, 2, 'count parse');
+    assertEqual(jsonParseAttempts, 1, 'finally execute meme en succes');
+  });
+
+  await test('safeJsonParse transforme une erreur JSON en ValidationError', () => {
+    jsonParseAttempts = 0;
+
+    let error: unknown;
+    try {
+      safeJsonParse('{invalid json');
+    } catch (err) {
+      error = err;
+    }
+
+    assert(error instanceof ValidationError, 'ValidationError attendue');
+    assertIncludes((error as Error).message, 'Invalid JSON payload', 'Message correct');
+    assertEqual(jsonParseAttempts, 1, 'finally execute meme en echec');
+  });
 
   // -- Test 1 : GET /users -------------------------------------------------
   await test('GET /users retourne la liste', async () => {
