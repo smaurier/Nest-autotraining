@@ -112,6 +112,8 @@ class ValidationError extends AppError {
 
 let jsonParseAttempts = 0;
 
+// JS-REPETITION: json,try_catch_finally
+
 function safeJsonParse<T>(raw: string): T {
   try {
     return JSON.parse(raw) as T;

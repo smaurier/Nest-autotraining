@@ -131,6 +131,8 @@ class ValidationError extends AppError {
 // =============================================================================
 // TODO 4 bis : Rappel JS — JSON.parse avec try/catch/finally
 // =============================================================================
+
+// JS-REPETITION: json,try_catch_finally
 // safeJsonParse<T>(raw) doit :
 // - dans le try : parser raw avec JSON.parse et retourner T
 // - dans le catch : lancer ValidationError('Invalid JSON payload')
