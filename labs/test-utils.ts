@@ -2,8 +2,8 @@
 // test-utils.ts — Utilitaires partages pour les labs Node.js/Express (labs 01-08)
 // =============================================================================
 
-import http, { type IncomingMessage, type ServerResponse } from 'node:http';
-import type { AddressInfo } from 'node:net';
+import http, { type IncomingMessage, type ServerResponse } from "node:http";
+import type { AddressInfo } from "node:net";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -18,8 +18,16 @@ interface TestRunner {
   test: (name: string, fn: () => Promise<void>) => Promise<void>;
   assert: (condition: unknown, message?: string) => void;
   assertEqual: (actual: unknown, expected: unknown, message?: string) => void;
-  assertIncludes: (str: string | unknown[], substr: unknown, message?: string) => void;
-  assertGreaterThan: (actual: number, expected: number, message?: string) => void;
+  assertIncludes: (
+    str: string | unknown[],
+    substr: unknown,
+    message?: string,
+  ) => void;
+  assertGreaterThan: (
+    actual: number,
+    expected: number,
+    message?: string,
+  ) => void;
   assertLessThan: (actual: number, expected: number, message?: string) => void;
   summary: () => { passed: number; failed: number; total: number };
 }
@@ -61,31 +69,52 @@ export function createTestRunner(labName: string): TestRunner {
   }
 
   function assert(condition: unknown, message?: string): void {
-    if (!condition) throw new Error(message || 'Assertion failed');
+    if (!condition) throw new Error(message || "Assertion failed");
   }
 
-  function assertEqual(actual: unknown, expected: unknown, message?: string): void {
+  function assertEqual(
+    actual: unknown,
+    expected: unknown,
+    message?: string,
+  ): void {
     if (actual !== expected) {
-      throw new Error(message || `Expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
+      throw new Error(
+        message ||
+          `Expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`,
+      );
     }
   }
 
-  function assertIncludes(str: string | unknown[], substr: unknown, message?: string): void {
-    if (typeof str === 'string' && !str.includes(substr as string)) {
+  function assertIncludes(
+    str: string | unknown[],
+    substr: unknown,
+    message?: string,
+  ): void {
+    if (typeof str === "string" && !str.includes(substr as string)) {
       throw new Error(message || `Expected string to include "${substr}"`);
     }
     if (Array.isArray(str) && !str.includes(substr)) {
-      throw new Error(message || `Expected array to include ${JSON.stringify(substr)}`);
+      throw new Error(
+        message || `Expected array to include ${JSON.stringify(substr)}`,
+      );
     }
   }
 
-  function assertGreaterThan(actual: number, expected: number, message?: string): void {
+  function assertGreaterThan(
+    actual: number,
+    expected: number,
+    message?: string,
+  ): void {
     if (!(actual > expected)) {
       throw new Error(message || `Expected ${actual} > ${expected}`);
     }
   }
 
-  function assertLessThan(actual: number, expected: number, message?: string): void {
+  function assertLessThan(
+    actual: number,
+    expected: number,
+    message?: string,
+  ): void {
     if (!(actual < expected)) {
       throw new Error(message || `Expected ${actual} < ${expected}`);
     }
@@ -93,8 +122,10 @@ export function createTestRunner(labName: string): TestRunner {
 
   function summary(): { passed: number; failed: number; total: number } {
     const total = passed + failed;
-    console.log(`\n${'─'.repeat(50)}`);
-    console.log(`\uD83D\uDCCA ${labName} — R\u00e9sultats : ${passed}/${total} tests r\u00e9ussis`);
+    console.log(`\n${"─".repeat(50)}`);
+    console.log(
+      `\uD83D\uDCCA ${labName} — R\u00e9sultats : ${passed}/${total} tests r\u00e9ussis`,
+    );
     if (failed > 0) {
       console.log(`\n\u274C ${failed} test(s) \u00e9chou\u00e9(s) :`);
       errors.forEach(({ name, error }) => {
@@ -103,11 +134,19 @@ export function createTestRunner(labName: string): TestRunner {
     } else {
       console.log(`\n\uD83C\uDF89 Tous les tests passent !`);
     }
-    console.log(`${'─'.repeat(50)}\n`);
+    console.log(`${"─".repeat(50)}\n`);
     return { passed, failed, total };
   }
 
-  return { test, assert, assertEqual, assertIncludes, assertGreaterThan, assertLessThan, summary };
+  return {
+    test,
+    assert,
+    assertEqual,
+    assertIncludes,
+    assertGreaterThan,
+    assertLessThan,
+    summary,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -121,43 +160,53 @@ export function createTestRunner(labName: string): TestRunner {
  * Utilise le port 0 pour obtenir un port aleatoire disponible.
  */
 export async function startServer(
-  handler: RequestHandler | (RequestHandler & { listen: (...args: unknown[]) => unknown }),
-  port: number = 0
+  handler:
+    | RequestHandler
+    | (RequestHandler & { listen: (...args: unknown[]) => unknown }),
+  port: number = 0,
 ): Promise<ServerHandle> {
   return new Promise((resolve, reject) => {
     let server: http.Server;
 
-    if (typeof handler === 'function' && handler.length <= 2 && !('listen' in handler)) {
+    if (
+      typeof handler === "function" &&
+      handler.length <= 2 &&
+      !("listen" in handler)
+    ) {
       server = http.createServer(handler);
-    } else if (handler && typeof (handler as { listen: (...args: unknown[]) => unknown }).listen === 'function') {
-      const startedServer = (handler as { listen: (port: number, host: string, callback: () => void) => unknown }).listen(
-        port,
-        '127.0.0.1',
-        () => {
-          const address = server.address() as AddressInfo;
-          const assignedPort = address.port;
-          const baseUrl = `http://127.0.0.1:${assignedPort}`;
+    } else if (
+      handler &&
+      typeof (handler as { listen: (...args: unknown[]) => unknown }).listen ===
+        "function"
+    ) {
+      const startedServer = (
+        handler as {
+          listen: (port: number, host: string, callback: () => void) => unknown;
+        }
+      ).listen(port, "127.0.0.1", () => {
+        const address = server.address() as AddressInfo;
+        const assignedPort = address.port;
+        const baseUrl = `http://127.0.0.1:${assignedPort}`;
 
-          const close = (): Promise<void> => {
-            return new Promise((resolveClose, rejectClose) => {
-              server.close((err) => {
-                if (err) rejectClose(err);
-                else resolveClose();
-              });
+        const close = (): Promise<void> => {
+          return new Promise((resolveClose, rejectClose) => {
+            server.close((err) => {
+              if (err) rejectClose(err);
+              else resolveClose();
             });
-          };
+          });
+        };
 
-          resolve({ baseUrl, close, server });
-        },
-      );
+        resolve({ baseUrl, close, server });
+      });
       server = startedServer as http.Server;
-      server.on('error', reject);
+      server.on("error", reject);
       return;
     } else {
       server = http.createServer(handler);
     }
 
-    server.listen(port, '127.0.0.1', () => {
+    server.listen(port, "127.0.0.1", () => {
       const address = server.address() as AddressInfo;
       const assignedPort = address.port;
       const baseUrl = `http://127.0.0.1:${assignedPort}`;
@@ -174,7 +223,7 @@ export async function startServer(
       resolve({ baseUrl, close, server });
     });
 
-    server.on('error', reject);
+    server.on("error", reject);
   });
 }
 
@@ -185,9 +234,12 @@ export async function startServer(
 /**
  * Effectue une requete GET.
  */
-export async function httpGet(url: string, headers: Record<string, string> = {}): Promise<HttpResponse> {
+export async function httpGet(
+  url: string,
+  headers: Record<string, string> = {},
+): Promise<HttpResponse> {
   const response = await fetch(url, {
-    method: 'GET',
+    method: "GET",
     headers,
   });
 
@@ -206,11 +258,15 @@ export async function httpGet(url: string, headers: Record<string, string> = {})
 /**
  * Effectue une requete POST avec un body JSON.
  */
-export async function httpPost(url: string, body: unknown, headers: Record<string, string> = {}): Promise<HttpResponse> {
+export async function httpPost(
+  url: string,
+  body: unknown,
+  headers: Record<string, string> = {},
+): Promise<HttpResponse> {
   const response = await fetch(url, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       ...headers,
     },
     body: JSON.stringify(body),
@@ -231,11 +287,15 @@ export async function httpPost(url: string, body: unknown, headers: Record<strin
 /**
  * Effectue une requete PUT avec un body JSON.
  */
-export async function httpPut(url: string, body: unknown, headers: Record<string, string> = {}): Promise<HttpResponse> {
+export async function httpPut(
+  url: string,
+  body: unknown,
+  headers: Record<string, string> = {},
+): Promise<HttpResponse> {
   const response = await fetch(url, {
-    method: 'PUT',
+    method: "PUT",
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       ...headers,
     },
     body: JSON.stringify(body),
@@ -256,11 +316,15 @@ export async function httpPut(url: string, body: unknown, headers: Record<string
 /**
  * Effectue une requete PATCH avec un body JSON.
  */
-export async function httpPatch(url: string, body: unknown, headers: Record<string, string> = {}): Promise<HttpResponse> {
+export async function httpPatch(
+  url: string,
+  body: unknown,
+  headers: Record<string, string> = {},
+): Promise<HttpResponse> {
   const response = await fetch(url, {
-    method: 'PATCH',
+    method: "PATCH",
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       ...headers,
     },
     body: JSON.stringify(body),
@@ -281,9 +345,12 @@ export async function httpPatch(url: string, body: unknown, headers: Record<stri
 /**
  * Effectue une requete DELETE.
  */
-export async function httpDelete(url: string, headers: Record<string, string> = {}): Promise<HttpResponse> {
+export async function httpDelete(
+  url: string,
+  headers: Record<string, string> = {},
+): Promise<HttpResponse> {
   const response = await fetch(url, {
-    method: 'DELETE',
+    method: "DELETE",
     headers,
   });
 
@@ -313,7 +380,9 @@ export function sleep(ms: number): Promise<void> {
 /**
  * Mesure le temps d'execution d'une fonction asynchrone.
  */
-export async function measure<T>(fn: () => Promise<T>): Promise<{ result: T; duration: number }> {
+export async function measure<T>(
+  fn: () => Promise<T>,
+): Promise<{ result: T; duration: number }> {
   const start = performance.now();
   const result = await fn();
   const duration = performance.now() - start;
