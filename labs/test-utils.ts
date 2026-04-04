@@ -130,7 +130,29 @@ export async function startServer(
     if (typeof handler === 'function' && handler.length <= 2 && !('listen' in handler)) {
       server = http.createServer(handler);
     } else if (handler && typeof (handler as { listen: (...args: unknown[]) => unknown }).listen === 'function') {
-      server = handler as unknown as http.Server;
+      const startedServer = (handler as { listen: (port: number, host: string, callback: () => void) => unknown }).listen(
+        port,
+        '127.0.0.1',
+        () => {
+          const address = server.address() as AddressInfo;
+          const assignedPort = address.port;
+          const baseUrl = `http://127.0.0.1:${assignedPort}`;
+
+          const close = (): Promise<void> => {
+            return new Promise((resolveClose, rejectClose) => {
+              server.close((err) => {
+                if (err) rejectClose(err);
+                else resolveClose();
+              });
+            });
+          };
+
+          resolve({ baseUrl, close, server });
+        },
+      );
+      server = startedServer as http.Server;
+      server.on('error', reject);
+      return;
     } else {
       server = http.createServer(handler);
     }
