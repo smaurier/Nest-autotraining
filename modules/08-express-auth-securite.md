@@ -12,10 +12,10 @@
 
 ### 1.1 Definitions
 
-| Concept | Question | Exemple |
-|---|---|---|
-| **Authentification** (AuthN) | "Qui es-tu ?" | Login avec email + mot de passe |
-| **Autorisation** (AuthZ) | "As-tu le droit de faire ça ?" | Seuls les admins peuvent supprimer des utilisateurs |
+| Concept                      | Question                       | Exemple                                             |
+| ---------------------------- | ------------------------------ | --------------------------------------------------- |
+| **Authentification** (AuthN) | "Qui es-tu ?"                  | Login avec email + mot de passe                     |
+| **Autorisation** (AuthZ)     | "As-tu le droit de faire ça ?" | Seuls les admins peuvent supprimer des utilisateurs |
 
 > **Analogie** : L'authentification, c'est montrer ta carte d'identite a l'entree d'un immeuble. L'autorisation, c'est le badge qui te donne acces au 3e etage mais pas au 5e. Tu peux etre identifie sans avoir tous les droits.
 
@@ -45,12 +45,12 @@
 
 **JAMAIS** stocker les mots de passe en clair. Si ta base de donnees est compromise, tous les mots de passe sont exposes.
 
-| Méthode | Sécurité | Explication |
-|---|---|---|
-| En clair | Catastrophique | Un vol de BDD = tous les mots de passe |
-| MD5/SHA256 | Faible | Vulnerable aux rainbow tables et au brute force |
-| bcrypt | Forte | Lent par design, salt intégré, resistant au GPU |
-| argon2 | Très forte | Le plus moderne, vainqueur du PHC |
+| Méthode    | Sécurité       | Explication                                     |
+| ---------- | -------------- | ----------------------------------------------- |
+| En clair   | Catastrophique | Un vol de BDD = tous les mots de passe          |
+| MD5/SHA256 | Faible         | Vulnerable aux rainbow tables et au brute force |
+| bcrypt     | Forte          | Lent par design, salt intégré, resistant au GPU |
+| argon2     | Très forte     | Le plus moderne, vainqueur du PHC               |
 
 ### 2.2 Comment fonctionne bcrypt
 
@@ -71,7 +71,7 @@ npm install bcrypt
 ```
 
 ```typescript
-import bcrypt from 'bcrypt';
+import bcrypt from "bcrypt";
 
 // === Hacher un mot de passe ===
 const SALT_ROUNDS = 10; // 10-12 est recommande (plus = plus lent = plus sur)
@@ -89,11 +89,11 @@ async function verifyPassword(plainPassword, hashedPassword) {
 }
 
 // === Exemple ===
-const hash = await hashPassword('MonMotDePasse123');
+const hash = await hashPassword("MonMotDePasse123");
 console.log(hash); // '$2b$10$...' (60 caracteres, different a chaque fois)
 
-console.log(await verifyPassword('MonMotDePasse123', hash)); // true
-console.log(await verifyPassword('MauvaisMotDePasse', hash)); // false
+console.log(await verifyPassword("MonMotDePasse123", hash)); // true
+console.log(await verifyPassword("MauvaisMotDePasse", hash)); // false
 ```
 
 > **Piege classique** : Ne compare JAMAIS les hashes directement (`hash1 === hash2`). Utilise TOUJOURS `bcrypt.compare()`. A cause du salt aleatoire, le même mot de passe produit un hash différent à chaque fois.
@@ -111,10 +111,10 @@ Un **JWT** (prononce "jot") est un token d'authentification au format JSON, sign
   └──────── Header ────────┘└──────────────────────── Payload ─────────────────────────┘└──────── Signature ──────┘
 ```
 
-| Partie | Contenu | Encode en |
-|---|---|---|
-| **Header** | Algorithme (HS256) et type (JWT) | Base64url |
-| **Payload** | Claims (userId, email, role, exp...) | Base64url |
+| Partie        | Contenu                               | Encode en |
+| ------------- | ------------------------------------- | --------- |
+| **Header**    | Algorithme (HS256) et type (JWT)      | Base64url |
+| **Payload**   | Claims (userId, email, role, exp...)  | Base64url |
 | **Signature** | HMAC-SHA256(header + payload, secret) | Base64url |
 
 ### 3.2 Implementation avec jsonwebtoken
@@ -124,10 +124,11 @@ npm install jsonwebtoken
 ```
 
 ```typescript
-import jwt from 'jsonwebtoken';
+import jwt from "jsonwebtoken";
 
-const JWT_SECRET = process.env.JWT_SECRET || 'mon-secret-ultra-long-minimum-32-caracteres';
-const JWT_EXPIRES_IN = '1h'; // Duree de validite
+const JWT_SECRET =
+  process.env.JWT_SECRET || "mon-secret-ultra-long-minimum-32-caracteres";
+const JWT_EXPIRES_IN = "1h"; // Duree de validite
 
 // === Creer un token ===
 function generateToken(user) {
@@ -139,8 +140,8 @@ function generateToken(user) {
 
   return jwt.sign(payload, JWT_SECRET, {
     expiresIn: JWT_EXPIRES_IN,
-    issuer: 'mon-api',         // Qui a cree le token
-    audience: 'mon-frontend',   // A qui il est destine
+    issuer: "mon-api", // Qui a cree le token
+    audience: "mon-frontend", // A qui il est destine
   });
 }
 
@@ -159,11 +160,11 @@ function verifyToken(token) {
     //   aud: 'mon-frontend'
     // }
   } catch (err) {
-    if (err.name === 'TokenExpiredError') {
-      throw new Error('Token expire');
+    if (err.name === "TokenExpiredError") {
+      throw new Error("Token expire");
     }
-    if (err.name === 'JsonWebTokenError') {
-      throw new Error('Token invalide');
+    if (err.name === "JsonWebTokenError") {
+      throw new Error("Token invalide");
     }
     throw err;
   }
@@ -185,10 +186,10 @@ const decoded = jwt.decode(token);
 
 ```typescript
 // services/auth.service.js
-import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
-import crypto from 'crypto';
-import { ConflictError, ValidationError } from '../utils/errors.js';
+import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
+import crypto from "crypto";
+import { ConflictError, ValidationError } from "../utils/errors.js";
 
 const SALT_ROUNDS = 10;
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -198,9 +199,9 @@ let users = [];
 
 export async function register({ email, password, nom }) {
   // Verifier si l'email est deja pris
-  const existing = users.find(u => u.email === email);
+  const existing = users.find((u) => u.email === email);
   if (existing) {
-    throw new ConflictError('Cet email est deja utilise');
+    throw new ConflictError("Cet email est deja utilise");
   }
 
   // Hacher le mot de passe
@@ -212,7 +213,7 @@ export async function register({ email, password, nom }) {
     email,
     nom,
     password: hashedPassword,
-    role: 'user',
+    role: "user",
     createdAt: new Date().toISOString(),
   };
 
@@ -230,7 +231,7 @@ function generateToken(user) {
   return jwt.sign(
     { userId: user.id, email: user.email, role: user.role },
     JWT_SECRET,
-    { expiresIn: '1h' }
+    { expiresIn: "1h" },
   );
 }
 ```
@@ -239,20 +240,20 @@ function generateToken(user) {
 
 ```typescript
 // services/auth.service.js (suite)
-import { UnauthorizedError } from '../utils/errors.js';
+import { UnauthorizedError } from "../utils/errors.js";
 
 export async function login({ email, password }) {
   // Trouver l'utilisateur
-  const user = users.find(u => u.email === email);
+  const user = users.find((u) => u.email === email);
   if (!user) {
     // Message generique pour ne pas reveler si l'email existe
-    throw new UnauthorizedError('Email ou mot de passe incorrect');
+    throw new UnauthorizedError("Email ou mot de passe incorrect");
   }
 
   // Verifier le mot de passe
   const isMatch = await bcrypt.compare(password, user.password);
   if (!isMatch) {
-    throw new UnauthorizedError('Email ou mot de passe incorrect');
+    throw new UnauthorizedError("Email ou mot de passe incorrect");
   }
 
   // Generer le token
@@ -269,11 +270,11 @@ export async function login({ email, password }) {
 
 ```typescript
 // routes/auth.routes.js
-import { Router } from 'express';
-import { z } from 'zod';
-import { validate } from '../middleware/validate.js';
-import { asyncHandler } from '../utils/async-handler.js';
-import * as authService from '../services/auth.service.js';
+import { Router } from "express";
+import { z } from "zod";
+import { validate } from "../middleware/validate.js";
+import { asyncHandler } from "../utils/async-handler.js";
+import * as authService from "../services/auth.service.js";
 
 const router = Router();
 
@@ -285,23 +286,25 @@ const registerSchema = z.object({
 
 const loginSchema = z.object({
   email: z.string().email().toLowerCase().trim(),
-  password: z.string().min(1, 'Mot de passe requis'),
+  password: z.string().min(1, "Mot de passe requis"),
 });
 
-router.post('/register',
+router.post(
+  "/register",
   validate(registerSchema),
   asyncHandler(async (req, res) => {
     const result = await authService.register(req.body);
     res.status(201).json(result);
-  })
+  }),
 );
 
-router.post('/login',
+router.post(
+  "/login",
   validate(loginSchema),
   asyncHandler(async (req, res) => {
     const result = await authService.login(req.body);
     res.json(result);
-  })
+  }),
 );
 
 export default router;
@@ -315,21 +318,23 @@ export default router;
 
 ```typescript
 // middleware/auth.js
-import jwt from 'jsonwebtoken';
-import { UnauthorizedError } from '../utils/errors.js';
+import jwt from "jsonwebtoken";
+import { UnauthorizedError } from "../utils/errors.js";
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
 export function authenticate(req, res, next) {
   // 1. Extraire le token du header Authorization
-  const authHeader = req.get('Authorization');
+  const authHeader = req.get("Authorization");
 
   if (!authHeader) {
-    throw new UnauthorizedError('Token d\'authentification manquant');
+    throw new UnauthorizedError("Token d'authentification manquant");
   }
 
-  if (!authHeader.startsWith('Bearer ')) {
-    throw new UnauthorizedError('Format de token invalide (attendu: Bearer <token>)');
+  if (!authHeader.startsWith("Bearer ")) {
+    throw new UnauthorizedError(
+      "Format de token invalide (attendu: Bearer <token>)",
+    );
   }
 
   const token = authHeader.slice(7);
@@ -347,10 +352,10 @@ export function authenticate(req, res, next) {
 
     next();
   } catch (err) {
-    if (err.name === 'TokenExpiredError') {
-      throw new UnauthorizedError('Token expire — reconnectez-vous');
+    if (err.name === "TokenExpiredError") {
+      throw new UnauthorizedError("Token expire — reconnectez-vous");
     }
-    throw new UnauthorizedError('Token invalide');
+    throw new UnauthorizedError("Token invalide");
   }
 }
 ```
@@ -358,15 +363,15 @@ export function authenticate(req, res, next) {
 ### 5.2 Utilisation dans les routes
 
 ```typescript
-import { authenticate } from '../middleware/auth.js';
+import { authenticate } from "../middleware/auth.js";
 
 // Route protegee — necessite un token valide
-app.get('/api/profile', authenticate, (req, res) => {
+app.get("/api/profile", authenticate, (req, res) => {
   res.json({ user: req.user });
 });
 
 // Proteger un groupe de routes
-app.use('/api/admin', authenticate);
+app.use("/api/admin", authenticate);
 ```
 
 ---
@@ -379,29 +384,32 @@ Au lieu d'envoyer le token dans le body JSON et de le stocker dans le localStora
 
 ```typescript
 // A la connexion
-router.post('/login', asyncHandler(async (req, res) => {
-  const { user, token } = await authService.login(req.body);
+router.post(
+  "/login",
+  asyncHandler(async (req, res) => {
+    const { user, token } = await authService.login(req.body);
 
-  // Stocker le token dans un cookie securise
-  res.cookie('token', token, {
-    httpOnly: true,       // Inaccessible depuis JavaScript (anti-XSS)
-    secure: true,         // Envoye uniquement en HTTPS
-    sameSite: 'strict',   // Protection CSRF
-    maxAge: 3600000,      // 1 heure en ms
-    path: '/',            // Envoye sur toutes les routes
-  });
+    // Stocker le token dans un cookie securise
+    res.cookie("token", token, {
+      httpOnly: true, // Inaccessible depuis JavaScript (anti-XSS)
+      secure: true, // Envoye uniquement en HTTPS
+      sameSite: "strict", // Protection CSRF
+      maxAge: 3600000, // 1 heure en ms
+      path: "/", // Envoye sur toutes les routes
+    });
 
-  res.json({ user }); // Le token n'est PAS dans le body
-}));
+    res.json({ user }); // Le token n'est PAS dans le body
+  }),
+);
 
 // A la deconnexion
-router.post('/logout', (req, res) => {
-  res.clearCookie('token', {
+router.post("/logout", (req, res) => {
+  res.clearCookie("token", {
     httpOnly: true,
     secure: true,
-    sameSite: 'strict',
+    sameSite: "strict",
   });
-  res.json({ message: 'Deconnecte' });
+  res.json({ message: "Deconnecte" });
 });
 ```
 
@@ -412,7 +420,7 @@ npm install cookie-parser
 ```
 
 ```typescript
-import cookieParser from 'cookie-parser';
+import cookieParser from "cookie-parser";
 app.use(cookieParser());
 
 // Middleware auth qui lit le cookie
@@ -420,15 +428,15 @@ export function authenticate(req, res, next) {
   // Chercher le token dans le header OU dans le cookie
   let token = null;
 
-  const authHeader = req.get('Authorization');
-  if (authHeader && authHeader.startsWith('Bearer ')) {
+  const authHeader = req.get("Authorization");
+  if (authHeader && authHeader.startsWith("Bearer ")) {
     token = authHeader.slice(7);
   } else if (req.cookies && req.cookies.token) {
     token = req.cookies.token;
   }
 
   if (!token) {
-    throw new UnauthorizedError('Authentification requise');
+    throw new UnauthorizedError("Authentification requise");
   }
 
   // ... verifier le token (meme code qu'avant)
@@ -437,15 +445,15 @@ export function authenticate(req, res, next) {
 
 ### 6.3 Attributs de sécurité des cookies
 
-| Attribut | Valeur | Protection |
-|---|---|---|
-| `httpOnly` | `true` | Le cookie est inaccessible via `document.cookie` (anti-XSS) |
-| `secure` | `true` | Le cookie est envoye uniquement en HTTPS |
-| `sameSite` | `'strict'` | Le cookie n'est pas envoye sur les requêtes cross-site (anti-CSRF) |
-| `maxAge` | Millisecondes | Duree de vie du cookie |
-| `path` | `'/'` | Chemin sur lequel le cookie est envoye |
-| `domain` | `'.example.com'` | Domaine(s) sur lesquels le cookie est valide |
-| `signed` | `true` | Le cookie est signe avec un secret (anti-tampering) |
+| Attribut   | Valeur           | Protection                                                         |
+| ---------- | ---------------- | ------------------------------------------------------------------ |
+| `httpOnly` | `true`           | Le cookie est inaccessible via `document.cookie` (anti-XSS)        |
+| `secure`   | `true`           | Le cookie est envoye uniquement en HTTPS                           |
+| `sameSite` | `'strict'`       | Le cookie n'est pas envoye sur les requêtes cross-site (anti-CSRF) |
+| `maxAge`   | Millisecondes    | Duree de vie du cookie                                             |
+| `path`     | `'/'`            | Chemin sur lequel le cookie est envoye                             |
+| `domain`   | `'.example.com'` | Domaine(s) sur lesquels le cookie est valide                       |
+| `signed`   | `true`           | Le cookie est signe avec un secret (anti-tampering)                |
 
 > **Bonne pratique** : Pour les tokens d'authentification, utilise TOUJOURS `httpOnly: true` et `secure: true` (en production). Le `sameSite: 'strict'` empeche les attaques CSRF. C'est plus sur que le localStorage.
 
@@ -493,8 +501,8 @@ Un access token avec une duree de vie courte (15 min) est plus sur — s'il est 
 
 ```typescript
 // services/auth.service.js
-const ACCESS_TOKEN_EXPIRY = '15m';
-const REFRESH_TOKEN_EXPIRY = '7d';
+const ACCESS_TOKEN_EXPIRY = "15m";
+const REFRESH_TOKEN_EXPIRY = "7d";
 
 // Stocker les refresh tokens (en production → base de donnees)
 const refreshTokens = new Set();
@@ -503,13 +511,13 @@ export function generateTokens(user) {
   const accessToken = jwt.sign(
     { userId: user.id, email: user.email, role: user.role },
     JWT_SECRET,
-    { expiresIn: ACCESS_TOKEN_EXPIRY }
+    { expiresIn: ACCESS_TOKEN_EXPIRY },
   );
 
   const refreshToken = jwt.sign(
-    { userId: user.id, type: 'refresh' },
+    { userId: user.id, type: "refresh" },
     JWT_SECRET,
-    { expiresIn: REFRESH_TOKEN_EXPIRY }
+    { expiresIn: REFRESH_TOKEN_EXPIRY },
   );
 
   refreshTokens.add(refreshToken);
@@ -520,34 +528,34 @@ export function generateTokens(user) {
 export function refreshAccessToken(refreshToken) {
   // Verifier que le refresh token est dans notre liste
   if (!refreshTokens.has(refreshToken)) {
-    throw new UnauthorizedError('Refresh token invalide ou revoque');
+    throw new UnauthorizedError("Refresh token invalide ou revoque");
   }
 
   try {
     const decoded = jwt.verify(refreshToken, JWT_SECRET);
 
-    if (decoded.type !== 'refresh') {
-      throw new UnauthorizedError('Ce n\'est pas un refresh token');
+    if (decoded.type !== "refresh") {
+      throw new UnauthorizedError("Ce n'est pas un refresh token");
     }
 
     // Trouver l'utilisateur
-    const user = users.find(u => u.id === decoded.userId);
+    const user = users.find((u) => u.id === decoded.userId);
     if (!user) {
-      throw new UnauthorizedError('Utilisateur introuvable');
+      throw new UnauthorizedError("Utilisateur introuvable");
     }
 
     // Generer un nouveau access token
     const accessToken = jwt.sign(
       { userId: user.id, email: user.email, role: user.role },
       JWT_SECRET,
-      { expiresIn: ACCESS_TOKEN_EXPIRY }
+      { expiresIn: ACCESS_TOKEN_EXPIRY },
     );
 
     return { accessToken };
   } catch (err) {
     // Si le refresh token est expire ou invalide, le supprimer
     refreshTokens.delete(refreshToken);
-    throw new UnauthorizedError('Refresh token expire ou invalide');
+    throw new UnauthorizedError("Refresh token expire ou invalide");
   }
 }
 
@@ -564,7 +572,7 @@ export function revokeRefreshToken(refreshToken) {
 
 ```typescript
 // middleware/authorize.js
-import { ForbiddenError } from '../utils/errors.js';
+import { ForbiddenError } from "../utils/errors.js";
 
 /**
  * Middleware qui verifie que l'utilisateur a un des roles autorises
@@ -574,12 +582,12 @@ export function authorize(...allowedRoles) {
   return (req, res, next) => {
     // L'utilisateur doit etre authentifie (middleware authenticate avant)
     if (!req.user) {
-      throw new ForbiddenError('Utilisateur non authentifie');
+      throw new ForbiddenError("Utilisateur non authentifie");
     }
 
     if (!allowedRoles.includes(req.user.role)) {
       throw new ForbiddenError(
-        `Role "${req.user.role}" non autorise. Roles requis : ${allowedRoles.join(', ')}`
+        `Role "${req.user.role}" non autorise. Roles requis : ${allowedRoles.join(", ")}`,
       );
     }
 
@@ -591,32 +599,34 @@ export function authorize(...allowedRoles) {
 ### 8.2 Utilisation dans les routes
 
 ```typescript
-import { authenticate } from '../middleware/auth.js';
-import { authorize } from '../middleware/authorize.js';
+import { authenticate } from "../middleware/auth.js";
+import { authorize } from "../middleware/authorize.js";
 
 // Accessible a tous les utilisateurs authentifies
-router.get('/api/profile', authenticate, (req, res) => {
+router.get("/api/profile", authenticate, (req, res) => {
   res.json({ user: req.user });
 });
 
 // Accessible uniquement aux admins
-router.delete('/api/users/:id',
+router.delete(
+  "/api/users/:id",
   authenticate,
-  authorize('admin'),
+  authorize("admin"),
   asyncHandler(async (req, res) => {
     await userService.deleteUser(req.params.id);
     res.status(204).end();
-  })
+  }),
 );
 
 // Accessible aux admins ET moderateurs
-router.patch('/api/posts/:id/moderate',
+router.patch(
+  "/api/posts/:id/moderate",
   authenticate,
-  authorize('admin', 'moderator'),
+  authorize("admin", "moderator"),
   asyncHandler(async (req, res) => {
     const post = await postService.moderate(req.params.id, req.body);
     res.json({ data: post });
-  })
+  }),
 );
 ```
 
@@ -629,17 +639,17 @@ npm install express-rate-limit
 ```
 
 ```typescript
-import rateLimit from 'express-rate-limit';
+import rateLimit from "express-rate-limit";
 
 // Limiteur global : 100 requetes par fenetre de 15 minutes
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100,                  // Maximum 100 requetes par IP
+  max: 100, // Maximum 100 requetes par IP
   message: {
-    error: 'Trop de requetes, reessayez dans 15 minutes',
+    error: "Trop de requetes, reessayez dans 15 minutes",
   },
-  standardHeaders: true,     // Retourne les headers RateLimit-*
-  legacyHeaders: false,      // Desactive les headers X-RateLimit-*
+  standardHeaders: true, // Retourne les headers RateLimit-*
+  legacyHeaders: false, // Desactive les headers X-RateLimit-*
 });
 
 // Limiteur strict pour l'authentification : 5 tentatives par 15 minutes
@@ -647,14 +657,14 @@ const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 5,
   message: {
-    error: 'Trop de tentatives de connexion, reessayez dans 15 minutes',
+    error: "Trop de tentatives de connexion, reessayez dans 15 minutes",
   },
 });
 
 // Appliquer les limiteurs
 app.use(globalLimiter);
-app.use('/auth/login', authLimiter);
-app.use('/auth/register', authLimiter);
+app.use("/auth/login", authLimiter);
+app.use("/auth/register", authLimiter);
 ```
 
 ---
@@ -662,22 +672,24 @@ app.use('/auth/register', authLimiter);
 ## 10. Helmet — Headers de sécurité
 
 ```typescript
-import helmet from 'helmet';
+import helmet from "helmet";
 
 app.use(helmet());
 
 // Ou configurer individuellement
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", "data:", "https:"],
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", "data:", "https:"],
+      },
     },
-  },
-  crossOriginEmbedderPolicy: false, // Si tu sers des images externes
-}));
+    crossOriginEmbedderPolicy: false, // Si tu sers des images externes
+  }),
+);
 ```
 
 ---
@@ -685,15 +697,15 @@ app.use(helmet({
 ## 11. CORS — Configuration detaillee
 
 ```typescript
-import cors from 'cors';
+import cors from "cors";
 
 const corsOptions = {
   // Origines autorisees
   origin: (origin, callback) => {
     const allowedOrigins = [
-      'http://localhost:4200',     // Angular dev
-      'http://localhost:3001',     // React dev
-      'https://monapp.com',       // Production
+      "http://localhost:4200", // Angular dev
+      "http://localhost:3001", // React dev
+      "https://monapp.com", // Production
     ];
 
     // Autoriser les requetes sans origin (Postman, curl, mobile)
@@ -704,11 +716,11 @@ const corsOptions = {
     }
   },
 
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id'],
-  exposedHeaders: ['X-Request-Id', 'X-Total-Count'],
-  credentials: true,      // Autoriser les cookies cross-origin
-  maxAge: 86400,           // Cache preflight 24h
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Request-Id"],
+  exposedHeaders: ["X-Request-Id", "X-Total-Count"],
+  credentials: true, // Autoriser les cookies cross-origin
+  maxAge: 86400, // Cache preflight 24h
   optionsSuccessStatus: 204,
 };
 
@@ -719,22 +731,77 @@ app.use(cors(corsOptions));
 
 ## 12. Checklist de sécurité
 
-| Mesure | Implementation | Module |
-|---|---|---|
-| Hacher les mots de passe | bcrypt, salt rounds 10-12 | Ce module |
-| Tokens JWT signes | jsonwebtoken, secret long | Ce module |
-| Cookies httpOnly + secure | `res.cookie()` avec les bons flags | Ce module |
-| Rate limiting | express-rate-limit | Ce module |
-| Headers de sécurité | helmet | Ce module |
-| CORS configure | cors avec origines explicites | Ce module |
-| Validation des entrees | Zod sur body/params/query | Module 07 |
-| Gestion d'erreurs | Error handler centralise | Module 07 |
-| Variables sensibles | .env + dotenv, JAMAIS dans le code | Module 02 |
-| HTTPS en production | Certificat SSL/TLS (Let's Encrypt) | Déploiement |
-| Dependances a jour | `npm audit` regulierement | Maintenance |
-| Logging | morgan + logs structures | Module 06 |
+| Mesure                    | Implementation                     | Module      |
+| ------------------------- | ---------------------------------- | ----------- |
+| Hacher les mots de passe  | bcrypt, salt rounds 10-12          | Ce module   |
+| Tokens JWT signes         | jsonwebtoken, secret long          | Ce module   |
+| Cookies httpOnly + secure | `res.cookie()` avec les bons flags | Ce module   |
+| Rate limiting             | express-rate-limit                 | Ce module   |
+| Headers de sécurité       | helmet                             | Ce module   |
+| CORS configure            | cors avec origines explicites      | Ce module   |
+| Validation des entrees    | Zod sur body/params/query          | Module 07   |
+| Gestion d'erreurs         | Error handler centralise           | Module 07   |
+| Variables sensibles       | .env + dotenv, JAMAIS dans le code | Module 02   |
+| HTTPS en production       | Certificat SSL/TLS (Let's Encrypt) | Déploiement |
+| Dependances a jour        | `npm audit` regulierement          | Maintenance |
+| Logging                   | morgan + logs structures           | Module 06   |
 
 > **A retenir** : La sécurité n'est pas une feature optionnelle — c'est une exigence. Chaque mesure de cette checklist est un mur dans la forteresse de ton API. Un seul mur manquant et un attaquant peut entrer.
+
+---
+
+## Bonus — Sécurité BFF (Angular + Express)
+
+Dans un BFF web, l'auth est souvent geree en cookie httpOnly plutot qu'en localStorage pour reduire l'exposition XSS.
+
+### 1) Pattern recommande pour SPA Angular
+
+| Sujet          | Recommandation BFF                                  |
+| -------------- | --------------------------------------------------- |
+| Access token   | Duree courte (10-15 min), stocke en cookie httpOnly |
+| Refresh token  | Rotation + revocation server-side                   |
+| CSRF           | Token anti-CSRF + verification origine              |
+| CORS           | Liste explicite d'origines autorisees               |
+| Session logout | Invalidation refresh token + clear cookie           |
+
+### 2) Endpoint BFF de refresh robuste
+
+```typescript
+router.post(
+  "/refresh",
+  asyncHandler(async (req, res) => {
+    const refreshToken = req.cookies?.refreshToken;
+    if (!refreshToken) {
+      return res.status(401).json({ error: "Refresh token manquant" });
+    }
+
+    const { accessToken, rotatedRefreshToken } =
+      await authService.rotateRefreshToken(refreshToken);
+
+    res.cookie("accessToken", accessToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "strict",
+      maxAge: 15 * 60 * 1000,
+    });
+
+    res.cookie("refreshToken", rotatedRefreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    res.status(204).end();
+  }),
+);
+```
+
+### 3) Point d'attention BFF
+
+Quand Angular appelle le BFF avec cookies, active `credentials: true` cote client et cote serveur. Sans ca, le flux de session parait "aleatoire" selon navigateur/environnement.
+
+> **A retenir BFF** : La maitrise BFF ne se limite pas a verifier un JWT; elle inclut la gestion complete du cycle de session (rotation, revocation, CSRF, CORS strict) en conditions reelles.
 
 ---
 
@@ -747,6 +814,7 @@ Implemente le flux complet : register, login, logout, profile, refresh token.
 ### Exercice 2 — API multi-roles
 
 Cree une API de blog avec 3 roles :
+
 - `user` : peut lire et créer des posts
 - `moderator` : peut aussi editer et moderer les posts
 - `admin` : peut tout faire + gérer les utilisateurs
@@ -759,12 +827,12 @@ Implemente un système qui bloque un compte après 5 tentatives de login echouee
 
 ## Navigation
 
-| | Lien |
-|---|---|
+|                  | Lien                                                                                       |
+| ---------------- | ------------------------------------------------------------------------------------------ |
 | Module précédent | [Module 07 — Express — Validation & Gestion d'erreurs](./07-express-validation-erreurs.md) |
-| Module suivant | [Module 09 — NestJS — Introduction & Premiers pas](./09-nestjs-introduction.md) |
-| Quiz | [Quiz Module 08](../quizzes/08-express-auth-securite.quiz.md) |
-| Lab | [Lab 08 — Authentification et sécurité](../labs/08-express-auth-securite.lab.md) |
+| Module suivant   | [Module 09 — NestJS — Introduction & Premiers pas](./09-nestjs-introduction.md)            |
+| Quiz             | [Quiz Module 08](../quizzes/08-express-auth-securite.quiz.md)                              |
+| Lab              | [Lab 08 — Authentification et sécurité](../labs/08-express-auth-securite.lab.md)           |
 
 ---
 
@@ -775,7 +843,8 @@ Implemente un système qui bloque un compte après 5 tentatives de login echouee
 <!-- parcours-recommande -->
 
 ::: tip Parcours recommandé
+
 1. **Screencast** : [screencast 08 auth sécurité](../screencasts/screencast-08-auth-securite.md)
 2. **Lab** : [lab-08-auth-jwt](../labs/lab-08-auth-jwt/README)
 3. **Quiz** : [quiz 08 auth sécurité](../quizzes/quiz-08-auth-securite.html)
-:::
+   :::

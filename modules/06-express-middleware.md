@@ -61,25 +61,25 @@ function monMiddleware(req, res, next) {
 L'ordre des `app.use()` est **crucial** — les middleware sont executes dans l'ordre de declaration :
 
 ```typescript
-import express from 'express';
+import express from "express";
 const app = express();
 
 // 1. Ce middleware s'execute en PREMIER sur TOUTES les requetes
 app.use((req, res, next) => {
-  console.log('Middleware 1');
+  console.log("Middleware 1");
   next();
 });
 
 // 2. Ce middleware s'execute en DEUXIEME
 app.use((req, res, next) => {
-  console.log('Middleware 2');
+  console.log("Middleware 2");
   next();
 });
 
 // 3. Le route handler s'execute en DERNIER
-app.get('/', (req, res) => {
-  console.log('Route handler');
-  res.send('OK');
+app.get("/", (req, res) => {
+  console.log("Route handler");
+  res.send("OK");
 });
 
 // Sortie pour GET / :
@@ -92,14 +92,14 @@ app.get('/', (req, res) => {
 
 ```typescript
 // MAUVAIS — express.json() trop tard
-app.post('/api/users', (req, res) => {
+app.post("/api/users", (req, res) => {
   console.log(req.body); // undefined !
 });
 app.use(express.json());
 
 // BON — express.json() en premier
 app.use(express.json());
-app.post('/api/users', (req, res) => {
+app.post("/api/users", (req, res) => {
   console.log(req.body); // { nom: 'Alice', ... }
 });
 ```
@@ -115,39 +115,43 @@ app.post('/api/users', (req, res) => {
 app.use(express.json());
 
 // S'execute sur TOUTES les routes commencant par /api
-app.use('/api', (req, res, next) => {
-  console.log('Requete API');
+app.use("/api", (req, res, next) => {
+  console.log("Requete API");
   next();
 });
 
 // S'execute uniquement sur GET /api/users
-app.get('/api/users', (req, res, next) => {
-  // Ce handler est AUSSI un middleware
-  // Il peut appeler next() pour passer au handler suivant
-  next();
-}, (req, res) => {
-  res.json({ users: [] });
-});
+app.get(
+  "/api/users",
+  (req, res, next) => {
+    // Ce handler est AUSSI un middleware
+    // Il peut appeler next() pour passer au handler suivant
+    next();
+  },
+  (req, res) => {
+    res.json({ users: [] });
+  },
+);
 ```
 
 ### 2.2 Middleware de routeur (router-level)
 
 ```typescript
-import express from 'express';
+import express from "express";
 const router = express.Router();
 
 // S'execute sur toutes les routes de CE routeur
 router.use((req, res, next) => {
-  console.log('Middleware du routeur');
+  console.log("Middleware du routeur");
   next();
 });
 
-router.get('/', (req, res) => {
+router.get("/", (req, res) => {
   res.json({ users: [] });
 });
 
 // Monter le routeur sur un prefixe
-app.use('/api/users', router);
+app.use("/api/users", router);
 ```
 
 ### 2.3 Middleware d'erreur (4 arguments)
@@ -156,9 +160,9 @@ app.use('/api/users', router);
 // Un middleware d'erreur a EXACTEMENT 4 arguments
 // C'est le nombre d'arguments qui le distingue d'un middleware normal
 app.use((err, req, res, next) => {
-  console.error('Erreur :', err.message);
+  console.error("Erreur :", err.message);
   res.status(err.statusCode || 500).json({
-    error: err.message || 'Erreur interne du serveur',
+    error: err.message || "Erreur interne du serveur",
   });
 });
 ```
@@ -171,37 +175,43 @@ app.use((err, req, res, next) => {
 
 ```typescript
 // Parse le body au format JSON
-app.use(express.json({
-  limit: '10mb',          // Taille maximale du body (defaut: 100kb)
-  strict: true,            // Accepte uniquement les tableaux et objets
-  type: 'application/json', // Type MIME a parser
-}));
+app.use(
+  express.json({
+    limit: "10mb", // Taille maximale du body (defaut: 100kb)
+    strict: true, // Accepte uniquement les tableaux et objets
+    type: "application/json", // Type MIME a parser
+  }),
+);
 ```
 
 ### 3.2 express.urlencoded()
 
 ```typescript
 // Parse le body au format URL-encoded (formulaires HTML)
-app.use(express.urlencoded({
-  extended: true,  // Utilise la librairie qs (objets imbriques)
-  limit: '10mb',
-}));
+app.use(
+  express.urlencoded({
+    extended: true, // Utilise la librairie qs (objets imbriques)
+    limit: "10mb",
+  }),
+);
 ```
 
 ### 3.3 express.static()
 
 ```typescript
-import path from 'path';
-import { fileURLToPath } from 'url';
+import path from "path";
+import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Servir les fichiers statiques
-app.use(express.static(path.join(__dirname, 'public'), {
-  maxAge: '1h',        // Cache navigateur de 1 heure
-  index: 'index.html', // Fichier par defaut pour les dossiers
-  dotfiles: 'ignore',  // Ignorer les fichiers commencant par .
-}));
+app.use(
+  express.static(path.join(__dirname, "public"), {
+    maxAge: "1h", // Cache navigateur de 1 heure
+    index: "index.html", // Fichier par defaut pour les dossiers
+    dotfiles: "ignore", // Ignorer les fichiers commencant par .
+  }),
+);
 ```
 
 ---
@@ -215,19 +225,21 @@ npm install cors
 ```
 
 ```typescript
-import cors from 'cors';
+import cors from "cors";
 
 // Autoriser toutes les origines (developpement uniquement)
 app.use(cors());
 
 // Configuration fine (production)
-app.use(cors({
-  origin: ['http://localhost:4200', 'https://monapp.com'],
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true,      // Autoriser les cookies cross-origin
-  maxAge: 86400,           // Cache le preflight pendant 24h
-}));
+app.use(
+  cors({
+    origin: ["http://localhost:4200", "https://monapp.com"],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true, // Autoriser les cookies cross-origin
+    maxAge: 86400, // Cache le preflight pendant 24h
+  }),
+);
 ```
 
 ### 4.2 helmet — Headers de sécurité
@@ -237,7 +249,7 @@ npm install helmet
 ```
 
 ```typescript
-import helmet from 'helmet';
+import helmet from "helmet";
 
 // Ajoute automatiquement des headers de securite
 app.use(helmet());
@@ -258,20 +270,22 @@ npm install morgan
 ```
 
 ```typescript
-import morgan from 'morgan';
+import morgan from "morgan";
 
 // Formats predefinies
-app.use(morgan('dev'));
+app.use(morgan("dev"));
 // GET /api/users 200 12.345 ms - 234
 
-app.use(morgan('combined'));
+app.use(morgan("combined"));
 // ::1 - - [10/Jan/2024:14:30:00 +0000] "GET /api/users HTTP/1.1" 200 234
 
-app.use(morgan('tiny'));
+app.use(morgan("tiny"));
 // GET /api/users 200 234 - 12.345 ms
 
 // Format personnalise
-app.use(morgan(':method :url :status :res[content-length] - :response-time ms'));
+app.use(
+  morgan(":method :url :status :res[content-length] - :response-time ms"),
+);
 ```
 
 ### 4.4 compression — Compression gzip
@@ -281,28 +295,30 @@ npm install compression
 ```
 
 ```typescript
-import compression from 'compression';
+import compression from "compression";
 
 // Compresse automatiquement les reponses > 1 Ko
-app.use(compression({
-  threshold: 1024,  // Minimum 1 Ko pour compresser
-  level: 6,         // Niveau de compression (1-9, 6 = bon equilibre)
-}));
+app.use(
+  compression({
+    threshold: 1024, // Minimum 1 Ko pour compresser
+    level: 6, // Niveau de compression (1-9, 6 = bon equilibre)
+  }),
+);
 ```
 
 ### 4.5 Tableau récapitulatif
 
-| Middleware | npm install | Role |
-|---|---|---|
-| `express.json()` | Integre | Parser le body JSON |
-| `express.urlencoded()` | Integre | Parser les formulaires |
-| `express.static()` | Integre | Servir des fichiers statiques |
-| `cors` | `cors` | Gérer le CORS |
-| `helmet` | `helmet` | Headers de sécurité |
-| `morgan` | `morgan` | Logging des requêtes |
-| `compression` | `compression` | Compression gzip |
-| `cookie-parser` | `cookie-parser` | Parser les cookies |
-| `express-rate-limit` | `express-rate-limit` | Limiter le nombre de requêtes |
+| Middleware             | npm install          | Role                          |
+| ---------------------- | -------------------- | ----------------------------- |
+| `express.json()`       | Integre              | Parser le body JSON           |
+| `express.urlencoded()` | Integre              | Parser les formulaires        |
+| `express.static()`     | Integre              | Servir des fichiers statiques |
+| `cors`                 | `cors`               | Gérer le CORS                 |
+| `helmet`               | `helmet`             | Headers de sécurité           |
+| `morgan`               | `morgan`             | Logging des requêtes          |
+| `compression`          | `compression`        | Compression gzip              |
+| `cookie-parser`        | `cookie-parser`      | Parser les cookies            |
+| `express-rate-limit`   | `express-rate-limit` | Limiter le nombre de requêtes |
 
 ---
 
@@ -315,11 +331,11 @@ function logger(req, res, next) {
   const start = Date.now();
 
   // Intercepter la fin de la reponse
-  res.on('finish', () => {
+  res.on("finish", () => {
     const duration = Date.now() - start;
     const timestamp = new Date().toISOString();
     console.log(
-      `[${timestamp}] ${req.method} ${req.originalUrl} → ${res.statusCode} (${duration}ms)`
+      `[${timestamp}] ${req.method} ${req.originalUrl} → ${res.statusCode} (${duration}ms)`,
     );
   });
 
@@ -335,11 +351,13 @@ app.use(logger);
 function requestTimer(req, res, next) {
   req.startTime = Date.now();
 
-  res.on('finish', () => {
+  res.on("finish", () => {
     const duration = Date.now() - req.startTime;
     // Avertir si la requete est lente
     if (duration > 1000) {
-      console.warn(`SLOW REQUEST: ${req.method} ${req.originalUrl} took ${duration}ms`);
+      console.warn(
+        `SLOW REQUEST: ${req.method} ${req.originalUrl} took ${duration}ms`,
+      );
     }
   });
 
@@ -353,14 +371,14 @@ app.use(requestTimer);
 
 ```typescript
 function requireAuth(req, res, next) {
-  const authHeader = req.get('Authorization');
+  const authHeader = req.get("Authorization");
 
   if (!authHeader) {
-    return res.status(401).json({ error: 'Token d\'authentification manquant' });
+    return res.status(401).json({ error: "Token d'authentification manquant" });
   }
 
-  if (!authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Format de token invalide' });
+  if (!authHeader.startsWith("Bearer ")) {
+    return res.status(401).json({ error: "Format de token invalide" });
   }
 
   const token = authHeader.slice(7); // Enlever 'Bearer '
@@ -371,19 +389,19 @@ function requireAuth(req, res, next) {
     req.user = user; // Attacher l'utilisateur a la requete
     next();
   } catch (err) {
-    return res.status(401).json({ error: 'Token invalide ou expire' });
+    return res.status(401).json({ error: "Token invalide ou expire" });
   }
 }
 
 // Utiliser sur des routes specifiques (pas toutes)
-app.get('/api/profile', requireAuth, (req, res) => {
+app.get("/api/profile", requireAuth, (req, res) => {
   res.json({ user: req.user });
 });
 
 // Ou sur un groupe de routes
-app.use('/api/admin', requireAuth);
-app.get('/api/admin/dashboard', (req, res) => {
-  res.json({ message: 'Dashboard admin' });
+app.use("/api/admin", requireAuth);
+app.get("/api/admin/dashboard", (req, res) => {
+  res.json({ message: "Dashboard admin" });
 });
 ```
 
@@ -404,7 +422,7 @@ function validatePagination(req, res, next) {
   next();
 }
 
-app.get('/api/users', validatePagination, (req, res) => {
+app.get("/api/users", validatePagination, (req, res) => {
   const { page, limit, offset } = req.pagination;
   const paginatedUsers = users.slice(offset, offset + limit);
 
@@ -421,12 +439,12 @@ app.get('/api/users', validatePagination, (req, res) => {
 ### 5.5 Request ID
 
 ```typescript
-import crypto from 'crypto';
+import crypto from "crypto";
 
 function requestId(req, res, next) {
-  const id = req.get('X-Request-Id') || crypto.randomUUID();
+  const id = req.get("X-Request-Id") || crypto.randomUUID();
   req.id = id;
-  res.set('X-Request-Id', id);
+  res.set("X-Request-Id", id);
   next();
 }
 
@@ -443,26 +461,26 @@ Quand ton API grandit, mettre toutes les routes dans un seul fichier devient ing
 
 ```typescript
 // routes/books.js
-import { Router } from 'express';
+import { Router } from "express";
 const router = Router();
 
-router.get('/', (req, res) => {
+router.get("/", (req, res) => {
   res.json({ books: [] });
 });
 
-router.get('/:id', (req, res) => {
+router.get("/:id", (req, res) => {
   res.json({ bookId: req.params.id });
 });
 
-router.post('/', (req, res) => {
-  res.status(201).json({ message: 'Livre cree' });
+router.post("/", (req, res) => {
+  res.status(201).json({ message: "Livre cree" });
 });
 
-router.patch('/:id', (req, res) => {
+router.patch("/:id", (req, res) => {
   res.json({ message: `Livre ${req.params.id} modifie` });
 });
 
-router.delete('/:id', (req, res) => {
+router.delete("/:id", (req, res) => {
   res.status(204).end();
 });
 
@@ -471,28 +489,30 @@ export default router;
 
 ```typescript
 // routes/users.js
-import { Router } from 'express';
+import { Router } from "express";
 const router = Router();
 
-router.get('/', (req, res) => res.json({ users: [] }));
-router.get('/:id', (req, res) => res.json({ userId: req.params.id }));
-router.post('/', (req, res) => res.status(201).json({ message: 'Utilisateur cree' }));
+router.get("/", (req, res) => res.json({ users: [] }));
+router.get("/:id", (req, res) => res.json({ userId: req.params.id }));
+router.post("/", (req, res) =>
+  res.status(201).json({ message: "Utilisateur cree" }),
+);
 
 export default router;
 ```
 
 ```typescript
 // src/index.js
-import express from 'express';
-import booksRouter from './routes/books.js';
-import usersRouter from './routes/users.js';
+import express from "express";
+import booksRouter from "./routes/books.js";
+import usersRouter from "./routes/users.js";
 
 const app = express();
 app.use(express.json());
 
 // Monter les routeurs
-app.use('/api/books', booksRouter);
-app.use('/api/users', usersRouter);
+app.use("/api/books", booksRouter);
+app.use("/api/users", usersRouter);
 
 // GET /api/books → booksRouter.get('/')
 // GET /api/books/42 → booksRouter.get('/:id')
@@ -505,23 +525,23 @@ app.listen(3000);
 
 ```typescript
 // routes/admin.js
-import { Router } from 'express';
+import { Router } from "express";
 const router = Router();
 
 // Ce middleware ne s'applique qu'aux routes de CE routeur
 router.use((req, res, next) => {
-  if (!req.user || req.user.role !== 'admin') {
-    return res.status(403).json({ error: 'Acces reserve aux administrateurs' });
+  if (!req.user || req.user.role !== "admin") {
+    return res.status(403).json({ error: "Acces reserve aux administrateurs" });
   }
   next();
 });
 
-router.get('/dashboard', (req, res) => {
-  res.json({ message: 'Dashboard admin' });
+router.get("/dashboard", (req, res) => {
+  res.json({ message: "Dashboard admin" });
 });
 
-router.get('/users', (req, res) => {
-  res.json({ message: 'Liste des utilisateurs (admin)' });
+router.get("/users", (req, res) => {
+  res.json({ message: "Liste des utilisateurs (admin)" });
 });
 
 export default router;
@@ -535,11 +555,11 @@ export default router;
 
 **MVC** (Model-View-Controller) est un pattern d'architecture qui separe le code en trois responsabilites :
 
-| Couche | Responsabilite | Fichiers |
-|---|---|---|
-| **Model** | Donnees et logique metier | `models/`, `services/` |
-| **View** | Presentation (pour une API : le format JSON) | Pas de fichier dedie en API |
-| **Controller** | Orchestre : recoit la requête, appelle les services, envoie la réponse | `controllers/` |
+| Couche         | Responsabilite                                                         | Fichiers                    |
+| -------------- | ---------------------------------------------------------------------- | --------------------------- |
+| **Model**      | Donnees et logique metier                                              | `models/`, `services/`      |
+| **View**       | Presentation (pour une API : le format JSON)                           | Pas de fichier dedie en API |
+| **Controller** | Orchestre : recoit la requête, appelle les services, envoie la réponse | `controllers/`              |
 
 > **Analogie** : Dans un restaurant, le **serveur** (Controller) prend la commande du client, la transmet au **chef** (Service/Model) qui prepare le plat, et le serveur revient avec le plat dans une **assiette** (View/JSON). Le serveur ne cuisine pas, le chef ne sert pas — chacun son role.
 
@@ -572,10 +592,10 @@ src/
 
 ```typescript
 // src/services/books.service.js
-import crypto from 'crypto';
+import crypto from "crypto";
 
 let books = [
-  { id: '1', title: 'Clean Code', author: 'Robert C. Martin', year: 2008 },
+  { id: "1", title: "Clean Code", author: "Robert C. Martin", year: 2008 },
 ];
 
 export function getAllBooks() {
@@ -583,7 +603,7 @@ export function getAllBooks() {
 }
 
 export function getBookById(id) {
-  return books.find(b => b.id === id) || null;
+  return books.find((b) => b.id === id) || null;
 }
 
 export function createBook(data) {
@@ -596,14 +616,14 @@ export function createBook(data) {
 }
 
 export function updateBook(id, data) {
-  const book = books.find(b => b.id === id);
+  const book = books.find((b) => b.id === id);
   if (!book) return null;
   Object.assign(book, data);
   return book;
 }
 
 export function deleteBook(id) {
-  const index = books.findIndex(b => b.id === id);
+  const index = books.findIndex((b) => b.id === id);
   if (index === -1) return false;
   books.splice(index, 1);
   return true;
@@ -612,7 +632,7 @@ export function deleteBook(id) {
 
 ```typescript
 // src/controllers/books.controller.js
-import * as booksService from '../services/books.service.js';
+import * as booksService from "../services/books.service.js";
 
 export function getAll(req, res) {
   const books = booksService.getAllBooks();
@@ -622,7 +642,7 @@ export function getAll(req, res) {
 export function getById(req, res) {
   const book = booksService.getBookById(req.params.id);
   if (!book) {
-    return res.status(404).json({ error: 'Livre introuvable' });
+    return res.status(404).json({ error: "Livre introuvable" });
   }
   res.json({ data: book });
 }
@@ -635,7 +655,7 @@ export function create(req, res) {
 export function update(req, res) {
   const book = booksService.updateBook(req.params.id, req.body);
   if (!book) {
-    return res.status(404).json({ error: 'Livre introuvable' });
+    return res.status(404).json({ error: "Livre introuvable" });
   }
   res.json({ data: book });
 }
@@ -643,7 +663,7 @@ export function update(req, res) {
 export function remove(req, res) {
   const deleted = booksService.deleteBook(req.params.id);
   if (!deleted) {
-    return res.status(404).json({ error: 'Livre introuvable' });
+    return res.status(404).json({ error: "Livre introuvable" });
   }
   res.status(204).end();
 }
@@ -651,29 +671,29 @@ export function remove(req, res) {
 
 ```typescript
 // src/routes/books.routes.js
-import { Router } from 'express';
-import * as booksController from '../controllers/books.controller.js';
+import { Router } from "express";
+import * as booksController from "../controllers/books.controller.js";
 
 const router = Router();
 
-router.get('/', booksController.getAll);
-router.get('/:id', booksController.getById);
-router.post('/', booksController.create);
-router.patch('/:id', booksController.update);
-router.delete('/:id', booksController.remove);
+router.get("/", booksController.getAll);
+router.get("/:id", booksController.getById);
+router.post("/", booksController.create);
+router.patch("/:id", booksController.update);
+router.delete("/:id", booksController.remove);
 
 export default router;
 ```
 
 ```typescript
 // src/routes/index.js
-import { Router } from 'express';
-import booksRouter from './books.routes.js';
+import { Router } from "express";
+import booksRouter from "./books.routes.js";
 // import usersRouter from './users.routes.js';
 
 const router = Router();
 
-router.use('/books', booksRouter);
+router.use("/books", booksRouter);
 // router.use('/users', usersRouter);
 
 export default router;
@@ -681,37 +701,39 @@ export default router;
 
 ```typescript
 // src/index.js
-import express from 'express';
-import cors from 'cors';
-import helmet from 'helmet';
-import morgan from 'morgan';
-import apiRouter from './routes/index.js';
+import express from "express";
+import cors from "cors";
+import helmet from "helmet";
+import morgan from "morgan";
+import apiRouter from "./routes/index.js";
 
 const app = express();
 
 // Middleware globaux
 app.use(helmet());
 app.use(cors());
-app.use(morgan('dev'));
+app.use(morgan("dev"));
 app.use(express.json());
 
 // Routes API
-app.use('/api', apiRouter);
+app.use("/api", apiRouter);
 
 // Route sante
-app.get('/health', (req, res) => {
-  res.json({ status: 'OK' });
+app.get("/health", (req, res) => {
+  res.json({ status: "OK" });
 });
 
 // 404 handler
 app.use((req, res) => {
-  res.status(404).json({ error: `Route ${req.method} ${req.originalUrl} introuvable` });
+  res
+    .status(404)
+    .json({ error: `Route ${req.method} ${req.originalUrl} introuvable` });
 });
 
 // Error handler (TOUJOURS en dernier !)
 app.use((err, req, res, next) => {
   console.error(err);
-  res.status(500).json({ error: 'Erreur interne du serveur' });
+  res.status(500).json({ error: "Erreur interne du serveur" });
 });
 
 const PORT = process.env.PORT || 3000;
@@ -731,7 +753,7 @@ app.listen(PORT, () => {
 export function errorHandler(err, req, res, next) {
   // Log l'erreur
   console.error(`[ERROR] ${err.message}`);
-  if (process.env.NODE_ENV !== 'production') {
+  if (process.env.NODE_ENV !== "production") {
     console.error(err.stack);
   }
 
@@ -740,8 +762,8 @@ export function errorHandler(err, req, res, next) {
 
   // Envoyer la reponse
   res.status(statusCode).json({
-    error: err.message || 'Erreur interne du serveur',
-    ...(process.env.NODE_ENV !== 'production' && { stack: err.stack }),
+    error: err.message || "Erreur interne du serveur",
+    ...(process.env.NODE_ENV !== "production" && { stack: err.stack }),
   });
 }
 ```
@@ -749,11 +771,11 @@ export function errorHandler(err, req, res, next) {
 ### 8.2 Propager les erreurs avec next(err)
 
 ```typescript
-app.get('/api/users/:id', (req, res, next) => {
+app.get("/api/users/:id", (req, res, next) => {
   try {
     const user = getUserById(req.params.id);
     if (!user) {
-      const error = new Error('Utilisateur introuvable');
+      const error = new Error("Utilisateur introuvable");
       error.statusCode = 404;
       throw error;
     }
@@ -770,12 +792,12 @@ app.get('/api/users/:id', (req, res, next) => {
 
 ## 9. Middleware scoping — Application vs Router
 
-| Scope | Syntaxe | Effet |
-|---|---|---|
-| **Application** | `app.use(fn)` | S'applique a TOUTES les requêtes |
-| **Application + chemin** | `app.use('/api', fn)` | S'applique aux requêtes commencant par `/api` |
-| **Routeur** | `router.use(fn)` | S'applique uniquement aux routes de ce routeur |
-| **Route spécifique** | `app.get('/path', fn, handler)` | S'applique a cette route uniquement |
+| Scope                    | Syntaxe                         | Effet                                          |
+| ------------------------ | ------------------------------- | ---------------------------------------------- |
+| **Application**          | `app.use(fn)`                   | S'applique a TOUTES les requêtes               |
+| **Application + chemin** | `app.use('/api', fn)`           | S'applique aux requêtes commencant par `/api`  |
+| **Routeur**              | `router.use(fn)`                | S'applique uniquement aux routes de ce routeur |
+| **Route spécifique**     | `app.get('/path', fn, handler)` | S'applique a cette route uniquement            |
 
 ```typescript
 // Middleware global (toutes les routes)
@@ -783,8 +805,8 @@ app.use(express.json());
 app.use(cors());
 
 // Middleware pour toutes les routes /api
-app.use('/api', (req, res, next) => {
-  console.log('Requete API');
+app.use("/api", (req, res, next) => {
+  console.log("Requete API");
   next();
 });
 
@@ -793,8 +815,8 @@ const adminRouter = Router();
 adminRouter.use(requireAdmin);
 
 // Middleware pour une route specifique
-app.get('/api/secret', requireAuth, requireAdmin, (req, res) => {
-  res.json({ secret: '42' });
+app.get("/api/secret", requireAuth, requireAdmin, (req, res) => {
+  res.json({ secret: "42" });
 });
 ```
 
@@ -802,29 +824,89 @@ app.get('/api/secret', requireAuth, requireAdmin, (req, res) => {
 
 ## 10. Résumé — Les concepts clés
 
-| Concept | Definition |
-|---|---|
-| **Middleware** | Fonction (req, res, next) qui s'insere dans le pipeline |
-| **next()** | Passe la main au middleware suivant |
-| **app.use()** | Enregistre un middleware global |
-| **Router** | Mini-application Express pour regrouper des routes |
-| **MVC** | Pattern d'architecture (Model-View-Controller) |
-| **Error middleware** | Middleware a 4 arguments (err, req, res, next) |
-| **Scoping** | Middleware application, routeur ou route |
-| **Pipeline** | Chaine ordonnee de middleware traversee par chaque requête |
+| Concept              | Definition                                                 |
+| -------------------- | ---------------------------------------------------------- |
+| **Middleware**       | Fonction (req, res, next) qui s'insere dans le pipeline    |
+| **next()**           | Passe la main au middleware suivant                        |
+| **app.use()**        | Enregistre un middleware global                            |
+| **Router**           | Mini-application Express pour regrouper des routes         |
+| **MVC**              | Pattern d'architecture (Model-View-Controller)             |
+| **Error middleware** | Middleware a 4 arguments (err, req, res, next)             |
+| **Scoping**          | Middleware application, routeur ou route                   |
+| **Pipeline**         | Chaine ordonnee de middleware traversee par chaque requête |
 
 > **A retenir** : Les middleware sont le coeur d'Express. Tout est middleware — le parsing du body, le CORS, l'authentification, le logging, et même les route handlers. Comprendre le pipeline d'exécution et l'ordre des middleware est essentiel pour debugger et structurer une application Express. L'architecture MVC avec des Routers modulaires est la base d'une application maintenable.
 
 ---
 
+## Bonus — Focus BFF (Angular + Express)
+
+Dans un BFF (Backend for Frontend), le serveur Express ne doit pas juste exposer des CRUD techniques. Il doit porter des endpoints orientes ecran et orchestrer plusieurs services backend en une seule reponse utile au front.
+
+### 1) Endpoint oriente ecran
+
+```typescript
+// Route BFF pour la page dashboard Angular
+router.get(
+  "/dashboard",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const userId = req.user.userId;
+
+    // Appels upstream paralleles
+    const [profile, notifications, recommendations] = await Promise.all([
+      usersApi.getProfile(userId),
+      notificationsApi.getLatest(userId),
+      catalogApi.getRecommendations(userId),
+    ]);
+
+    // Reponse adaptee a l'ecran, pas exposee "as-is" depuis les upstreams
+    res.json({
+      header: {
+        displayName: profile.displayName,
+        avatarUrl: profile.avatarUrl,
+      },
+      notifications,
+      recommendations,
+    });
+  }),
+);
+```
+
+### 2) Middleware de correlation BFF
+
+```typescript
+// Propager un correlation id vers tous les appels upstream
+app.use((req, res, next) => {
+  const correlationId = req.get("x-correlation-id") || crypto.randomUUID();
+  req.correlationId = correlationId;
+  res.set("x-correlation-id", correlationId);
+  next();
+});
+```
+
+### 3) Conventions BFF recommandees
+
+| Besoin BFF    | Convention                                                            |
+| ------------- | --------------------------------------------------------------------- |
+| Endpoints     | Nommes par ecran/use-case (`/bff/dashboard`, `/bff/checkout/summary`) |
+| Orchestration | `Promise.all` + timeout par upstream                                  |
+| Erreurs       | Contrat d'erreur unique pour le frontend                              |
+| Tracabilite   | `x-correlation-id` propage vers tous les appels                       |
+| Evolution     | Versionner les endpoints BFF par use-case critique                    |
+
+> **A retenir BFF** : En Express, le middleware pipeline est l'endroit ideal pour brancher les besoins transverses BFF (auth, correlation id, rate limit, normalisation d'erreurs) pendant que les handlers d'orchestration restent centres sur les use-cases frontend.
+
+---
+
 ## Navigation
 
-| | Lien |
-|---|---|
-| Module précédent | [Module 05 — Express — Fondamentaux](./05-express-fondamentaux.md) |
-| Module suivant | [Module 07 — Express — Validation & Gestion d'erreurs](./07-express-validation-erreurs.md) |
-| Quiz | [Quiz Module 06](../quizzes/06-express-middleware.quiz.md) |
-| Lab | [Lab 06 — Middleware et architecture](../labs/06-express-middleware.lab.md) |
+|                  | Lien                                                                                       |
+| ---------------- | ------------------------------------------------------------------------------------------ |
+| Module précédent | [Module 05 — Express — Fondamentaux](./05-express-fondamentaux.md)                         |
+| Module suivant   | [Module 07 — Express — Validation & Gestion d'erreurs](./07-express-validation-erreurs.md) |
+| Quiz             | [Quiz Module 06](../quizzes/06-express-middleware.quiz.md)                                 |
+| Lab              | [Lab 06 — Middleware et architecture](../labs/06-express-middleware.lab.md)                |
 
 ---
 
@@ -835,8 +917,9 @@ app.get('/api/secret', requireAuth, requireAdmin, (req, res) => {
 <!-- parcours-recommande -->
 
 ::: tip Parcours recommandé
+
 1. **Screencast** : [screencast 06 middleware](../screencasts/screencast-06-middleware.md)
 2. **Lab** : [lab-06-middleware](../labs/lab-06-middleware/README)
 3. **Visualisation** : [Middleware Pipeline](../visualizations/middleware-pipeline.html)
 4. **Quiz** : [quiz 06 middleware](../quizzes/quiz-06-middleware.html)
-:::
+   :::

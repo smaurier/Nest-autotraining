@@ -24,48 +24,59 @@
 
 ## TODOs
 
-| # | Description |
-|---|-------------|
-| 1 | Implementer `POST /register` — hacher le mot de passe et créer l'utilisateur |
-| 2 | Implementer `POST /login` — vérifier le mot de passe et retourner un JWT |
-| 3 | Créer `authMiddleware` — vérifier le JWT depuis le header Authorization |
-| 4 | Implementer `GET /profile` — route protegee retournant l'utilisateur connecte |
-| 5 | Implementer `POST /refresh` — rafraichir un token JWT |
-| 6 | Créer `rolesMiddleware(...roles)` — vérifier le role de l'utilisateur |
-| 7 | Implementer `GET /admin/users` — route admin-only |
+| #   | Description                                                                   |
+| --- | ----------------------------------------------------------------------------- |
+| 1   | Implementer `POST /register` — hacher le mot de passe et créer l'utilisateur  |
+| 2   | Implementer `POST /login` — vérifier le mot de passe et retourner un JWT      |
+| 3   | Créer `authMiddleware` — vérifier le JWT depuis le header Authorization       |
+| 4   | Implementer `GET /profile` — route protegee retournant l'utilisateur connecte |
+| 5   | Implementer `POST /refresh` — rafraichir un token JWT                         |
+| 6   | Créer `rolesMiddleware(...roles)` — vérifier le role de l'utilisateur         |
+| 7   | Implementer `GET /admin/users` — route admin-only                             |
 
 ## Aide
 
 ### bcryptjs
+
 ```typescript
-import bcrypt from 'bcryptjs';
+import bcrypt from "bcryptjs";
 
 // Hacher un mot de passe
-const hash = await bcrypt.hash('password', 10);
+const hash = await bcrypt.hash("password", 10);
 
 // Verifier un mot de passe
-const match = await bcrypt.compare('password', hash);
+const match = await bcrypt.compare("password", hash);
 ```
 
 ### jsonwebtoken
-```typescript
-import jwt from 'jsonwebtoken';
 
-const SECRET = 'my-secret-key';
+```typescript
+import jwt from "jsonwebtoken";
+
+const SECRET = "my-secret-key";
 
 // Generer un token
-const token = jwt.sign({ userId: 1, role: 'admin' }, SECRET, { expiresIn: '1h' });
+const token = jwt.sign({ userId: 1, role: "admin" }, SECRET, {
+  expiresIn: "1h",
+});
 
 // Verifier un token
 try {
   const payload = jwt.verify(token, SECRET);
   console.log(payload.userId); // 1
 } catch (err) {
-  console.log('Token invalide');
+  console.log("Token invalide");
 }
 ```
 
 ### Header Authorization
+
 ```
 Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
 ```
+
+## Defi bonus BFF
+
+- Faire une variante cookie httpOnly pour access token et refresh token.
+- Implementer une rotation de refresh token sur POST /refresh.
+- Ajouter une protection CSRF minimale (token ou verification d'origine).

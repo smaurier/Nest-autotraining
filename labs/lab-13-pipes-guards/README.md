@@ -15,13 +15,13 @@ Vous allez créer une API Items protegee par des guards et enrichie avec des int
 
 ## Endpoints
 
-| Méthode | Route      | Protection         | Description          |
-|---------|-----------|--------------------|-----------------------|
-| GET     | /items     | Aucune             | Lister les items      |
-| GET     | /items/:id | ParsePositiveInt   | Obtenir un item       |
-| POST    | /items     | AuthGuard          | Créer un item         |
-| PATCH   | /items/:id | AuthGuard          | Modifier un item      |
-| DELETE  | /items/:id | AuthGuard + Admin  | Supprimer un item     |
+| Méthode | Route      | Protection        | Description       |
+| ------- | ---------- | ----------------- | ----------------- |
+| GET     | /items     | Aucune            | Lister les items  |
+| GET     | /items/:id | ParsePositiveInt  | Obtenir un item   |
+| POST    | /items     | AuthGuard         | Créer un item     |
+| PATCH   | /items/:id | AuthGuard         | Modifier un item  |
+| DELETE  | /items/:id | AuthGuard + Admin | Supprimer un item |
 
 ## Instructions
 
@@ -38,3 +38,9 @@ Vous allez créer une API Items protegee par des guards et enrichie avec des int
 ```bash
 npm test
 ```
+
+## Defi bonus BFF
+
+- Ajouter un BffContextGuard qui injecte userId, locale et correlationId dans la requete.
+- Ajouter un interceptor de fallback qui renvoie une reponse partielle sur timeout upstream simule.
+- Uniformiser les erreurs avec un filter qui inclut requestId et code metier.

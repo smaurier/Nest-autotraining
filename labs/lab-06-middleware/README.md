@@ -23,15 +23,15 @@
 
 ## TODOs
 
-| # | Description |
-|---|-------------|
-| 1 | Créer `loggerMiddleware` — log method, url et timestamp sur chaque requête |
-| 2 | Créer `timerMiddleware` — mesure le temps de réponse et ajoute `X-Response-Time` |
-| 3 | Créer `authMiddleware` — vérifié le header `Authorization: Bearer secret-token` |
-| 4 | Créer `validateBody(schema)` — factory qui retourne un middleware de validation |
-| 5 | Créer un Router `/users` avec les routes CRUD |
-| 6 | Créer un Router `/products` avec les routes CRUD |
-| 7 | Assembler l'app : middleware globaux + routers + middleware selectif |
+| #   | Description                                                                      |
+| --- | -------------------------------------------------------------------------------- |
+| 1   | Créer `loggerMiddleware` — log method, url et timestamp sur chaque requête       |
+| 2   | Créer `timerMiddleware` — mesure le temps de réponse et ajoute `X-Response-Time` |
+| 3   | Créer `authMiddleware` — vérifié le header `Authorization: Bearer secret-token`  |
+| 4   | Créer `validateBody(schema)` — factory qui retourne un middleware de validation  |
+| 5   | Créer un Router `/users` avec les routes CRUD                                    |
+| 6   | Créer un Router `/products` avec les routes CRUD                                 |
+| 7   | Assembler l'app : middleware globaux + routers + middleware selectif             |
 
 ## Aide
 
@@ -52,8 +52,14 @@ function createValidator(schema) {
 
 // Router
 const router = express.Router();
-router.get('/', handler);
-router.post('/', middleware, handler);
+router.get("/", handler);
+router.post("/", middleware, handler);
 
-app.use('/prefix', router);
+app.use("/prefix", router);
 ```
+
+## Defi bonus BFF
+
+- Ajouter un middleware correlation-id qui lit x-correlation-id ou en genere un.
+- Le propager dans la reponse via le header x-correlation-id.
+- Simuler un endpoint /bff/dashboard avec agregation de 2 sources (mockees) et une structure orientee ecran.

@@ -23,21 +23,22 @@
 
 ## TODOs
 
-| # | Description |
-|---|-------------|
-| 1 | Définir le schema Zod `UserSchema` (name, email, age optionnel) |
-| 2 | Créer le middleware `validate(schema)` qui valide `req.body` avec Zod |
-| 3 | Créer la classe `AppError` (message, statusCode) |
-| 4 | Créer les classes `NotFoundError` et `ValidationError` qui etendent `AppError` |
-| 5 | Créer le wrapper `asyncHandler(fn)` pour capturer les erreurs async |
-| 6 | Créer le middleware d'erreur centralise `errorHandler` |
-| 7 | Construire l'API avec validation sur POST/PUT |
+| #   | Description                                                                    |
+| --- | ------------------------------------------------------------------------------ |
+| 1   | Définir le schema Zod `UserSchema` (name, email, age optionnel)                |
+| 2   | Créer le middleware `validate(schema)` qui valide `req.body` avec Zod          |
+| 3   | Créer la classe `AppError` (message, statusCode)                               |
+| 4   | Créer les classes `NotFoundError` et `ValidationError` qui etendent `AppError` |
+| 5   | Créer le wrapper `asyncHandler(fn)` pour capturer les erreurs async            |
+| 6   | Créer le middleware d'erreur centralise `errorHandler`                         |
+| 7   | Construire l'API avec validation sur POST/PUT                                  |
 
 ## Aide
 
 ### Zod
+
 ```typescript
-import { z } from 'zod';
+import { z } from "zod";
 
 const schema = z.object({
   name: z.string().min(2),
@@ -53,6 +54,7 @@ if (!result.success) {
 ```
 
 ### Classes d'erreur
+
 ```typescript
 class AppError extends Error {
   constructor(message, statusCode) {
@@ -63,9 +65,16 @@ class AppError extends Error {
 ```
 
 ### asyncHandler
+
 ```typescript
 // Wrapper pour les routes async
 const asyncHandler = (fn) => (req, res, next) => {
   Promise.resolve(fn(req, res, next)).catch(next);
 };
 ```
+
+## Defi bonus BFF
+
+- Normaliser toutes les erreurs dans ce format: success, error.code, error.message, error.details, requestId.
+- Mapper une erreur upstream simulee (timeout) en 503 avec un code metier stable (ex: UPSTREAM_TIMEOUT).
+- Garantir que le frontend recoit toujours le meme shape de reponse d'erreur.

@@ -17,11 +17,11 @@
 
 ### 1.2 Les trois niveaux de tests
 
-| Niveau | Cible | Vitesse | Couverture | Dependances |
-|--------|-------|---------|------------|-------------|
-| **Unitaire** | Une classe/méthode | Très rapide | Etroite | Mockees |
-| **Intégration** | Plusieurs classes ensemble | Moyen | Moyenne | Partiellement reelles |
-| **E2E** | L'application complete | Lent | Large | Reelles (DB, HTTP) |
+| Niveau          | Cible                      | Vitesse     | Couverture | Dependances           |
+| --------------- | -------------------------- | ----------- | ---------- | --------------------- |
+| **Unitaire**    | Une classe/méthode         | Très rapide | Etroite    | Mockees               |
+| **Intégration** | Plusieurs classes ensemble | Moyen       | Moyenne    | Partiellement reelles |
+| **E2E**         | L'application complete     | Lent        | Large      | Reelles (DB, HTTP)    |
 
 ### 1.3 Configuration de Jest dans NestJS
 
@@ -49,20 +49,20 @@ Ou dans un fichier separe :
 ```typescript
 // jest.config.js
 module.exports = {
-  moduleFileExtensions: ['js', 'json', 'ts'],
-  rootDir: 'src',
-  testRegex: '.*\\.spec\\.ts$',
+  moduleFileExtensions: ["js", "json", "ts"],
+  rootDir: "src",
+  testRegex: ".*\\.spec\\.ts$",
   transform: {
-    '^.+\\.(t|j)s$': 'ts-jest',
+    "^.+\\.(t|j)s$": "ts-jest",
   },
   collectCoverageFrom: [
-    '**/*.(t|j)s',
-    '!**/node_modules/**',
-    '!**/dist/**',
-    '!**/*.module.ts',     // Exclure les modules
-    '!**/main.ts',          // Exclure le bootstrap
+    "**/*.(t|j)s",
+    "!**/node_modules/**",
+    "!**/dist/**",
+    "!**/*.module.ts", // Exclure les modules
+    "!**/main.ts", // Exclure le bootstrap
   ],
-  coverageDirectory: '../coverage',
+  coverageDirectory: "../coverage",
   coverageThresholds: {
     global: {
       branches: 80,
@@ -71,11 +71,11 @@ module.exports = {
       statements: 80,
     },
   },
-  testEnvironment: 'node',
+  testEnvironment: "node",
   moduleNameMapper: {
     // Alias de chemins si vous en utilisez
-    '^@app/(.*)$': '<rootDir>/$1',
-    '^@common/(.*)$': '<rootDir>/common/$1',
+    "^@app/(.*)$": "<rootDir>/$1",
+    "^@common/(.*)$": "<rootDir>/common/$1",
   },
 };
 ```
@@ -109,12 +109,12 @@ NestJS fournit `Test.createTestingModule()` pour créer un module de test isole.
 
 ```typescript
 // users/users.service.spec.ts
-import { Test, TestingModule } from '@nestjs/testing';
-import { UsersService } from './users.service';
-import { getRepositoryToken } from '@nestjs/typeorm';
-import { User } from './entities/user.entity';
-import { Repository } from 'typeorm';
-import { NotFoundException, ConflictException } from '@nestjs/common';
+import { Test, TestingModule } from "@nestjs/testing";
+import { UsersService } from "./users.service";
+import { getRepositoryToken } from "@nestjs/typeorm";
+import { User } from "./entities/user.entity";
+import { Repository } from "typeorm";
+import { NotFoundException, ConflictException } from "@nestjs/common";
 
 // Typage du repository mocke
 type MockRepository<T = any> = Partial<Record<keyof Repository<T>, jest.Mock>>;
@@ -134,7 +134,7 @@ const createMockRepository = <T = any>(): MockRepository<T> => ({
   exist: jest.fn(),
 });
 
-describe('UsersService', () => {
+describe("UsersService", () => {
   let service: UsersService;
   let userRepository: MockRepository<User>;
 
@@ -153,24 +153,22 @@ describe('UsersService', () => {
 
     // Recuperer les instances
     service = module.get<UsersService>(UsersService);
-    userRepository = module.get<MockRepository<User>>(
-      getRepositoryToken(User),
-    );
+    userRepository = module.get<MockRepository<User>>(getRepositoryToken(User));
   });
 
   // Verifier que le service est bien instancie
-  it('devrait etre defini', () => {
+  it("devrait etre defini", () => {
     expect(service).toBeDefined();
   });
 
   // === Tests de la methode findAll ===
 
-  describe('findAll', () => {
-    it('devrait retourner un tableau d\'utilisateurs', async () => {
+  describe("findAll", () => {
+    it("devrait retourner un tableau d'utilisateurs", async () => {
       // Arrange : configurer le mock
       const mockUsers = [
-        { id: 1, nom: 'Alice', email: 'alice@test.com' },
-        { id: 2, nom: 'Bob', email: 'bob@test.com' },
+        { id: 1, nom: "Alice", email: "alice@test.com" },
+        { id: 2, nom: "Bob", email: "bob@test.com" },
       ];
       userRepository.find.mockResolvedValue(mockUsers);
 
@@ -183,7 +181,7 @@ describe('UsersService', () => {
       expect(userRepository.find).toHaveBeenCalledTimes(1);
     });
 
-    it('devrait retourner un tableau vide si aucun utilisateur', async () => {
+    it("devrait retourner un tableau vide si aucun utilisateur", async () => {
       userRepository.find.mockResolvedValue([]);
 
       const result = await service.findAll();
@@ -195,9 +193,9 @@ describe('UsersService', () => {
 
   // === Tests de la methode findOne ===
 
-  describe('findOne', () => {
-    it('devrait retourner un utilisateur par ID', async () => {
-      const mockUser = { id: 1, nom: 'Alice', email: 'alice@test.com' };
+  describe("findOne", () => {
+    it("devrait retourner un utilisateur par ID", async () => {
+      const mockUser = { id: 1, nom: "Alice", email: "alice@test.com" };
       userRepository.findOne.mockResolvedValue(mockUser);
 
       const result = await service.findOne(1);
@@ -209,26 +207,26 @@ describe('UsersService', () => {
       });
     });
 
-    it('devrait lancer NotFoundException si utilisateur introuvable', async () => {
+    it("devrait lancer NotFoundException si utilisateur introuvable", async () => {
       userRepository.findOne.mockResolvedValue(null);
 
       await expect(service.findOne(999)).rejects.toThrow(NotFoundException);
       await expect(service.findOne(999)).rejects.toThrow(
-        'Utilisateur #999 introuvable',
+        "Utilisateur #999 introuvable",
       );
     });
   });
 
   // === Tests de la methode create ===
 
-  describe('create', () => {
+  describe("create", () => {
     const createUserDto = {
-      nom: 'Charlie',
-      email: 'charlie@test.com',
-      motDePasse: 'SecurePass123',
+      nom: "Charlie",
+      email: "charlie@test.com",
+      motDePasse: "SecurePass123",
     };
 
-    it('devrait creer un utilisateur avec succes', async () => {
+    it("devrait creer un utilisateur avec succes", async () => {
       const mockCreatedUser = { id: 3, ...createUserDto };
 
       userRepository.findOne.mockResolvedValue(null); // Pas de doublon
@@ -242,8 +240,8 @@ describe('UsersService', () => {
       expect(userRepository.save).toHaveBeenCalledWith(mockCreatedUser);
     });
 
-    it('devrait lancer ConflictException si email deja utilise', async () => {
-      const existingUser = { id: 1, email: 'charlie@test.com' };
+    it("devrait lancer ConflictException si email deja utilise", async () => {
+      const existingUser = { id: 1, email: "charlie@test.com" };
       userRepository.findOne.mockResolvedValue(existingUser);
 
       await expect(service.create(createUserDto)).rejects.toThrow(
@@ -254,10 +252,14 @@ describe('UsersService', () => {
 
   // === Tests de la methode update ===
 
-  describe('update', () => {
-    it('devrait mettre a jour un utilisateur', async () => {
-      const updateDto = { nom: 'Alice Martin' };
-      const existingUser = { id: 1, nom: 'Alice Dupont', email: 'alice@test.com' };
+  describe("update", () => {
+    it("devrait mettre a jour un utilisateur", async () => {
+      const updateDto = { nom: "Alice Martin" };
+      const existingUser = {
+        id: 1,
+        nom: "Alice Dupont",
+        email: "alice@test.com",
+      };
       const updatedUser = { ...existingUser, ...updateDto };
 
       userRepository.preload.mockResolvedValue(updatedUser);
@@ -265,17 +267,17 @@ describe('UsersService', () => {
 
       const result = await service.update(1, updateDto);
 
-      expect(result.nom).toBe('Alice Martin');
+      expect(result.nom).toBe("Alice Martin");
       expect(userRepository.preload).toHaveBeenCalledWith({
         id: 1,
         ...updateDto,
       });
     });
 
-    it('devrait lancer NotFoundException si utilisateur introuvable', async () => {
+    it("devrait lancer NotFoundException si utilisateur introuvable", async () => {
       userRepository.preload.mockResolvedValue(undefined);
 
-      await expect(service.update(999, { nom: 'Test' })).rejects.toThrow(
+      await expect(service.update(999, { nom: "Test" })).rejects.toThrow(
         NotFoundException,
       );
     });
@@ -283,9 +285,9 @@ describe('UsersService', () => {
 
   // === Tests de la methode remove ===
 
-  describe('remove', () => {
-    it('devrait supprimer un utilisateur existant', async () => {
-      const mockUser = { id: 1, nom: 'Alice' };
+  describe("remove", () => {
+    it("devrait supprimer un utilisateur existant", async () => {
+      const mockUser = { id: 1, nom: "Alice" };
       userRepository.findOne.mockResolvedValue(mockUser);
       userRepository.remove.mockResolvedValue(mockUser);
 
@@ -294,7 +296,7 @@ describe('UsersService', () => {
       expect(userRepository.remove).toHaveBeenCalledWith(mockUser);
     });
 
-    it('devrait lancer NotFoundException si utilisateur introuvable', async () => {
+    it("devrait lancer NotFoundException si utilisateur introuvable", async () => {
       userRepository.findOne.mockResolvedValue(null);
 
       await expect(service.remove(999)).rejects.toThrow(NotFoundException);
@@ -307,9 +309,9 @@ describe('UsersService', () => {
 
 ```typescript
 // articles/articles.service.spec.ts
-import { Test, TestingModule } from '@nestjs/testing';
-import { ArticlesService } from './articles.service';
-import { PrismaService } from '../prisma/prisma.service';
+import { Test, TestingModule } from "@nestjs/testing";
+import { ArticlesService } from "./articles.service";
+import { PrismaService } from "../prisma/prisma.service";
 
 // Mock complet de PrismaService
 const mockPrismaService = {
@@ -327,7 +329,7 @@ const mockPrismaService = {
   },
 };
 
-describe('ArticlesService', () => {
+describe("ArticlesService", () => {
   let service: ArticlesService;
   let prisma: typeof mockPrismaService;
 
@@ -349,11 +351,11 @@ describe('ArticlesService', () => {
     prisma = module.get(PrismaService);
   });
 
-  describe('findAll', () => {
-    it('devrait retourner des articles pagines', async () => {
+  describe("findAll", () => {
+    it("devrait retourner des articles pagines", async () => {
       const mockArticles = [
-        { id: 1, titre: 'Article 1', statut: 'PUBLIE' },
-        { id: 2, titre: 'Article 2', statut: 'PUBLIE' },
+        { id: 1, titre: "Article 1", statut: "PUBLIE" },
+        { id: 2, titre: "Article 2", statut: "PUBLIE" },
       ];
       prisma.article.findMany.mockResolvedValue(mockArticles);
       prisma.article.count.mockResolvedValue(2);
@@ -372,12 +374,12 @@ describe('ArticlesService', () => {
     });
   });
 
-  describe('findOne', () => {
-    it('devrait retourner un article par ID', async () => {
+  describe("findOne", () => {
+    it("devrait retourner un article par ID", async () => {
       const mockArticle = {
         id: 1,
-        titre: 'Test Article',
-        auteur: { id: 1, nom: 'Alice' },
+        titre: "Test Article",
+        auteur: { id: 1, nom: "Alice" },
         tags: [],
       };
       prisma.article.findUnique.mockResolvedValue(mockArticle);
@@ -391,26 +393,26 @@ describe('ArticlesService', () => {
       });
     });
 
-    it('devrait lancer NotFoundException', async () => {
+    it("devrait lancer NotFoundException", async () => {
       prisma.article.findUnique.mockResolvedValue(null);
 
       await expect(service.findOne(999)).rejects.toThrow(
-        'Article #999 introuvable',
+        "Article #999 introuvable",
       );
     });
   });
 
-  describe('create', () => {
-    it('devrait creer un article', async () => {
+  describe("create", () => {
+    it("devrait creer un article", async () => {
       const dto = {
-        titre: 'Nouvel article',
-        contenu: 'Contenu...',
+        titre: "Nouvel article",
+        contenu: "Contenu...",
       };
       const mockCreated = {
         id: 1,
-        titre: 'Nouvel article',
-        slug: 'nouvel-article',
-        contenu: 'Contenu...',
+        titre: "Nouvel article",
+        slug: "nouvel-article",
+        contenu: "Contenu...",
       };
       prisma.article.create.mockResolvedValue(mockCreated);
 
@@ -420,7 +422,7 @@ describe('ArticlesService', () => {
       expect(prisma.article.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            titre: 'Nouvel article',
+            titre: "Nouvel article",
             auteurId: 1,
           }),
         }),
@@ -435,14 +437,14 @@ describe('ArticlesService', () => {
 ```typescript
 // === jest.fn() — Creer une fonction mockee ===
 const mockFn = jest.fn();
-mockFn.mockReturnValue(42);           // Retourne 42 (synchrone)
-mockFn.mockResolvedValue(42);         // Retourne Promise<42> (async)
+mockFn.mockReturnValue(42); // Retourne 42 (synchrone)
+mockFn.mockResolvedValue(42); // Retourne Promise<42> (async)
 mockFn.mockRejectedValue(new Error()); // Retourne Promise rejetee
 mockFn.mockImplementation((x) => x * 2); // Implementation custom
 
 // === jest.spyOn() — Espionner une methode existante ===
-const spy = jest.spyOn(service, 'findOne');
-spy.mockResolvedValue(mockUser);       // Override le comportement
+const spy = jest.spyOn(service, "findOne");
+spy.mockResolvedValue(mockUser); // Override le comportement
 
 // Verifier les appels
 expect(spy).toHaveBeenCalled();
@@ -454,27 +456,27 @@ spy.mockRestore(); // Restaure l'implementation originale
 // === Assertions avancees ===
 
 // Verifier la structure d'un objet
-expect(result).toEqual(expect.objectContaining({
-  id: expect.any(Number),
-  nom: expect.any(String),
-  email: expect.stringContaining('@'),
-  createdAt: expect.any(Date),
-}));
+expect(result).toEqual(
+  expect.objectContaining({
+    id: expect.any(Number),
+    nom: expect.any(String),
+    email: expect.stringContaining("@"),
+    createdAt: expect.any(Date),
+  }),
+);
 
 // Verifier un tableau
 expect(result).toEqual(
-  expect.arrayContaining([
-    expect.objectContaining({ nom: 'Alice' }),
-  ]),
+  expect.arrayContaining([expect.objectContaining({ nom: "Alice" })]),
 );
 
 // Verifier qu'une exception est lancee
 await expect(service.remove(999)).rejects.toThrow(NotFoundException);
-await expect(service.remove(999)).rejects.toThrow('introuvable');
+await expect(service.remove(999)).rejects.toThrow("introuvable");
 
 // Verifier les appels avec des matchers
 expect(mockFn).toHaveBeenCalledWith(
-  expect.objectContaining({ email: 'test@test.com' }),
+  expect.objectContaining({ email: "test@test.com" }),
 );
 ```
 
@@ -484,13 +486,13 @@ expect(mockFn).toHaveBeenCalledWith(
 
 ```typescript
 // users/users.controller.spec.ts
-import { Test, TestingModule } from '@nestjs/testing';
-import { UsersController } from './users.controller';
-import { UsersService } from './users.service';
-import { CreateUserDto } from './dto/create-user.dto';
-import { NotFoundException } from '@nestjs/common';
+import { Test, TestingModule } from "@nestjs/testing";
+import { UsersController } from "./users.controller";
+import { UsersService } from "./users.service";
+import { CreateUserDto } from "./dto/create-user.dto";
+import { NotFoundException } from "@nestjs/common";
 
-describe('UsersController', () => {
+describe("UsersController", () => {
   let controller: UsersController;
   let service: UsersService;
 
@@ -520,15 +522,15 @@ describe('UsersController', () => {
     service = module.get<UsersService>(UsersService);
   });
 
-  it('devrait etre defini', () => {
+  it("devrait etre defini", () => {
     expect(controller).toBeDefined();
   });
 
-  describe('findAll', () => {
-    it('devrait retourner tous les utilisateurs', async () => {
+  describe("findAll", () => {
+    it("devrait retourner tous les utilisateurs", async () => {
       const mockUsers = [
-        { id: 1, nom: 'Alice' },
-        { id: 2, nom: 'Bob' },
+        { id: 1, nom: "Alice" },
+        { id: 2, nom: "Bob" },
       ];
       mockUsersService.findAll.mockResolvedValue(mockUsers);
 
@@ -539,9 +541,9 @@ describe('UsersController', () => {
     });
   });
 
-  describe('findOne', () => {
-    it('devrait retourner un utilisateur', async () => {
-      const mockUser = { id: 1, nom: 'Alice' };
+  describe("findOne", () => {
+    it("devrait retourner un utilisateur", async () => {
+      const mockUser = { id: 1, nom: "Alice" };
       mockUsersService.findOne.mockResolvedValue(mockUser);
 
       const result = await controller.findOne(1);
@@ -551,12 +553,12 @@ describe('UsersController', () => {
     });
   });
 
-  describe('create', () => {
-    it('devrait creer un utilisateur', async () => {
+  describe("create", () => {
+    it("devrait creer un utilisateur", async () => {
       const dto: CreateUserDto = {
-        nom: 'Charlie',
-        email: 'charlie@test.com',
-        motDePasse: 'Pass123!',
+        nom: "Charlie",
+        email: "charlie@test.com",
+        motDePasse: "Pass123!",
       };
       const mockCreated = { id: 3, ...dto };
       mockUsersService.create.mockResolvedValue(mockCreated);
@@ -568,8 +570,8 @@ describe('UsersController', () => {
     });
   });
 
-  describe('remove', () => {
-    it('devrait supprimer un utilisateur', async () => {
+  describe("remove", () => {
+    it("devrait supprimer un utilisateur", async () => {
       mockUsersService.remove.mockResolvedValue(undefined);
 
       await controller.remove(1);
@@ -588,11 +590,11 @@ describe('UsersController', () => {
 
 ```typescript
 // guards/roles.guard.spec.ts
-import { RolesGuard } from './roles.guard';
-import { Reflector } from '@nestjs/core';
-import { ExecutionContext, ForbiddenException } from '@nestjs/common';
+import { RolesGuard } from "./roles.guard";
+import { Reflector } from "@nestjs/core";
+import { ExecutionContext, ForbiddenException } from "@nestjs/common";
 
-describe('RolesGuard', () => {
+describe("RolesGuard", () => {
   let guard: RolesGuard;
   let reflector: Reflector;
 
@@ -602,50 +604,51 @@ describe('RolesGuard', () => {
   });
 
   // Helper pour creer un ExecutionContext mock
-  const createMockExecutionContext = (user?: any): ExecutionContext => ({
-    switchToHttp: () => ({
-      getRequest: () => ({ user }),
-      getResponse: () => ({}),
-      getNext: () => jest.fn(),
-    }),
-    getHandler: () => jest.fn(),
-    getClass: () => jest.fn() as any,
-    getType: () => 'http' as any,
-    getArgs: () => [],
-    getArgByIndex: () => ({}),
-    switchToRpc: () => ({} as any),
-    switchToWs: () => ({} as any),
-  } as ExecutionContext);
+  const createMockExecutionContext = (user?: any): ExecutionContext =>
+    ({
+      switchToHttp: () => ({
+        getRequest: () => ({ user }),
+        getResponse: () => ({}),
+        getNext: () => jest.fn(),
+      }),
+      getHandler: () => jest.fn(),
+      getClass: () => jest.fn() as any,
+      getType: () => "http" as any,
+      getArgs: () => [],
+      getArgByIndex: () => ({}),
+      switchToRpc: () => ({}) as any,
+      switchToWs: () => ({}) as any,
+    }) as ExecutionContext;
 
-  it('devrait autoriser l\'acces si aucun role requis', () => {
-    jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(undefined);
+  it("devrait autoriser l'acces si aucun role requis", () => {
+    jest.spyOn(reflector, "getAllAndOverride").mockReturnValue(undefined);
 
-    const context = createMockExecutionContext({ id: 1, roles: ['user'] });
+    const context = createMockExecutionContext({ id: 1, roles: ["user"] });
     expect(guard.canActivate(context)).toBe(true);
   });
 
-  it('devrait autoriser l\'acces si l\'utilisateur a le bon role', () => {
-    jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(['admin']);
+  it("devrait autoriser l'acces si l'utilisateur a le bon role", () => {
+    jest.spyOn(reflector, "getAllAndOverride").mockReturnValue(["admin"]);
 
     const context = createMockExecutionContext({
       id: 1,
-      roles: ['admin'],
+      roles: ["admin"],
     });
     expect(guard.canActivate(context)).toBe(true);
   });
 
-  it('devrait refuser l\'acces si l\'utilisateur n\'a pas le bon role', () => {
-    jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(['admin']);
+  it("devrait refuser l'acces si l'utilisateur n'a pas le bon role", () => {
+    jest.spyOn(reflector, "getAllAndOverride").mockReturnValue(["admin"]);
 
     const context = createMockExecutionContext({
       id: 1,
-      roles: ['user'],
+      roles: ["user"],
     });
     expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
   });
 
-  it('devrait refuser l\'acces si aucun utilisateur', () => {
-    jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(['admin']);
+  it("devrait refuser l'acces si aucun utilisateur", () => {
+    jest.spyOn(reflector, "getAllAndOverride").mockReturnValue(["admin"]);
 
     const context = createMockExecutionContext(undefined);
     expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
@@ -657,29 +660,29 @@ describe('RolesGuard', () => {
 
 ```typescript
 // pipes/parse-objectid.pipe.spec.ts
-import { ParseObjectIdPipe } from './parse-objectid.pipe';
-import { BadRequestException } from '@nestjs/common';
+import { ParseObjectIdPipe } from "./parse-objectid.pipe";
+import { BadRequestException } from "@nestjs/common";
 
-describe('ParseObjectIdPipe', () => {
+describe("ParseObjectIdPipe", () => {
   let pipe: ParseObjectIdPipe;
 
   beforeEach(() => {
     pipe = new ParseObjectIdPipe();
   });
 
-  it('devrait accepter un ObjectId valide', () => {
-    const validId = '507f1f77bcf86cd799439011';
-    expect(pipe.transform(validId, { type: 'param' } as any)).toBe(validId);
+  it("devrait accepter un ObjectId valide", () => {
+    const validId = "507f1f77bcf86cd799439011";
+    expect(pipe.transform(validId, { type: "param" } as any)).toBe(validId);
   });
 
-  it('devrait rejeter un ObjectId invalide', () => {
-    expect(() => pipe.transform('invalid-id', { type: 'param' } as any)).toThrow(
-      BadRequestException,
-    );
+  it("devrait rejeter un ObjectId invalide", () => {
+    expect(() =>
+      pipe.transform("invalid-id", { type: "param" } as any),
+    ).toThrow(BadRequestException);
   });
 
-  it('devrait rejeter une chaine vide', () => {
-    expect(() => pipe.transform('', { type: 'param' } as any)).toThrow(
+  it("devrait rejeter une chaine vide", () => {
+    expect(() => pipe.transform("", { type: "param" } as any)).toThrow(
       BadRequestException,
     );
   });
@@ -690,23 +693,23 @@ describe('ParseObjectIdPipe', () => {
 
 ```typescript
 // interceptors/transform-response.interceptor.spec.ts
-import { TransformResponseInterceptor } from './transform-response.interceptor';
-import { ExecutionContext, CallHandler } from '@nestjs/common';
-import { of } from 'rxjs';
+import { TransformResponseInterceptor } from "./transform-response.interceptor";
+import { ExecutionContext, CallHandler } from "@nestjs/common";
+import { of } from "rxjs";
 
-describe('TransformResponseInterceptor', () => {
+describe("TransformResponseInterceptor", () => {
   let interceptor: TransformResponseInterceptor<any>;
 
   beforeEach(() => {
     interceptor = new TransformResponseInterceptor();
   });
 
-  it('devrait envelopper la reponse dans un format standard', (done) => {
-    const mockData = { id: 1, nom: 'Alice' };
+  it("devrait envelopper la reponse dans un format standard", (done) => {
+    const mockData = { id: 1, nom: "Alice" };
 
     const context = {
       switchToHttp: () => ({
-        getRequest: () => ({ url: '/users/1' }),
+        getRequest: () => ({ url: "/users/1" }),
       }),
     } as ExecutionContext;
 
@@ -720,7 +723,7 @@ describe('TransformResponseInterceptor', () => {
           expect.objectContaining({
             success: true,
             data: mockData,
-            path: '/users/1',
+            path: "/users/1",
             timestamp: expect.any(String),
           }),
         );
@@ -739,13 +742,13 @@ Les tests d'intégration testent plusieurs composants ensemble, avec une vraie b
 
 ```typescript
 // users/users.integration.spec.ts
-import { Test, TestingModule } from '@nestjs/testing';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { UsersService } from './users.service';
-import { User } from './entities/user.entity';
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { Test, TestingModule } from "@nestjs/testing";
+import { TypeOrmModule } from "@nestjs/typeorm";
+import { UsersService } from "./users.service";
+import { User } from "./entities/user.entity";
+import { ConflictException, NotFoundException } from "@nestjs/common";
 
-describe('UsersService (Integration)', () => {
+describe("UsersService (Integration)", () => {
   let service: UsersService;
   let module: TestingModule;
 
@@ -754,11 +757,11 @@ describe('UsersService (Integration)', () => {
       imports: [
         // Base de donnees de test (SQLite en memoire pour la rapidite)
         TypeOrmModule.forRoot({
-          type: 'sqlite',
-          database: ':memory:',
+          type: "sqlite",
+          database: ":memory:",
           entities: [User],
-          synchronize: true,  // OK pour les tests
-          dropSchema: true,    // Reset a chaque suite
+          synchronize: true, // OK pour les tests
+          dropSchema: true, // Reset a chaque suite
         }),
         TypeOrmModule.forFeature([User]),
       ],
@@ -775,72 +778,70 @@ describe('UsersService (Integration)', () => {
   // Nettoyer entre les tests
   beforeEach(async () => {
     // Vider la table users
-    const repo = module.get('UserRepository');
+    const repo = module.get("UserRepository");
     await repo.clear();
   });
 
-  describe('create + findOne', () => {
-    it('devrait creer et retrouver un utilisateur', async () => {
+  describe("create + findOne", () => {
+    it("devrait creer et retrouver un utilisateur", async () => {
       // Creer
       const created = await service.create({
-        nom: 'Alice',
-        email: 'alice@test.com',
-        motDePasse: 'Pass123!',
+        nom: "Alice",
+        email: "alice@test.com",
+        motDePasse: "Pass123!",
       });
 
       expect(created.id).toBeDefined();
-      expect(created.nom).toBe('Alice');
+      expect(created.nom).toBe("Alice");
 
       // Retrouver
       const found = await service.findOne(created.id);
-      expect(found.email).toBe('alice@test.com');
+      expect(found.email).toBe("alice@test.com");
     });
 
-    it('devrait empecher les emails en double', async () => {
+    it("devrait empecher les emails en double", async () => {
       await service.create({
-        nom: 'Alice',
-        email: 'alice@test.com',
-        motDePasse: 'Pass123!',
+        nom: "Alice",
+        email: "alice@test.com",
+        motDePasse: "Pass123!",
       });
 
       await expect(
         service.create({
-          nom: 'Autre Alice',
-          email: 'alice@test.com',
-          motDePasse: 'Pass456!',
+          nom: "Autre Alice",
+          email: "alice@test.com",
+          motDePasse: "Pass456!",
         }),
       ).rejects.toThrow(ConflictException);
     });
   });
 
-  describe('update', () => {
-    it('devrait mettre a jour le nom', async () => {
+  describe("update", () => {
+    it("devrait mettre a jour le nom", async () => {
       const user = await service.create({
-        nom: 'Alice',
-        email: 'alice@test.com',
-        motDePasse: 'Pass123!',
+        nom: "Alice",
+        email: "alice@test.com",
+        motDePasse: "Pass123!",
       });
 
-      const updated = await service.update(user.id, { nom: 'Alice Martin' });
+      const updated = await service.update(user.id, { nom: "Alice Martin" });
 
-      expect(updated.nom).toBe('Alice Martin');
-      expect(updated.email).toBe('alice@test.com'); // Inchange
+      expect(updated.nom).toBe("Alice Martin");
+      expect(updated.email).toBe("alice@test.com"); // Inchange
     });
   });
 
-  describe('remove', () => {
-    it('devrait supprimer un utilisateur', async () => {
+  describe("remove", () => {
+    it("devrait supprimer un utilisateur", async () => {
       const user = await service.create({
-        nom: 'Alice',
-        email: 'alice@test.com',
-        motDePasse: 'Pass123!',
+        nom: "Alice",
+        email: "alice@test.com",
+        motDePasse: "Pass123!",
       });
 
       await service.remove(user.id);
 
-      await expect(service.findOne(user.id)).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(service.findOne(user.id)).rejects.toThrow(NotFoundException);
     });
   });
 });
@@ -854,12 +855,12 @@ describe('UsersService (Integration)', () => {
 
 ```typescript
 // test/app.e2e-spec.ts
-import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication, ValidationPipe } from '@nestjs/common';
-import * as request from 'supertest';
-import { AppModule } from '../src/app.module';
+import { Test, TestingModule } from "@nestjs/testing";
+import { INestApplication, ValidationPipe } from "@nestjs/common";
+import * as request from "supertest";
+import { AppModule } from "../src/app.module";
 
-describe('Application (E2E)', () => {
+describe("Application (E2E)", () => {
   let app: INestApplication;
 
   beforeAll(async () => {
@@ -887,25 +888,25 @@ describe('Application (E2E)', () => {
 
   // === Tests des routes Users ===
 
-  describe('Users (/users)', () => {
+  describe("Users (/users)", () => {
     let createdUserId: number;
 
-    describe('POST /users', () => {
-      it('devrait creer un utilisateur (201)', () => {
+    describe("POST /users", () => {
+      it("devrait creer un utilisateur (201)", () => {
         return request(app.getHttpServer())
-          .post('/users')
+          .post("/users")
           .send({
-            nom: 'Alice Dupont',
-            email: 'alice@test.com',
-            motDePasse: 'SecurePass123!',
+            nom: "Alice Dupont",
+            email: "alice@test.com",
+            motDePasse: "SecurePass123!",
           })
           .expect(201)
           .expect((res) => {
             expect(res.body).toEqual(
               expect.objectContaining({
                 id: expect.any(Number),
-                nom: 'Alice Dupont',
-                email: 'alice@test.com',
+                nom: "Alice Dupont",
+                email: "alice@test.com",
               }),
             );
             // Sauvegarder l'ID pour les tests suivants
@@ -915,44 +916,41 @@ describe('Application (E2E)', () => {
           });
       });
 
-      it('devrait rejeter un email invalide (400)', () => {
+      it("devrait rejeter un email invalide (400)", () => {
         return request(app.getHttpServer())
-          .post('/users')
+          .post("/users")
           .send({
-            nom: 'Test',
-            email: 'pas-un-email',
-            motDePasse: 'Pass123!',
+            nom: "Test",
+            email: "pas-un-email",
+            motDePasse: "Pass123!",
           })
           .expect(400)
           .expect((res) => {
-            expect(res.body.message).toContain('email');
+            expect(res.body.message).toContain("email");
           });
       });
 
-      it('devrait rejeter un body vide (400)', () => {
-        return request(app.getHttpServer())
-          .post('/users')
-          .send({})
-          .expect(400);
+      it("devrait rejeter un body vide (400)", () => {
+        return request(app.getHttpServer()).post("/users").send({}).expect(400);
       });
 
-      it('devrait rejeter les proprietes inconnues (400)', () => {
+      it("devrait rejeter les proprietes inconnues (400)", () => {
         return request(app.getHttpServer())
-          .post('/users')
+          .post("/users")
           .send({
-            nom: 'Test',
-            email: 'test@test.com',
-            motDePasse: 'Pass123!',
+            nom: "Test",
+            email: "test@test.com",
+            motDePasse: "Pass123!",
             isAdmin: true, // Propriete non autorisee
           })
           .expect(400);
       });
     });
 
-    describe('GET /users', () => {
-      it('devrait retourner tous les utilisateurs (200)', () => {
+    describe("GET /users", () => {
+      it("devrait retourner tous les utilisateurs (200)", () => {
         return request(app.getHttpServer())
-          .get('/users')
+          .get("/users")
           .expect(200)
           .expect((res) => {
             expect(Array.isArray(res.body)).toBe(true);
@@ -960,50 +958,46 @@ describe('Application (E2E)', () => {
       });
     });
 
-    describe('GET /users/:id', () => {
-      it('devrait retourner un utilisateur par ID (200)', () => {
+    describe("GET /users/:id", () => {
+      it("devrait retourner un utilisateur par ID (200)", () => {
         return request(app.getHttpServer())
           .get(`/users/${createdUserId}`)
           .expect(200)
           .expect((res) => {
             expect(res.body.id).toBe(createdUserId);
-            expect(res.body.nom).toBe('Alice Dupont');
+            expect(res.body.nom).toBe("Alice Dupont");
           });
       });
 
-      it('devrait retourner 404 si introuvable', () => {
-        return request(app.getHttpServer())
-          .get('/users/99999')
-          .expect(404);
+      it("devrait retourner 404 si introuvable", () => {
+        return request(app.getHttpServer()).get("/users/99999").expect(404);
       });
 
-      it('devrait retourner 400 si ID invalide', () => {
-        return request(app.getHttpServer())
-          .get('/users/abc')
-          .expect(400);
+      it("devrait retourner 400 si ID invalide", () => {
+        return request(app.getHttpServer()).get("/users/abc").expect(400);
       });
     });
 
-    describe('PATCH /users/:id', () => {
-      it('devrait mettre a jour un utilisateur (200)', () => {
+    describe("PATCH /users/:id", () => {
+      it("devrait mettre a jour un utilisateur (200)", () => {
         return request(app.getHttpServer())
           .patch(`/users/${createdUserId}`)
-          .send({ nom: 'Alice Martin' })
+          .send({ nom: "Alice Martin" })
           .expect(200)
           .expect((res) => {
-            expect(res.body.nom).toBe('Alice Martin');
+            expect(res.body.nom).toBe("Alice Martin");
           });
       });
     });
 
-    describe('DELETE /users/:id', () => {
-      it('devrait supprimer un utilisateur (200)', () => {
+    describe("DELETE /users/:id", () => {
+      it("devrait supprimer un utilisateur (200)", () => {
         return request(app.getHttpServer())
           .delete(`/users/${createdUserId}`)
           .expect(200);
       });
 
-      it('devrait retourner 404 apres suppression', () => {
+      it("devrait retourner 404 apres suppression", () => {
         return request(app.getHttpServer())
           .get(`/users/${createdUserId}`)
           .expect(404);
@@ -1016,50 +1010,46 @@ describe('Application (E2E)', () => {
 ### 6.2 E2E avec authentification
 
 ```typescript
-describe('Routes protegees', () => {
+describe("Routes protegees", () => {
   let authToken: string;
 
   beforeAll(async () => {
     // Creer un utilisateur de test
-    await request(app.getHttpServer())
-      .post('/auth/register')
-      .send({
-        nom: 'Admin Test',
-        email: 'admin@test.com',
-        motDePasse: 'Admin123!',
-      });
+    await request(app.getHttpServer()).post("/auth/register").send({
+      nom: "Admin Test",
+      email: "admin@test.com",
+      motDePasse: "Admin123!",
+    });
 
     // Se connecter pour obtenir un token
     const loginResponse = await request(app.getHttpServer())
-      .post('/auth/login')
+      .post("/auth/login")
       .send({
-        email: 'admin@test.com',
-        motDePasse: 'Admin123!',
+        email: "admin@test.com",
+        motDePasse: "Admin123!",
       });
 
     authToken = loginResponse.body.accessToken;
   });
 
-  it('devrait acceder a une route protegee avec un token valide', () => {
+  it("devrait acceder a une route protegee avec un token valide", () => {
     return request(app.getHttpServer())
-      .get('/users/me')
-      .set('Authorization', `Bearer ${authToken}`)
+      .get("/users/me")
+      .set("Authorization", `Bearer ${authToken}`)
       .expect(200)
       .expect((res) => {
-        expect(res.body.email).toBe('admin@test.com');
+        expect(res.body.email).toBe("admin@test.com");
       });
   });
 
-  it('devrait refuser l\'acces sans token (401)', () => {
-    return request(app.getHttpServer())
-      .get('/users/me')
-      .expect(401);
+  it("devrait refuser l'acces sans token (401)", () => {
+    return request(app.getHttpServer()).get("/users/me").expect(401);
   });
 
-  it('devrait refuser un token invalide (401)', () => {
+  it("devrait refuser un token invalide (401)", () => {
     return request(app.getHttpServer())
-      .get('/users/me')
-      .set('Authorization', 'Bearer token-invalide')
+      .get("/users/me")
+      .set("Authorization", "Bearer token-invalide")
       .expect(401);
   });
 });
@@ -1119,16 +1109,16 @@ coverageThresholds: {
 
 ## 9. Bonnes pratiques de test
 
-| Pratique | Description |
-|----------|-------------|
-| Pattern AAA | Arrange (preparer), Act (agir), Assert (vérifier) |
-| Un test = une assertion | Chaque test vérifié UNE chose spécifique |
-| Nommer clairement | `devrait retourner 404 si utilisateur introuvable` |
-| Tests independants | Chaque test peut s'exécuter seul, dans n'importe quel ordre |
+| Pratique                  | Description                                                        |
+| ------------------------- | ------------------------------------------------------------------ |
+| Pattern AAA               | Arrange (preparer), Act (agir), Assert (vérifier)                  |
+| Un test = une assertion   | Chaque test vérifié UNE chose spécifique                           |
+| Nommer clairement         | `devrait retourner 404 si utilisateur introuvable`                 |
+| Tests independants        | Chaque test peut s'exécuter seul, dans n'importe quel ordre        |
 | Éviter les tests fragiles | Ne testez pas les details d'implementation, testez le comportement |
-| Mocker avec parcimonie | Preferez les tests d'intégration pour les cas complexes |
-| Nettoyer après | Utilisez `afterEach` / `afterAll` pour nettoyer |
-| CI/CD | Lancez les tests automatiquement à chaque push |
+| Mocker avec parcimonie    | Preferez les tests d'intégration pour les cas complexes            |
+| Nettoyer après            | Utilisez `afterEach` / `afterAll` pour nettoyer                    |
+| CI/CD                     | Lancez les tests automatiquement à chaque push                     |
 
 > **Bonne pratique** : Suivez la pyramide de tests. Beaucoup de tests unitaires (rapides, isoles), quelques tests d'intégration (service + DB), et peu de tests E2E (lents mais complets).
 
@@ -1150,25 +1140,69 @@ Ecrivez une suite de tests E2E pour un CRUD complet de produits, incluant la val
 
 ---
 
+## Bonus — Strategie de tests BFF (Express ou Nest)
+
+Pour un BFF, tester seulement le CRUD n'est pas suffisant. Il faut verifier l'orchestration, le mapping des reponses, et la resilience face aux pannes upstream.
+
+### 1) Matrice minimale de tests BFF
+
+| Type        | Ce qu'on valide                                        |
+| ----------- | ------------------------------------------------------ |
+| Unitaire    | Mapping payload upstream -> DTO frontend               |
+| Integration | Orchestration multi-services + timeouts                |
+| Contrat     | Shape stable pour Angular (`success`, `data`, `error`) |
+| E2E         | Parcours critique avec auth + cookies + CSRF           |
+
+### 2) Cas critiques a couvrir
+
+1. Un upstream renvoie `500` -> le BFF renvoie une erreur normalisee.
+2. Un upstream timeout -> le BFF degrade partiellement sans casser l'ecran.
+3. Donnees upstream incompletes -> le BFF applique des valeurs par defaut explicites.
+4. Changement de payload upstream -> le contrat BFF expose au front reste stable.
+
+### 3) Exemple de test contrat BFF
+
+```typescript
+it("retourne un contrat frontend stable", async () => {
+  const res = await request(app.getHttpServer())
+    .get("/bff/dashboard")
+    .set("Authorization", `Bearer ${token}`)
+    .expect(200);
+
+  expect(res.body).toEqual(
+    expect.objectContaining({
+      success: expect.any(Boolean),
+      data: expect.any(Object),
+      error: expect.anything(),
+    }),
+  );
+});
+```
+
+> **A retenir BFF** : Le vrai risque n'est pas seulement le bug de code, c'est la rupture de contrat entre BFF et frontend quand un service amont change.
+
+---
+
 ## Liens
 
-| Ressource | Lien |
-|-----------|------|
-| Quiz Module 18 | `quiz/18-quiz.md` |
-| Lab Module 18 | `labs/18-lab-testing.md` |
-| Screencast | `screencasts/18-screencast.md` |
-| Module précédent | [Module 17 — Prisma avance & Comparaison](17-prisma-avance-comparaison.md) |
-| Module suivant | [Module 19 — Authentification & Autorisation](19-nestjs-auth.md) |
-| NestJS Testing | https://docs.nestjs.com/fundamentals/testing |
-| Jest Documentation | https://jestjs.io/docs/getting-started |
-| Supertest | https://github.com/ladjs/supertest |
+| Ressource          | Lien                                                                       |
+| ------------------ | -------------------------------------------------------------------------- |
+| Quiz Module 18     | `quiz/18-quiz.md`                                                          |
+| Lab Module 18      | `labs/18-lab-testing.md`                                                   |
+| Screencast         | `screencasts/18-screencast.md`                                             |
+| Module précédent   | [Module 17 — Prisma avance & Comparaison](17-prisma-avance-comparaison.md) |
+| Module suivant     | [Module 19 — Authentification & Autorisation](19-nestjs-auth.md)           |
+| NestJS Testing     | https://docs.nestjs.com/fundamentals/testing                               |
+| Jest Documentation | https://jestjs.io/docs/getting-started                                     |
+| Supertest          | https://github.com/ladjs/supertest                                         |
 
 ---
 
 <!-- parcours-recommande -->
 
 ::: tip Parcours recommandé
+
 1. **Screencast** : [screencast 18 testing](../screencasts/screencast-18-testing.md)
 2. **Lab** : [lab-18-testing](../labs/lab-18-testing/README)
 3. **Quiz** : [quiz 18 testing](../quizzes/quiz-18-testing.html)
-:::
+   :::

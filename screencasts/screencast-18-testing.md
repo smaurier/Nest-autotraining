@@ -1,12 +1,14 @@
 # Screencast 18 — Testing NestJS
 
 ## Informations
+
 - **Duree estimee** : 18-22 min
 - **Module** : `modules/18-nestjs-testing.md`
 - **Lab associe** : `labs/lab-18-testing/`
 - **Prérequis** : Screencast 17 (Prisma Avance & Comparaison)
 
 ## Setup
+
 - [ ] Node.js 20+ installe
 - [ ] Terminal ouvert dans `nest-course/`
 - [ ] Projet NestJS avec services et controllers fonctionnels
@@ -37,12 +39,12 @@ npm run test
 
 ```typescript
 // src/tasks/tasks.service.spec.ts
-import { Test, TestingModule } from '@nestjs/testing';
-import { TasksService } from './tasks.service';
-import { PrismaService } from '../prisma/prisma.service';
-import { NotFoundException } from '@nestjs/common';
+import { Test, TestingModule } from "@nestjs/testing";
+import { TasksService } from "./tasks.service";
+import { PrismaService } from "../prisma/prisma.service";
+import { NotFoundException } from "@nestjs/common";
 
-describe('TasksService', () => {
+describe("TasksService", () => {
   let service: TasksService;
   let prisma: PrismaService;
 
@@ -72,9 +74,9 @@ describe('TasksService', () => {
     jest.clearAllMocks();
   });
 
-  describe('create', () => {
-    it('doit creer une tache', async () => {
-      const dto = { title: 'Test', description: 'Description' };
+  describe("create", () => {
+    it("doit creer une tache", async () => {
+      const dto = { title: "Test", description: "Description" };
       const expected = { id: 1, ...dto, done: false, createdAt: new Date() };
 
       mockPrisma.task.create.mockResolvedValue(expected);
@@ -83,30 +85,30 @@ describe('TasksService', () => {
 
       expect(result).toEqual(expected);
       expect(mockPrisma.task.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({ title: 'Test' }),
+        data: expect.objectContaining({ title: "Test" }),
         include: expect.any(Object),
       });
     });
   });
 
-  describe('findOne', () => {
-    it('doit retourner une tache par ID', async () => {
-      const task = { id: 1, title: 'Test', done: false };
+  describe("findOne", () => {
+    it("doit retourner une tache par ID", async () => {
+      const task = { id: 1, title: "Test", done: false };
       mockPrisma.task.findUnique.mockResolvedValue(task);
 
       const result = await service.findOne(1);
       expect(result).toEqual(task);
     });
 
-    it('doit lever NotFoundException si la tache n\'existe pas', async () => {
+    it("doit lever NotFoundException si la tache n'existe pas", async () => {
       mockPrisma.task.findUnique.mockResolvedValue(null);
 
       await expect(service.findOne(999)).rejects.toThrow(NotFoundException);
     });
   });
 
-  describe('remove', () => {
-    it('doit supprimer une tache', async () => {
+  describe("remove", () => {
+    it("doit supprimer une tache", async () => {
       mockPrisma.task.delete.mockResolvedValue({ id: 1 });
 
       await expect(service.remove(1)).resolves.not.toThrow();
@@ -130,11 +132,11 @@ npm run test -- --watch tasks.service
 
 ```typescript
 // src/tasks/tasks.controller.spec.ts
-import { Test, TestingModule } from '@nestjs/testing';
-import { TasksController } from './tasks.controller';
-import { TasksService } from './tasks.service';
+import { Test, TestingModule } from "@nestjs/testing";
+import { TasksController } from "./tasks.controller";
+import { TasksService } from "./tasks.service";
 
-describe('TasksController', () => {
+describe("TasksController", () => {
   let controller: TasksController;
   let service: TasksService;
 
@@ -156,9 +158,12 @@ describe('TasksController', () => {
     service = module.get<TasksService>(TasksService);
   });
 
-  describe('findAll', () => {
-    it('doit retourner un tableau de taches', async () => {
-      const tasks = [{ id: 1, title: 'Task 1' }, { id: 2, title: 'Task 2' }];
+  describe("findAll", () => {
+    it("doit retourner un tableau de taches", async () => {
+      const tasks = [
+        { id: 1, title: "Task 1" },
+        { id: 2, title: "Task 2" },
+      ];
       mockService.findAll.mockResolvedValue(tasks);
 
       const result = await controller.findAll();
@@ -168,9 +173,9 @@ describe('TasksController', () => {
     });
   });
 
-  describe('create', () => {
-    it('doit creer et retourner une tache', async () => {
-      const dto = { title: 'Nouvelle tache' };
+  describe("create", () => {
+    it("doit creer et retourner une tache", async () => {
+      const dto = { title: "Nouvelle tache" };
       const created = { id: 1, ...dto, done: false };
       mockService.create.mockResolvedValue(created);
 
@@ -191,12 +196,12 @@ describe('TasksController', () => {
 
 ```typescript
 // test/tasks.e2e-spec.ts
-import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication, ValidationPipe } from '@nestjs/common';
-import * as request from 'supertest';
-import { AppModule } from '../src/app.module';
+import { Test, TestingModule } from "@nestjs/testing";
+import { INestApplication, ValidationPipe } from "@nestjs/common";
+import * as request from "supertest";
+import { AppModule } from "../src/app.module";
 
-describe('Tasks API (e2e)', () => {
+describe("Tasks API (e2e)", () => {
   let app: INestApplication;
 
   beforeAll(async () => {
@@ -213,36 +218,34 @@ describe('Tasks API (e2e)', () => {
     await app.close();
   });
 
-  it('POST /tasks — doit creer une tache', () => {
+  it("POST /tasks — doit creer une tache", () => {
     return request(app.getHttpServer())
-      .post('/tasks')
-      .send({ title: 'E2E Test Task', description: 'Testing' })
+      .post("/tasks")
+      .send({ title: "E2E Test Task", description: "Testing" })
       .expect(201)
       .expect((res) => {
-        expect(res.body.title).toBe('E2E Test Task');
+        expect(res.body.title).toBe("E2E Test Task");
         expect(res.body.id).toBeDefined();
       });
   });
 
-  it('GET /tasks — doit retourner les taches', () => {
+  it("GET /tasks — doit retourner les taches", () => {
     return request(app.getHttpServer())
-      .get('/tasks')
+      .get("/tasks")
       .expect(200)
       .expect((res) => {
         expect(Array.isArray(res.body)).toBe(true);
       });
   });
 
-  it('GET /tasks/999 — doit retourner 404', () => {
-    return request(app.getHttpServer())
-      .get('/tasks/999')
-      .expect(404);
+  it("GET /tasks/999 — doit retourner 404", () => {
+    return request(app.getHttpServer()).get("/tasks/999").expect(404);
   });
 
-  it('POST /tasks — doit rejeter les donnees invalides', () => {
+  it("POST /tasks — doit rejeter les donnees invalides", () => {
     return request(app.getHttpServer())
-      .post('/tasks')
-      .send({ title: '' })
+      .post("/tasks")
+      .send({ title: "" })
       .expect(400);
   });
 });
@@ -256,6 +259,12 @@ npm run test:e2e
 
 > Les tests E2E utilisent supertest pour envoyer de vraies requêtes HTTP a l'application. Ils testent tout le pipeline : routing, validation, service, base de donnees. C'est le test le plus realiste.
 
+### [19:00-20:00] Bonus BFF — Tests de contrat
+
+> Pour un BFF, ajoutez un test qui verrouille la forme de reponse attendue par Angular et un test de degradation en cas de timeout upstream.
+
+**Action** : Montrer un test qui vérifie success, data, error et requestId.
+
 ### [19:00-21:00] Recap
 
 > Les tests unitaires isolent une classe avec des mocks. Les tests E2E testent l'API de bout en bout avec supertest. NestJS fournit `Test.createTestingModule` pour configurer les modules de test. Combinez les deux pour une couverture complete.
@@ -265,6 +274,7 @@ npm run test:e2e
 > Le lab est dans `labs/lab-18-testing/`. Vous allez écrire des tests unitaires et E2E pour votre API. Visez au moins 80% de couverture. Au prochain screencast, l'authentification NestJS !
 
 ## Points d'attention pour l'enregistrement
+
 - Montrer les tests en mode watch pour un feedback instantane
 - Bien expliquer la différence entre mock, spy et stub
 - Les tests E2E necessitent une base de test separee — le mentionner

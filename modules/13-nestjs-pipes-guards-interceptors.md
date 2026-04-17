@@ -60,7 +60,7 @@ export interface PipeTransform<T = any, R = any> {
 
 // ArgumentMetadata contient des infos sur le parametre
 export interface ArgumentMetadata {
-  type: 'body' | 'query' | 'param' | 'custom';
+  type: "body" | "query" | "param" | "custom";
   metatype?: Type<any>;
   data?: string;
 }
@@ -75,14 +75,14 @@ NestJS fournit plusieurs pipes prets a l'emploi dans le package `@nestjs/common`
 Convertit une chaine en entier. Lance une exception si la conversion echoue.
 
 ```typescript
-import { Controller, Get, Param, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Param, ParseIntPipe } from "@nestjs/common";
 
-@Controller('articles')
+@Controller("articles")
 export class ArticlesController {
   // GET /articles/42
   // Le parametre 'id' sera automatiquement converti en number
-  @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number) {
+  @Get(":id")
+  findOne(@Param("id", ParseIntPipe) id: number) {
     // id est maintenant un number, pas un string
     console.log(typeof id); // 'number'
     return this.articlesService.findOne(id);
@@ -190,9 +190,9 @@ npm install class-validator class-transformer
 
 ```typescript
 // main.ts
-import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
-import { AppModule } from './app.module';
+import { NestFactory } from "@nestjs/core";
+import { ValidationPipe } from "@nestjs/common";
+import { AppModule } from "./app.module";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -200,9 +200,9 @@ async function bootstrap() {
   // Configuration globale du ValidationPipe
   app.useGlobalPipes(
     new ValidationPipe({
-      whitelist: true,            // Supprime les proprietes non decorees
+      whitelist: true, // Supprime les proprietes non decorees
       forbidNonWhitelisted: true, // Lance une erreur si propriete inconnue
-      transform: true,            // Transforme automatiquement les types
+      transform: true, // Transforme automatiquement les types
       transformOptions: {
         enableImplicitConversion: true, // Conversion automatique des types primitifs
       },
@@ -214,13 +214,13 @@ async function bootstrap() {
 bootstrap();
 ```
 
-| Option | Description | Valeur recommandee |
-|--------|-------------|-------------------|
-| `whitelist` | Supprime les propriétés non decorees du DTO | `true` |
-| `forbidNonWhitelisted` | Erreur 400 si propriété inconnue | `true` |
-| `transform` | Transformation automatique des types | `true` |
-| `disableErrorMessages` | Masque les details d'erreur | `false` (dev), `true` (prod) |
-| `exceptionFactory` | Fonction custom pour formater les erreurs | selon besoin |
+| Option                 | Description                                 | Valeur recommandee           |
+| ---------------------- | ------------------------------------------- | ---------------------------- |
+| `whitelist`            | Supprime les propriétés non decorees du DTO | `true`                       |
+| `forbidNonWhitelisted` | Erreur 400 si propriété inconnue            | `true`                       |
+| `transform`            | Transformation automatique des types        | `true`                       |
+| `disableErrorMessages` | Masque les details d'erreur                 | `false` (dev), `true` (prod) |
+| `exceptionFactory`     | Fonction custom pour formater les erreurs   | selon besoin                 |
 
 > **Piege classique** : Si vous oubliez `whitelist: true`, un utilisateur malveillant peut envoyer des propriétés supplementaires (comme `isAdmin: true`) qui seront transmises a votre service. Toujours activer le whitelist !
 
@@ -250,14 +250,14 @@ import {
   Matches,
   IsNotEmpty,
   IsDateString,
-} from 'class-validator';
-import { Type } from 'class-transformer';
+} from "class-validator";
+import { Type } from "class-transformer";
 
 // Enumeration pour le role
 export enum UserRole {
-  ADMIN = 'admin',
-  USER = 'user',
-  MODERATOR = 'moderator',
+  ADMIN = "admin",
+  USER = "user",
+  MODERATOR = "moderator",
 }
 
 // DTO d'adresse imbrique
@@ -271,7 +271,7 @@ export class AddressDto {
   ville: string;
 
   @IsString()
-  @Matches(/^\d{5}$/, { message: 'Le code postal doit contenir 5 chiffres' })
+  @Matches(/^\d{5}$/, { message: "Le code postal doit contenir 5 chiffres" })
   codePostal: string;
 
   @IsString()
@@ -281,9 +281,9 @@ export class AddressDto {
 
 // DTO principal de creation d'utilisateur
 export class CreateUserDto {
-  @IsString({ message: 'Le prenom doit etre une chaine de caracteres' })
-  @MinLength(2, { message: 'Le prenom doit contenir au moins 2 caracteres' })
-  @MaxLength(50, { message: 'Le prenom ne doit pas depasser 50 caracteres' })
+  @IsString({ message: "Le prenom doit etre une chaine de caracteres" })
+  @MinLength(2, { message: "Le prenom doit contenir au moins 2 caracteres" })
+  @MaxLength(50, { message: "Le prenom ne doit pas depasser 50 caracteres" })
   prenom: string;
 
   @IsString()
@@ -291,22 +291,25 @@ export class CreateUserDto {
   @MaxLength(50)
   nom: string;
 
-  @IsEmail({}, { message: 'L\'email fourni n\'est pas valide' })
+  @IsEmail({}, { message: "L'email fourni n'est pas valide" })
   email: string;
 
   @IsString()
-  @MinLength(8, { message: 'Le mot de passe doit contenir au moins 8 caracteres' })
+  @MinLength(8, {
+    message: "Le mot de passe doit contenir au moins 8 caracteres",
+  })
   @Matches(/^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)/, {
-    message: 'Le mot de passe doit contenir au moins une majuscule, une minuscule et un chiffre',
+    message:
+      "Le mot de passe doit contenir au moins une majuscule, une minuscule et un chiffre",
   })
   motDePasse: string;
 
-  @IsEnum(UserRole, { message: 'Le role doit etre admin, user ou moderator' })
+  @IsEnum(UserRole, { message: "Le role doit etre admin, user ou moderator" })
   @IsOptional()
   role?: UserRole;
 
   @IsInt()
-  @Min(18, { message: 'L\'utilisateur doit avoir au moins 18 ans' })
+  @Min(18, { message: "L'utilisateur doit avoir au moins 18 ans" })
   @Max(120)
   @IsOptional()
   age?: number;
@@ -323,14 +326,14 @@ export class CreateUserDto {
   @IsOptional()
   siteWeb?: string;
 
-  @IsPhoneNumber('FR')
+  @IsPhoneNumber("FR")
   @IsOptional()
   telephone?: string;
 
   @IsArray()
   @IsString({ each: true }) // Valide chaque element du tableau
-  @ArrayMinSize(1, { message: 'Au moins un tag est requis' })
-  @ArrayMaxSize(5, { message: 'Maximum 5 tags autorises' })
+  @ArrayMinSize(1, { message: "Au moins un tag est requis" })
+  @ArrayMaxSize(5, { message: "Maximum 5 tags autorises" })
   @IsOptional()
   tags?: string[];
 
@@ -346,8 +349,8 @@ export class CreateUserDto {
 
 ```typescript
 // dto/update-user.dto.ts
-import { PartialType } from '@nestjs/mapped-types';
-import { CreateUserDto } from './create-user.dto';
+import { PartialType } from "@nestjs/mapped-types";
+import { CreateUserDto } from "./create-user.dto";
 
 // Tous les champs deviennent optionnels automatiquement
 export class UpdateUserDto extends PartialType(CreateUserDto) {}
@@ -357,26 +360,26 @@ export class UpdateUserDto extends PartialType(CreateUserDto) {}
 
 #### Tableau récapitulatif des decorateurs class-validator
 
-| Decorateur | Description | Exemple |
-|-----------|-------------|---------|
-| `@IsString()` | Doit etre une chaine | `@IsString()` |
-| `@IsNumber()` | Doit etre un nombre | `@IsNumber({ maxDecimalPlaces: 2 })` |
-| `@IsInt()` | Doit etre un entier | `@IsInt()` |
-| `@IsBoolean()` | Doit etre un booleen | `@IsBoolean()` |
-| `@IsEmail()` | Doit etre un email valide | `@IsEmail()` |
-| `@IsEnum(enum)` | Doit etre une valeur de l'enum | `@IsEnum(Role)` |
-| `@IsOptional()` | Champ optionnel | `@IsOptional()` |
-| `@IsNotEmpty()` | Ne doit pas etre vide | `@IsNotEmpty()` |
-| `@MinLength(n)` | Longueur minimale | `@MinLength(3)` |
-| `@MaxLength(n)` | Longueur maximale | `@MaxLength(100)` |
-| `@Min(n)` | Valeur minimale | `@Min(0)` |
-| `@Max(n)` | Valeur maximale | `@Max(999)` |
-| `@Matches(regex)` | Doit matcher la regex | `@Matches(/^\d+$/)` |
-| `@IsUrl()` | Doit etre une URL | `@IsUrl()` |
-| `@IsDateString()` | Doit etre une date ISO | `@IsDateString()` |
-| `@IsArray()` | Doit etre un tableau | `@IsArray()` |
-| `@ValidateNested()` | Valide l'objet imbrique | `@ValidateNested()` |
-| `@Type(() => Class)` | Transforme en instance de classe | `@Type(() => AddressDto)` |
+| Decorateur           | Description                      | Exemple                              |
+| -------------------- | -------------------------------- | ------------------------------------ |
+| `@IsString()`        | Doit etre une chaine             | `@IsString()`                        |
+| `@IsNumber()`        | Doit etre un nombre              | `@IsNumber({ maxDecimalPlaces: 2 })` |
+| `@IsInt()`           | Doit etre un entier              | `@IsInt()`                           |
+| `@IsBoolean()`       | Doit etre un booleen             | `@IsBoolean()`                       |
+| `@IsEmail()`         | Doit etre un email valide        | `@IsEmail()`                         |
+| `@IsEnum(enum)`      | Doit etre une valeur de l'enum   | `@IsEnum(Role)`                      |
+| `@IsOptional()`      | Champ optionnel                  | `@IsOptional()`                      |
+| `@IsNotEmpty()`      | Ne doit pas etre vide            | `@IsNotEmpty()`                      |
+| `@MinLength(n)`      | Longueur minimale                | `@MinLength(3)`                      |
+| `@MaxLength(n)`      | Longueur maximale                | `@MaxLength(100)`                    |
+| `@Min(n)`            | Valeur minimale                  | `@Min(0)`                            |
+| `@Max(n)`            | Valeur maximale                  | `@Max(999)`                          |
+| `@Matches(regex)`    | Doit matcher la regex            | `@Matches(/^\d+$/)`                  |
+| `@IsUrl()`           | Doit etre une URL                | `@IsUrl()`                           |
+| `@IsDateString()`    | Doit etre une date ISO           | `@IsDateString()`                    |
+| `@IsArray()`         | Doit etre un tableau             | `@IsArray()`                         |
+| `@ValidateNested()`  | Valide l'objet imbrique          | `@ValidateNested()`                  |
+| `@Type(() => Class)` | Transforme en instance de classe | `@Type(() => AddressDto)`            |
 
 ### 2.4 Créer un Pipe personnalise
 
@@ -389,8 +392,8 @@ import {
   Injectable,
   ArgumentMetadata,
   BadRequestException,
-} from '@nestjs/common';
-import { Types } from 'mongoose';
+} from "@nestjs/common";
+import { Types } from "mongoose";
 
 // Pipe pour valider un ObjectId MongoDB
 @Injectable()
@@ -420,20 +423,20 @@ Un autre exemple — un pipe qui nettoie les chaines de caracteres :
 
 ```typescript
 // pipes/trim-strings.pipe.ts
-import { PipeTransform, Injectable, ArgumentMetadata } from '@nestjs/common';
+import { PipeTransform, Injectable, ArgumentMetadata } from "@nestjs/common";
 
 @Injectable()
 export class TrimStringsPipe implements PipeTransform {
   transform(value: any, metadata: ArgumentMetadata) {
     // Ne traite que les body
-    if (metadata.type !== 'body' || typeof value !== 'object') {
+    if (metadata.type !== "body" || typeof value !== "object") {
       return value;
     }
 
     // Parcourt toutes les proprietes et trim les chaines
     const trimmed: Record<string, any> = {};
     for (const [key, val] of Object.entries(value)) {
-      trimmed[key] = typeof val === 'string' ? val.trim() : val;
+      trimmed[key] = typeof val === "string" ? val.trim() : val;
     }
     return trimmed;
   }
@@ -444,27 +447,23 @@ export class TrimStringsPipe implements PipeTransform {
 
 ```typescript
 // pipes/file-validation.pipe.ts
-import {
-  PipeTransform,
-  Injectable,
-  BadRequestException,
-} from '@nestjs/common';
+import { PipeTransform, Injectable, BadRequestException } from "@nestjs/common";
 
 @Injectable()
 export class FileValidationPipe implements PipeTransform {
   constructor(
-    private readonly allowedMimeTypes: string[] = ['image/jpeg', 'image/png'],
+    private readonly allowedMimeTypes: string[] = ["image/jpeg", "image/png"],
     private readonly maxSizeInBytes: number = 5 * 1024 * 1024, // 5 Mo
   ) {}
 
   transform(file: Express.Multer.File) {
     if (!file) {
-      throw new BadRequestException('Aucun fichier fourni');
+      throw new BadRequestException("Aucun fichier fourni");
     }
 
     if (!this.allowedMimeTypes.includes(file.mimetype)) {
       throw new BadRequestException(
-        `Type de fichier non autorise. Types acceptes : ${this.allowedMimeTypes.join(', ')}`,
+        `Type de fichier non autorise. Types acceptes : ${this.allowedMimeTypes.join(", ")}`,
       );
     }
 
@@ -490,7 +489,9 @@ Un **Guard** est une classe annotee `@Injectable()` qui implemente l'interface `
 
 ```typescript
 export interface CanActivate {
-  canActivate(context: ExecutionContext): boolean | Promise<boolean> | Observable<boolean>;
+  canActivate(
+    context: ExecutionContext,
+  ): boolean | Promise<boolean> | Observable<boolean>;
 }
 ```
 
@@ -503,8 +504,8 @@ L'`ExecutionContext` etend `ArgumentsHost` et fournit des méthodes supplementai
 ```typescript
 // L'ExecutionContext vous donne acces a tout
 export interface ExecutionContext extends ArgumentsHost {
-  getClass<T = any>(): Type<T>;       // La classe du controller
-  getHandler(): Function;              // La methode du handler
+  getClass<T = any>(): Type<T>; // La classe du controller
+  getHandler(): Function; // La methode du handler
 }
 ```
 
@@ -526,8 +527,8 @@ import {
   ExecutionContext,
   Injectable,
   UnauthorizedException,
-} from '@nestjs/common';
-import { Request } from 'express';
+} from "@nestjs/common";
+import { Request } from "express";
 
 @Injectable()
 export class AuthGuard implements CanActivate {
@@ -536,7 +537,7 @@ export class AuthGuard implements CanActivate {
     const token = this.extractToken(request);
 
     if (!token) {
-      throw new UnauthorizedException('Token manquant');
+      throw new UnauthorizedException("Token manquant");
     }
 
     // Ici, on verifierait le token JWT (voir Module 19)
@@ -546,7 +547,7 @@ export class AuthGuard implements CanActivate {
       // request.user = payload;
       return true;
     } catch {
-      throw new UnauthorizedException('Token invalide');
+      throw new UnauthorizedException("Token invalide");
     }
   }
 
@@ -554,8 +555,8 @@ export class AuthGuard implements CanActivate {
     const authHeader = request.headers.authorization;
     if (!authHeader) return undefined;
 
-    const [type, token] = authHeader.split(' ');
-    return type === 'Bearer' ? token : undefined;
+    const [type, token] = authHeader.split(" ");
+    return type === "Bearer" ? token : undefined;
   }
 }
 ```
@@ -568,9 +569,9 @@ C'est un pattern fondamental dans NestJS. On utilise des **metadonnees** pour d�
 
 ```typescript
 // decorators/roles.decorator.ts
-import { SetMetadata } from '@nestjs/common';
+import { SetMetadata } from "@nestjs/common";
 
-export const ROLES_KEY = 'roles';
+export const ROLES_KEY = "roles";
 
 // Decorateur personnalise pour definir les roles autorises
 export const Roles = (...roles: string[]) => SetMetadata(ROLES_KEY, roles);
@@ -585,9 +586,9 @@ import {
   ExecutionContext,
   Injectable,
   ForbiddenException,
-} from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
-import { ROLES_KEY } from '../decorators/roles.decorator';
+} from "@nestjs/common";
+import { Reflector } from "@nestjs/core";
+import { ROLES_KEY } from "../decorators/roles.decorator";
 
 @Injectable()
 export class RolesGuard implements CanActivate {
@@ -611,7 +612,7 @@ export class RolesGuard implements CanActivate {
     const user = request.user;
 
     if (!user) {
-      throw new ForbiddenException('Utilisateur non authentifie');
+      throw new ForbiddenException("Utilisateur non authentifie");
     }
 
     // Verifie si l'utilisateur a au moins un des roles requis
@@ -619,7 +620,7 @@ export class RolesGuard implements CanActivate {
 
     if (!hasRole) {
       throw new ForbiddenException(
-        `Acces refuse. Roles requis : ${requiredRoles.join(', ')}`,
+        `Acces refuse. Roles requis : ${requiredRoles.join(", ")}`,
       );
     }
 
@@ -632,30 +633,30 @@ export class RolesGuard implements CanActivate {
 
 ```typescript
 // controllers/admin.controller.ts
-import { Controller, Get, Post, UseGuards } from '@nestjs/common';
-import { AuthGuard } from '../guards/auth.guard';
-import { RolesGuard } from '../guards/roles.guard';
-import { Roles } from '../decorators/roles.decorator';
+import { Controller, Get, Post, UseGuards } from "@nestjs/common";
+import { AuthGuard } from "../guards/auth.guard";
+import { RolesGuard } from "../guards/roles.guard";
+import { Roles } from "../decorators/roles.decorator";
 
-@Controller('admin')
+@Controller("admin")
 @UseGuards(AuthGuard, RolesGuard) // Les deux guards s'executent dans l'ordre
 export class AdminController {
-  @Get('dashboard')
-  @Roles('admin', 'moderator') // Seuls admin et moderator peuvent acceder
+  @Get("dashboard")
+  @Roles("admin", "moderator") // Seuls admin et moderator peuvent acceder
   getDashboard() {
-    return { message: 'Bienvenue sur le dashboard admin' };
+    return { message: "Bienvenue sur le dashboard admin" };
   }
 
-  @Post('users/ban')
-  @Roles('admin') // Seul l'admin peut bannir
+  @Post("users/ban")
+  @Roles("admin") // Seul l'admin peut bannir
   banUser() {
-    return { message: 'Utilisateur banni' };
+    return { message: "Utilisateur banni" };
   }
 
-  @Get('stats')
+  @Get("stats")
   // Pas de @Roles => accessible a tous les utilisateurs authentifies
   getStats() {
-    return { message: 'Statistiques generales' };
+    return { message: "Statistiques generales" };
   }
 }
 ```
@@ -721,13 +722,13 @@ import {
   ExecutionContext,
   CallHandler,
   Logger,
-} from '@nestjs/common';
-import { Observable } from 'rxjs';
-import { tap } from 'rxjs/operators';
+} from "@nestjs/common";
+import { Observable } from "rxjs";
+import { tap } from "rxjs/operators";
 
 @Injectable()
 export class LoggingInterceptor implements NestInterceptor {
-  private readonly logger = new Logger('HTTP');
+  private readonly logger = new Logger("HTTP");
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const request = context.switchToHttp().getRequest();
@@ -745,9 +746,7 @@ export class LoggingInterceptor implements NestInterceptor {
           const response = context.switchToHttp().getResponse();
           const statusCode = response.statusCode;
           const duration = Date.now() - now;
-          this.logger.log(
-            `← ${method} ${url} ${statusCode} — ${duration}ms`,
-          );
+          this.logger.log(`← ${method} ${url} ${statusCode} — ${duration}ms`);
         },
         error: (error) => {
           const duration = Date.now() - now;
@@ -772,9 +771,9 @@ import {
   NestInterceptor,
   ExecutionContext,
   CallHandler,
-} from '@nestjs/common';
-import { Observable } from 'rxjs';
-import { map } from 'rxjs/operators';
+} from "@nestjs/common";
+import { Observable } from "rxjs";
+import { map } from "rxjs/operators";
 
 // Interface de la reponse standardisee
 export interface ApiResponse<T> {
@@ -785,9 +784,10 @@ export interface ApiResponse<T> {
 }
 
 @Injectable()
-export class TransformResponseInterceptor<T>
-  implements NestInterceptor<T, ApiResponse<T>>
-{
+export class TransformResponseInterceptor<T> implements NestInterceptor<
+  T,
+  ApiResponse<T>
+> {
   intercept(
     context: ExecutionContext,
     next: CallHandler,
@@ -809,7 +809,10 @@ export class TransformResponseInterceptor<T>
 Résultat avant :
 
 ```json
-[{ "id": 1, "nom": "Alice" }, { "id": 2, "nom": "Bob" }]
+[
+  { "id": 1, "nom": "Alice" },
+  { "id": 2, "nom": "Bob" }
+]
 ```
 
 Résultat après avec l'interceptor :
@@ -817,7 +820,10 @@ Résultat après avec l'interceptor :
 ```json
 {
   "success": true,
-  "data": [{ "id": 1, "nom": "Alice" }, { "id": 2, "nom": "Bob" }],
+  "data": [
+    { "id": 1, "nom": "Alice" },
+    { "id": 2, "nom": "Bob" }
+  ],
   "timestamp": "2024-01-15T10:30:00.000Z",
   "path": "/users"
 }
@@ -833,9 +839,9 @@ import {
   ExecutionContext,
   CallHandler,
   RequestTimeoutException,
-} from '@nestjs/common';
-import { Observable, throwError, TimeoutError } from 'rxjs';
-import { catchError, timeout } from 'rxjs/operators';
+} from "@nestjs/common";
+import { Observable, throwError, TimeoutError } from "rxjs";
+import { catchError, timeout } from "rxjs/operators";
 
 @Injectable()
 export class TimeoutInterceptor implements NestInterceptor {
@@ -869,9 +875,9 @@ import {
   NestInterceptor,
   ExecutionContext,
   CallHandler,
-} from '@nestjs/common';
-import { Observable, of } from 'rxjs';
-import { tap } from 'rxjs/operators';
+} from "@nestjs/common";
+import { Observable, of } from "rxjs";
+import { tap } from "rxjs/operators";
 
 @Injectable()
 export class SimpleCacheInterceptor implements NestInterceptor {
@@ -884,7 +890,7 @@ export class SimpleCacheInterceptor implements NestInterceptor {
     const request = context.switchToHttp().getRequest();
 
     // Ne cache que les requetes GET
-    if (request.method !== 'GET') {
+    if (request.method !== "GET") {
       return next.handle();
     }
 
@@ -976,7 +982,7 @@ import {
   NotFoundException,
   ConflictException,
   BadRequestException,
-} from '@nestjs/common';
+} from "@nestjs/common";
 
 @Injectable()
 export class UsersService {
@@ -994,7 +1000,7 @@ export class UsersService {
       where: { email: dto.email },
     });
     if (existing) {
-      throw new ConflictException('Cet email est deja utilise');
+      throw new ConflictException("Cet email est deja utilise");
     }
     return this.userRepository.save(dto);
   }
@@ -1005,7 +1011,7 @@ export class UsersService {
 
 ```typescript
 // exceptions/business.exception.ts
-import { HttpException, HttpStatus } from '@nestjs/common';
+import { HttpException, HttpStatus } from "@nestjs/common";
 
 export class BusinessException extends HttpException {
   constructor(
@@ -1029,7 +1035,7 @@ export class BusinessException extends HttpException {
 export class InsufficientStockException extends BusinessException {
   constructor(productId: number, requested: number, available: number) {
     super(
-      'INSUFFICIENT_STOCK',
+      "INSUFFICIENT_STOCK",
       `Stock insuffisant pour le produit #${productId}. ` +
         `Demande : ${requested}, Disponible : ${available}`,
     );
@@ -1048,12 +1054,12 @@ import {
   HttpException,
   HttpStatus,
   Logger,
-} from '@nestjs/common';
-import { Request, Response } from 'express';
+} from "@nestjs/common";
+import { Request, Response } from "express";
 
 @Catch(HttpException)
 export class HttpExceptionFilter implements ExceptionFilter {
-  private readonly logger = new Logger('ExceptionFilter');
+  private readonly logger = new Logger("ExceptionFilter");
 
   catch(exception: HttpException, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
@@ -1067,11 +1073,11 @@ export class HttpExceptionFilter implements ExceptionFilter {
       success: false,
       statusCode: status,
       message:
-        typeof exceptionResponse === 'string'
+        typeof exceptionResponse === "string"
           ? exceptionResponse
           : (exceptionResponse as any).message,
       error:
-        typeof exceptionResponse === 'object'
+        typeof exceptionResponse === "object"
           ? (exceptionResponse as any).error
           : undefined,
       timestamp: new Date().toISOString(),
@@ -1100,13 +1106,13 @@ import {
   HttpException,
   HttpStatus,
   Logger,
-} from '@nestjs/common';
-import { Request, Response } from 'express';
+} from "@nestjs/common";
+import { Request, Response } from "express";
 
 // @Catch() sans argument capture TOUTES les exceptions
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
-  private readonly logger = new Logger('AllExceptionsFilter');
+  private readonly logger = new Logger("AllExceptionsFilter");
 
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
@@ -1121,13 +1127,13 @@ export class AllExceptionsFilter implements ExceptionFilter {
       status = exception.getStatus();
       const exceptionResponse = exception.getResponse();
       message =
-        typeof exceptionResponse === 'string'
+        typeof exceptionResponse === "string"
           ? exceptionResponse
           : (exceptionResponse as any).message;
     } else if (exception instanceof Error) {
       // Erreur JavaScript standard
       status = HttpStatus.INTERNAL_SERVER_ERROR;
-      message = 'Erreur interne du serveur';
+      message = "Erreur interne du serveur";
 
       // Log de l'erreur complete en dev
       this.logger.error(
@@ -1137,7 +1143,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     } else {
       // Autre chose
       status = HttpStatus.INTERNAL_SERVER_ERROR;
-      message = 'Erreur inconnue';
+      message = "Erreur inconnue";
     }
 
     response.status(status).json({
@@ -1213,28 +1219,28 @@ Voici l'ordre **exact** d'exécution pour une requête NestJS :
 
 ### 6.2 Tableau comparatif
 
-| Concept | Interface | Méthode | Role principal | Peut arreter la requête ? |
-|---------|-----------|---------|----------------|--------------------------|
-| Middleware | `NestMiddleware` | `use()` | Logique transversale générique | Oui (ne pas appeler `next()`) |
-| Guard | `CanActivate` | `canActivate()` | Autorisation | Oui (retourner `false`) |
-| Interceptor | `NestInterceptor` | `intercept()` | Transformation avant/après | Oui (via Observable) |
-| Pipe | `PipeTransform` | `transform()` | Validation/Transformation | Oui (lancer une exception) |
-| Filter | `ExceptionFilter` | `catch()` | Gestion d'erreurs | Non (agit sur les erreurs) |
+| Concept     | Interface         | Méthode         | Role principal                 | Peut arreter la requête ?     |
+| ----------- | ----------------- | --------------- | ------------------------------ | ----------------------------- |
+| Middleware  | `NestMiddleware`  | `use()`         | Logique transversale générique | Oui (ne pas appeler `next()`) |
+| Guard       | `CanActivate`     | `canActivate()` | Autorisation                   | Oui (retourner `false`)       |
+| Interceptor | `NestInterceptor` | `intercept()`   | Transformation avant/après     | Oui (via Observable)          |
+| Pipe        | `PipeTransform`   | `transform()`   | Validation/Transformation      | Oui (lancer une exception)    |
+| Filter      | `ExceptionFilter` | `catch()`       | Gestion d'erreurs              | Non (agit sur les erreurs)    |
 
 ### 6.3 Quand utiliser quoi ?
 
-| Besoin | Solution |
-|--------|----------|
-| Journalisation de chaque requête | Middleware ou Interceptor |
-| Vérification du token JWT | Guard |
-| Vérification des roles/permissions | Guard |
-| Validation des donnees d'entree | Pipe (ValidationPipe) |
-| Transformation de paramètre (string → number) | Pipe |
-| Ajout de headers à la réponse | Interceptor |
-| Mise en cache des réponses | Interceptor |
-| Mesure du temps de réponse | Interceptor |
-| Format uniforme des erreurs | Exception Filter |
-| Gestion des erreurs business | Exception Filter |
+| Besoin                                        | Solution                  |
+| --------------------------------------------- | ------------------------- |
+| Journalisation de chaque requête              | Middleware ou Interceptor |
+| Vérification du token JWT                     | Guard                     |
+| Vérification des roles/permissions            | Guard                     |
+| Validation des donnees d'entree               | Pipe (ValidationPipe)     |
+| Transformation de paramètre (string → number) | Pipe                      |
+| Ajout de headers à la réponse                 | Interceptor               |
+| Mise en cache des réponses                    | Interceptor               |
+| Mesure du temps de réponse                    | Interceptor               |
+| Format uniforme des erreurs                   | Exception Filter          |
+| Gestion des erreurs business                  | Exception Filter          |
 
 ---
 
@@ -1244,9 +1250,9 @@ Voici un exemple qui utilise tous les concepts ensemble :
 
 ```typescript
 // === main.ts ===
-import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
-import { AppModule } from './app.module';
+import { NestFactory } from "@nestjs/core";
+import { ValidationPipe } from "@nestjs/common";
+import { AppModule } from "./app.module";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -1267,14 +1273,14 @@ bootstrap();
 
 ```typescript
 // === app.module.ts ===
-import { Module } from '@nestjs/common';
-import { APP_GUARD, APP_INTERCEPTOR, APP_FILTER } from '@nestjs/core';
-import { AuthGuard } from './guards/auth.guard';
-import { RolesGuard } from './guards/roles.guard';
-import { LoggingInterceptor } from './interceptors/logging.interceptor';
-import { TransformResponseInterceptor } from './interceptors/transform-response.interceptor';
-import { AllExceptionsFilter } from './filters/all-exceptions.filter';
-import { ProductsModule } from './products/products.module';
+import { Module } from "@nestjs/common";
+import { APP_GUARD, APP_INTERCEPTOR, APP_FILTER } from "@nestjs/core";
+import { AuthGuard } from "./guards/auth.guard";
+import { RolesGuard } from "./guards/roles.guard";
+import { LoggingInterceptor } from "./interceptors/logging.interceptor";
+import { TransformResponseInterceptor } from "./interceptors/transform-response.interceptor";
+import { AllExceptionsFilter } from "./filters/all-exceptions.filter";
+import { ProductsModule } from "./products/products.module";
 
 @Module({
   imports: [ProductsModule],
@@ -1306,15 +1312,15 @@ import {
   ParseIntPipe,
   DefaultValuePipe,
   UseInterceptors,
-} from '@nestjs/common';
-import { Roles } from '../decorators/roles.decorator';
-import { Public } from '../decorators/public.decorator';
-import { TimeoutInterceptor } from '../interceptors/timeout.interceptor';
-import { ProductsService } from './products.service';
-import { CreateProductDto } from './dto/create-product.dto';
-import { UpdateProductDto } from './dto/update-product.dto';
+} from "@nestjs/common";
+import { Roles } from "../decorators/roles.decorator";
+import { Public } from "../decorators/public.decorator";
+import { TimeoutInterceptor } from "../interceptors/timeout.interceptor";
+import { ProductsService } from "./products.service";
+import { CreateProductDto } from "./dto/create-product.dto";
+import { UpdateProductDto } from "./dto/update-product.dto";
 
-@Controller('products')
+@Controller("products")
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
@@ -1322,40 +1328,40 @@ export class ProductsController {
   @Public()
   @Get()
   findAll(
-    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
-    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
+    @Query("page", new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query("limit", new DefaultValuePipe(10), ParseIntPipe) limit: number,
   ) {
     return this.productsService.findAll(page, limit);
   }
 
   @Public()
-  @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number) {
+  @Get(":id")
+  findOne(@Param("id", ParseIntPipe) id: number) {
     return this.productsService.findOne(id);
   }
 
   // Seul un admin peut creer un produit
   @Post()
-  @Roles('admin')
+  @Roles("admin")
   create(@Body() createProductDto: CreateProductDto) {
     return this.productsService.create(createProductDto);
   }
 
   // Admin ou moderateur peuvent modifier
-  @Put(':id')
-  @Roles('admin', 'moderator')
+  @Put(":id")
+  @Roles("admin", "moderator")
   @UseInterceptors(new TimeoutInterceptor(10000)) // 10s de timeout pour cette route
   update(
-    @Param('id', ParseIntPipe) id: number,
+    @Param("id", ParseIntPipe) id: number,
     @Body() updateProductDto: UpdateProductDto,
   ) {
     return this.productsService.update(id, updateProductDto);
   }
 
   // Seul l'admin peut supprimer
-  @Delete(':id')
-  @Roles('admin')
-  remove(@Param('id', ParseIntPipe) id: number) {
+  @Delete(":id")
+  @Roles("admin")
+  remove(@Param("id", ParseIntPipe) id: number) {
     return this.productsService.remove(id);
   }
 }
@@ -1364,9 +1370,9 @@ export class ProductsController {
 ```typescript
 // === decorators/public.decorator.ts ===
 // Decorateur pour marquer une route comme publique (pas d'auth requise)
-import { SetMetadata } from '@nestjs/common';
+import { SetMetadata } from "@nestjs/common";
 
-export const IS_PUBLIC_KEY = 'isPublic';
+export const IS_PUBLIC_KEY = "isPublic";
 export const Public = () => SetMetadata(IS_PUBLIC_KEY, true);
 ```
 
@@ -1377,9 +1383,9 @@ import {
   ExecutionContext,
   Injectable,
   UnauthorizedException,
-} from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
-import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
+} from "@nestjs/common";
+import { Reflector } from "@nestjs/core";
+import { IS_PUBLIC_KEY } from "../decorators/public.decorator";
 
 @Injectable()
 export class AuthGuard implements CanActivate {
@@ -1397,15 +1403,15 @@ export class AuthGuard implements CanActivate {
     }
 
     const request = context.switchToHttp().getRequest();
-    const token = request.headers.authorization?.split(' ')[1];
+    const token = request.headers.authorization?.split(" ")[1];
 
     if (!token) {
-      throw new UnauthorizedException('Token d\'authentification requis');
+      throw new UnauthorizedException("Token d'authentification requis");
     }
 
     // Verification du token (simplifiee pour l'exemple)
     // En production, on utiliserait JwtService (voir Module 19)
-    request.user = { id: 1, roles: ['admin'] }; // Simule un user decode
+    request.user = { id: 1, roles: ["admin"] }; // Simule un user decode
     return true;
   }
 }
@@ -1433,29 +1439,96 @@ Creez un `DatabaseExceptionFilter` qui capture les erreurs TypeORM (comme les vi
 
 ---
 
+## Bonus — Patterns BFF avec NestJS
+
+NestJS est tres adapte au BFF car le pipeline request/response permet de centraliser les besoins transverses frontend sans polluer la logique metier.
+
+### 1) Guard BFF pour contexte utilisateur
+
+```typescript
+@Injectable()
+export class BffContextGuard implements CanActivate {
+  canActivate(context: ExecutionContext): boolean {
+    const req = context.switchToHttp().getRequest();
+    const user = req.user;
+
+    if (!user) {
+      throw new UnauthorizedException("Utilisateur non authentifie");
+    }
+
+    // Contexte utile a tous les handlers BFF
+    req.bffContext = {
+      userId: user.id,
+      locale: req.headers["x-locale"] || "fr-FR",
+      correlationId: req.headers["x-correlation-id"],
+    };
+
+    return true;
+  }
+}
+```
+
+### 2) Interceptor de degradation gracieuse
+
+```typescript
+@Injectable()
+export class UpstreamFallbackInterceptor implements NestInterceptor {
+  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
+    return next.handle().pipe(
+      catchError((err) => {
+        // Mapper une panne upstream vers une reponse exploitable par le front
+        if (err?.code === "UPSTREAM_TIMEOUT") {
+          return of({
+            partial: true,
+            data: null,
+            warning: "Une partie des donnees est temporairement indisponible",
+          });
+        }
+        return throwError(() => err);
+      }),
+    );
+  }
+}
+```
+
+### 3) Pipeline BFF conseille dans Nest
+
+| Etape                   | Responsabilite                      |
+| ----------------------- | ----------------------------------- |
+| Guard                   | Contexte user/session/tenant        |
+| Pipe                    | Validation stricte DTO d'entree     |
+| Service d'orchestration | Appels multi-API + mapping payload  |
+| Interceptor             | Timeout, fallback, shape de reponse |
+| Filter                  | Contrat d'erreur unique front       |
+
+> **A retenir BFF** : Avec Nest, les Guards/Pipes/Interceptors/Filters permettent de construire un BFF tres lisible et maintenable, avec des responsabilites nettes par couche.
+
+---
+
 ## Liens
 
-| Ressource | Lien |
-|-----------|------|
-| Quiz Module 13 | `quiz/13-quiz.md` |
-| Lab Module 13 | `labs/13-lab-pipes-guards.md` |
-| Screencast | `screencasts/13-screencast.md` |
-| Module précédent | [Module 12 — Modules & Architecture](12-nestjs-modules-architecture.md) |
-| Module suivant | [Module 14 — TypeORM Entites & Relations](14-typeorm-entites-relations.md) |
-| Documentation officielle — Pipes | https://docs.nestjs.com/pipes |
-| Documentation officielle — Guards | https://docs.nestjs.com/guards |
-| Documentation officielle — Interceptors | https://docs.nestjs.com/interceptors |
-| Documentation officielle — Exception Filters | https://docs.nestjs.com/exception-filters |
-| class-validator | https://github.com/typestack/class-validator |
-| class-transformer | https://github.com/typestack/class-transformer |
+| Ressource                                    | Lien                                                                       |
+| -------------------------------------------- | -------------------------------------------------------------------------- |
+| Quiz Module 13                               | `quiz/13-quiz.md`                                                          |
+| Lab Module 13                                | `labs/13-lab-pipes-guards.md`                                              |
+| Screencast                                   | `screencasts/13-screencast.md`                                             |
+| Module précédent                             | [Module 12 — Modules & Architecture](12-nestjs-modules-architecture.md)    |
+| Module suivant                               | [Module 14 — TypeORM Entites & Relations](14-typeorm-entites-relations.md) |
+| Documentation officielle — Pipes             | https://docs.nestjs.com/pipes                                              |
+| Documentation officielle — Guards            | https://docs.nestjs.com/guards                                             |
+| Documentation officielle — Interceptors      | https://docs.nestjs.com/interceptors                                       |
+| Documentation officielle — Exception Filters | https://docs.nestjs.com/exception-filters                                  |
+| class-validator                              | https://github.com/typestack/class-validator                               |
+| class-transformer                            | https://github.com/typestack/class-transformer                             |
 
 ---
 
 <!-- parcours-recommande -->
 
 ::: tip Parcours recommandé
+
 1. **Screencast** : [screencast 13 pipes guards](../screencasts/screencast-13-pipes-guards.md)
 2. **Lab** : [lab-13-pipes-guards](../labs/lab-13-pipes-guards/README)
 3. **Visualisation** : [NestJS Lifecycle](../visualizations/nestjs-lifecycle.html)
 4. **Quiz** : [quiz 13 pipes guards](../quizzes/quiz-13-pipes-guards.html)
-:::
+   :::

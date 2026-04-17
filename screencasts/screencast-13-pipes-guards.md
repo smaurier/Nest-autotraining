@@ -1,12 +1,14 @@
 # Screencast 13 — Pipes, Guards & Interceptors
 
 ## Informations
+
 - **Duree estimee** : 18-22 min
 - **Module** : `modules/13-nestjs-pipes-guards-interceptors.md`
 - **Lab associe** : `labs/lab-13-pipes-guards/`
 - **Prérequis** : Screencast 12 (Modules & Architecture)
 
 ## Setup
+
 - [ ] Node.js 20+ installe
 - [ ] Terminal ouvert dans `nest-course/`
 - [ ] Projet NestJS du screencast précédent disponible
@@ -33,7 +35,7 @@
 
 ```typescript
 // src/common/pipes/parse-date.pipe.ts
-import { PipeTransform, Injectable, BadRequestException } from '@nestjs/common';
+import { PipeTransform, Injectable, BadRequestException } from "@nestjs/common";
 
 @Injectable()
 export class ParseDatePipe implements PipeTransform<string, Date> {
@@ -51,12 +53,12 @@ export class ParseDatePipe implements PipeTransform<string, Date> {
 
 ```typescript
 // src/tasks/tasks.controller.ts
-import { ParseDatePipe } from '../common/pipes/parse-date.pipe';
+import { ParseDatePipe } from "../common/pipes/parse-date.pipe";
 
-@Controller('tasks')
+@Controller("tasks")
 export class TasksController {
-  @Get('by-date')
-  findByDate(@Query('from', ParseDatePipe) from: Date) {
+  @Get("by-date")
+  findByDate(@Query("from", ParseDatePipe) from: Date) {
     return this.tasksService.findByDate(from);
   }
 }
@@ -82,26 +84,35 @@ curl "http://localhost:3000/tasks/by-date?from=pas-une-date"
 
 ```typescript
 // src/common/guards/auth.guard.ts
-import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
-import { Observable } from 'rxjs';
+import {
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  UnauthorizedException,
+} from "@nestjs/common";
+import { Observable } from "rxjs";
 
 @Injectable()
 export class AuthGuard implements CanActivate {
-  canActivate(context: ExecutionContext): boolean | Promise<boolean> | Observable<boolean> {
+  canActivate(
+    context: ExecutionContext,
+  ): boolean | Promise<boolean> | Observable<boolean> {
     const request = context.switchToHttp().getRequest();
-    const token = request.headers.authorization?.split(' ')[1];
+    const token = request.headers.authorization?.split(" ")[1];
 
     if (!token) {
-      throw new UnauthorizedException('Token manquant');
+      throw new UnauthorizedException("Token manquant");
     }
 
     try {
       // En production : jwt.verify(token, SECRET)
-      const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+      const payload = JSON.parse(
+        Buffer.from(token.split(".")[1], "base64").toString(),
+      );
       request.user = payload;
       return true;
     } catch {
-      throw new UnauthorizedException('Token invalide');
+      throw new UnauthorizedException("Token invalide");
     }
   }
 }
@@ -111,29 +122,37 @@ export class AuthGuard implements CanActivate {
 
 ```typescript
 // src/common/decorators/roles.decorator.ts
-import { SetMetadata } from '@nestjs/common';
+import { SetMetadata } from "@nestjs/common";
 
-export const Roles = (...roles: string[]) => SetMetadata('roles', roles);
+export const Roles = (...roles: string[]) => SetMetadata("roles", roles);
 ```
 
 ```typescript
 // src/common/guards/roles.guard.ts
-import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
+import {
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  ForbiddenException,
+} from "@nestjs/common";
+import { Reflector } from "@nestjs/core";
 
 @Injectable()
 export class RolesGuard implements CanActivate {
   constructor(private reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
-    const requiredRoles = this.reflector.get<string[]>('roles', context.getHandler());
+    const requiredRoles = this.reflector.get<string[]>(
+      "roles",
+      context.getHandler(),
+    );
     if (!requiredRoles) return true;
 
     const { user } = context.switchToHttp().getRequest();
-    if (!user) throw new ForbiddenException('Utilisateur non authentifie');
+    if (!user) throw new ForbiddenException("Utilisateur non authentifie");
 
-    const hasRole = requiredRoles.some(role => user.role === role);
-    if (!hasRole) throw new ForbiddenException('Role insuffisant');
+    const hasRole = requiredRoles.some((role) => user.role === role);
+    if (!hasRole) throw new ForbiddenException("Role insuffisant");
 
     return true;
   }
@@ -144,12 +163,12 @@ export class RolesGuard implements CanActivate {
 
 ```typescript
 // src/tasks/tasks.controller.ts
-import { UseGuards } from '@nestjs/common';
-import { AuthGuard } from '../common/guards/auth.guard';
-import { RolesGuard } from '../common/guards/roles.guard';
-import { Roles } from '../common/decorators/roles.decorator';
+import { UseGuards } from "@nestjs/common";
+import { AuthGuard } from "../common/guards/auth.guard";
+import { RolesGuard } from "../common/guards/roles.guard";
+import { Roles } from "../common/decorators/roles.decorator";
 
-@Controller('tasks')
+@Controller("tasks")
 @UseGuards(AuthGuard, RolesGuard)
 export class TasksController {
   @Get()
@@ -157,9 +176,9 @@ export class TasksController {
     return this.tasksService.findAll();
   }
 
-  @Delete(':id')
-  @Roles('admin')
-  remove(@Param('id', ParseIntPipe) id: number) {
+  @Delete(":id")
+  @Roles("admin")
+  remove(@Param("id", ParseIntPipe) id: number) {
     return this.tasksService.remove(id);
   }
 }
@@ -175,12 +194,18 @@ export class TasksController {
 
 ```typescript
 // src/common/interceptors/logging.interceptor.ts
-import { Injectable, NestInterceptor, ExecutionContext, CallHandler, Logger } from '@nestjs/common';
-import { Observable, tap } from 'rxjs';
+import {
+  Injectable,
+  NestInterceptor,
+  ExecutionContext,
+  CallHandler,
+  Logger,
+} from "@nestjs/common";
+import { Observable, tap } from "rxjs";
 
 @Injectable()
 export class LoggingInterceptor implements NestInterceptor {
-  private readonly logger = new Logger('HTTP');
+  private readonly logger = new Logger("HTTP");
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const request = context.switchToHttp().getRequest();
@@ -191,7 +216,9 @@ export class LoggingInterceptor implements NestInterceptor {
       tap(() => {
         const response = context.switchToHttp().getResponse();
         const duration = Date.now() - start;
-        this.logger.log(`${method} ${url} ${response.statusCode} - ${duration}ms`);
+        this.logger.log(
+          `${method} ${url} ${response.statusCode} - ${duration}ms`,
+        );
       }),
     );
   }
@@ -202,14 +229,19 @@ export class LoggingInterceptor implements NestInterceptor {
 
 ```typescript
 // src/common/interceptors/transform.interceptor.ts
-import { Injectable, NestInterceptor, ExecutionContext, CallHandler } from '@nestjs/common';
-import { Observable, map } from 'rxjs';
+import {
+  Injectable,
+  NestInterceptor,
+  ExecutionContext,
+  CallHandler,
+} from "@nestjs/common";
+import { Observable, map } from "rxjs";
 
 @Injectable()
 export class TransformInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     return next.handle().pipe(
-      map(data => ({
+      map((data) => ({
         success: true,
         data,
         timestamp: new Date().toISOString(),
@@ -223,8 +255,8 @@ export class TransformInterceptor implements NestInterceptor {
 
 ```typescript
 // src/main.ts
-import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
-import { TransformInterceptor } from './common/interceptors/transform.interceptor';
+import { LoggingInterceptor } from "./common/interceptors/logging.interceptor";
+import { TransformInterceptor } from "./common/interceptors/transform.interceptor";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -244,11 +276,17 @@ async function bootstrap() {
 
 ```typescript
 // src/common/filters/http-exception.filter.ts
-import { ExceptionFilter, Catch, ArgumentsHost, HttpException, Logger } from '@nestjs/common';
+import {
+  ExceptionFilter,
+  Catch,
+  ArgumentsHost,
+  HttpException,
+  Logger,
+} from "@nestjs/common";
 
 @Catch(HttpException)
 export class HttpExceptionFilter implements ExceptionFilter {
-  private readonly logger = new Logger('ExceptionFilter');
+  private readonly logger = new Logger("ExceptionFilter");
 
   catch(exception: HttpException, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
@@ -271,6 +309,12 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
 > Le filtre capture toutes les HttpException et renvoie une réponse formatee avec le timestamp et le path.
 
+### [19:00-20:00] Bonus BFF — Degradation gracieuse
+
+> Ajouter un interceptor de fallback qui transforme un timeout upstream en reponse partielle exploitable par le frontend.
+
+**Action** : Montrer un exemple court de route BFF qui continue de repondre meme si un upstream est indisponible.
+
 ### [19:00-21:00] Recap
 
 > Resumons le cycle de vie : Guards pour l'authentification et l'autorisation. Pipes pour la validation et la transformation. Interceptors pour le pre/post-traitement. ExceptionFilters pour la gestion d'erreurs. Ensemble, ils forment un pipeline de traitement complet.
@@ -280,6 +324,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
 > Le lab est dans `labs/lab-13-pipes-guards/`. Vous allez implementer chaque couche et voir comment elles interagissent. C'est un module dense mais essentiel. A bientot pour TypeORM !
 
 ## Points d'attention pour l'enregistrement
+
 - Bien montrer l'ordre d'exécution : Guards -> Interceptors (pre) -> Pipes -> Handler -> Interceptors (post) -> Filters
 - Montrer les logs dans le terminal pour visualiser le pipeline
 - Insister sur le pattern Observable des Interceptors avec RxJS

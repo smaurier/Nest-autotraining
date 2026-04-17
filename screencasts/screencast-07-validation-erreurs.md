@@ -1,12 +1,14 @@
 # Screencast 07 — Validation & Erreurs
 
 ## Informations
+
 - **Duree estimee** : 12-15 min
 - **Module** : `modules/07-express-validation-erreurs.md`
 - **Lab associe** : `labs/lab-07-validation-erreurs/`
 - **Prérequis** : Screencast 06 (Middleware & Architecture)
 
 ## Setup
+
 - [ ] Node.js 20+ installe
 - [ ] Terminal ouvert dans `nest-course/`
 - [ ] Editeur de code ouvert
@@ -38,18 +40,18 @@ npm install express zod
 
 ```javascript
 // app.js
-const express = require('express');
-const { z } = require('zod');
+const express = require("express");
+const { z } = require("zod");
 const app = express();
 
 app.use(express.json());
 
 // Schema de validation pour un utilisateur
 const createUserSchema = z.object({
-  name: z.string().min(2, 'Le nom doit faire au moins 2 caracteres'),
-  email: z.string().email('Email invalide'),
-  age: z.number().int().min(18, 'Doit avoir au moins 18 ans').optional(),
-  role: z.enum(['admin', 'user']).default('user'),
+  name: z.string().min(2, "Le nom doit faire au moins 2 caracteres"),
+  email: z.string().email("Email invalide"),
+  age: z.number().int().min(18, "Doit avoir au moins 18 ans").optional(),
+  role: z.enum(["admin", "user"]).default("user"),
 });
 
 const updateUserSchema = createUserSchema.partial();
@@ -60,9 +62,9 @@ function validate(schema) {
     const result = schema.safeParse(req.body);
     if (!result.success) {
       return res.status(400).json({
-        error: 'Validation echouee',
-        details: result.error.issues.map(issue => ({
-          field: issue.path.join('.'),
+        error: "Validation echouee",
+        details: result.error.issues.map((issue) => ({
+          field: issue.path.join("."),
           message: issue.message,
         })),
       });
@@ -75,20 +77,20 @@ function validate(schema) {
 const users = [];
 let nextId = 1;
 
-app.post('/api/users', validate(createUserSchema), (req, res) => {
+app.post("/api/users", validate(createUserSchema), (req, res) => {
   const user = { id: nextId++, ...req.body };
   users.push(user);
   res.status(201).json(user);
 });
 
-app.put('/api/users/:id', validate(updateUserSchema), (req, res) => {
-  const user = users.find(u => u.id === Number(req.params.id));
-  if (!user) return res.status(404).json({ error: 'Non trouve' });
+app.put("/api/users/:id", validate(updateUserSchema), (req, res) => {
+  const user = users.find((u) => u.id === Number(req.params.id));
+  if (!user) return res.status(404).json({ error: "Non trouve" });
   Object.assign(user, req.body);
   res.json(user);
 });
 
-app.listen(3000, () => console.log('Serveur sur http://localhost:3000'));
+app.listen(3000, () => console.log("Serveur sur http://localhost:3000"));
 ```
 
 **Action** : Tester la validation avec des donnees invalides.
@@ -134,25 +136,30 @@ class AppError extends Error {
 }
 
 class NotFoundError extends AppError {
-  constructor(resource = 'Ressource') {
+  constructor(resource = "Ressource") {
     super(`${resource} non trouve(e)`, 404);
   }
 }
 
 class ValidationError extends AppError {
   constructor(details) {
-    super('Erreur de validation', 400);
+    super("Erreur de validation", 400);
     this.details = details;
   }
 }
 
 class UnauthorizedError extends AppError {
-  constructor(message = 'Non autorise') {
+  constructor(message = "Non autorise") {
     super(message, 401);
   }
 }
 
-module.exports = { AppError, NotFoundError, ValidationError, UnauthorizedError };
+module.exports = {
+  AppError,
+  NotFoundError,
+  ValidationError,
+  UnauthorizedError,
+};
 ```
 
 > On à une hiérarchie d'erreurs. `AppError` est la classe de base. `NotFoundError`, `ValidationError`, `UnauthorizedError` heritent d'elle. Chaque erreur sait quel code HTTP elle produit.
@@ -178,15 +185,15 @@ function errorHandler(err, req, res, next) {
   // Erreur non prevue
   console.error(err.stack);
   res.status(500).json({
-    error: 'Erreur interne du serveur',
+    error: "Erreur interne du serveur",
   });
 }
 
 // Dans les routes, on lance des erreurs
-app.get('/api/users/:id', (req, res, next) => {
+app.get("/api/users/:id", (req, res, next) => {
   try {
-    const user = users.find(u => u.id === Number(req.params.id));
-    if (!user) throw new NotFoundError('Utilisateur');
+    const user = users.find((u) => u.id === Number(req.params.id));
+    if (!user) throw new NotFoundError("Utilisateur");
     res.json(user);
   } catch (err) {
     next(err);
@@ -209,6 +216,12 @@ curl http://localhost:3000/api/inexistant
 
 > L'erreur est catchee par le middleware centralise. Un seul endroit pour formater les réponses d'erreur, logger, et eventuellement notifier un service de monitoring. C'est propre et maintenable.
 
+### [12:00-13:00] Bonus BFF — Contrat d'erreur stable
+
+> En BFF, ne propagez pas les erreurs upstream brutes. Mappez-les vers un contrat stable: code, message, details, requestId.
+
+**Action** : Simuler un timeout upstream et renvoyer un 503 avec un code metier stable.
+
 ### [12:00-14:00] Recap
 
 > Resumons. Zod pour valider les donnees entrantes de manière declarative. Des classes d'erreurs pour typer les erreurs. Un middleware centralise pour les gérer uniformement. Ce pattern est universel — on le retrouvera dans NestJS avec les Pipes et les ExceptionFilters.
@@ -218,6 +231,7 @@ curl http://localhost:3000/api/inexistant
 > Le lab est dans `labs/lab-07-validation-erreurs/`. Vous allez implementer la validation Zod et la gestion d'erreurs centralisee dans votre API. C'est un pattern essentiel. A bientot pour l'authentification !
 
 ## Points d'attention pour l'enregistrement
+
 - Montrer les messages d'erreur Zod clairement dans le terminal
 - Insister sur les 4 paramètres du error handler Express (err, req, res, next)
 - Bien montrer la différence entre erreur operationnelle et erreur imprevue

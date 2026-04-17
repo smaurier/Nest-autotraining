@@ -1,12 +1,14 @@
 # Screencast 23 — Performance & Déploiement
 
 ## Informations
+
 - **Duree estimee** : 18-22 min
 - **Module** : `modules/23-performance-deploiement.md`
 - **Lab associe** : `labs/lab-23-docker-deploy/`
 - **Prérequis** : Screencast 22 (Queues & Taches)
 
 ## Setup
+
 - [ ] Node.js 20+ installe
 - [ ] Docker et docker-compose installes
 - [ ] Terminal ouvert dans `nest-course/`
@@ -84,13 +86,13 @@ docker run -p 3000:3000 --env-file .env nest-api
 
 ```yaml
 # docker-compose.yml
-version: '3.8'
+version: "3.8"
 
 services:
   api:
     build: .
     ports:
-      - '3000:3000'
+      - "3000:3000"
     environment:
       - NODE_ENV=production
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/nestcourse
@@ -111,11 +113,11 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: nestcourse
     ports:
-      - '5432:5432'
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -123,11 +125,11 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - '6379:6379'
+      - "6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -164,16 +166,16 @@ npm install @nestjs/terminus
 
 ```typescript
 // src/health/health.controller.ts
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get } from "@nestjs/common";
 import {
   HealthCheckService,
   HealthCheck,
   TypeOrmHealthIndicator,
   DiskHealthIndicator,
   MemoryHealthIndicator,
-} from '@nestjs/terminus';
+} from "@nestjs/terminus";
 
-@Controller('health')
+@Controller("health")
 export class HealthController {
   constructor(
     private health: HealthCheckService,
@@ -186,21 +188,20 @@ export class HealthController {
   @HealthCheck()
   check() {
     return this.health.check([
-      () => this.db.pingCheck('database'),
-      () => this.disk.checkStorage('storage', {
-        path: '/',
-        thresholdPercent: 0.9,
-      }),
-      () => this.memory.checkHeap('memory_heap', 200 * 1024 * 1024),
+      () => this.db.pingCheck("database"),
+      () =>
+        this.disk.checkStorage("storage", {
+          path: "/",
+          thresholdPercent: 0.9,
+        }),
+      () => this.memory.checkHeap("memory_heap", 200 * 1024 * 1024),
     ]);
   }
 
-  @Get('ready')
+  @Get("ready")
   @HealthCheck()
   readiness() {
-    return this.health.check([
-      () => this.db.pingCheck('database'),
-    ]);
+    return this.health.check([() => this.db.pingCheck("database")]);
   }
 }
 ```
@@ -235,17 +236,19 @@ npm install -g pm2
 ```javascript
 // ecosystem.config.js
 module.exports = {
-  apps: [{
-    name: 'nest-api',
-    script: 'dist/main.js',
-    instances: 'max',
-    exec_mode: 'cluster',
-    env_production: {
-      NODE_ENV: 'production',
+  apps: [
+    {
+      name: "nest-api",
+      script: "dist/main.js",
+      instances: "max",
+      exec_mode: "cluster",
+      env_production: {
+        NODE_ENV: "production",
+      },
+      max_memory_restart: "500M",
+      log_date_format: "YYYY-MM-DD HH:mm:ss",
     },
-    max_memory_restart: '500M',
-    log_date_format: 'YYYY-MM-DD HH:mm:ss',
-  }],
+  ],
 };
 ```
 
@@ -263,18 +266,19 @@ pm2 logs
 // src/main.ts
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
-    logger: process.env.NODE_ENV === 'production'
-      ? ['error', 'warn']
-      : ['log', 'debug', 'verbose', 'error', 'warn'],
+    logger:
+      process.env.NODE_ENV === "production"
+        ? ["error", "warn"]
+        : ["log", "debug", "verbose", "error", "warn"],
   });
 
   // Compression
-  app.use(require('compression')());
+  app.use(require("compression")());
 
   // CORS restrictif
   app.enableCors({
-    origin: process.env.ALLOWED_ORIGINS?.split(',') || '*',
-    methods: 'GET,POST,PUT,DELETE,PATCH',
+    origin: process.env.ALLOWED_ORIGINS?.split(",") || "*",
+    methods: "GET,POST,PUT,DELETE,PATCH",
     credentials: true,
   });
 
@@ -282,6 +286,12 @@ async function bootstrap() {
   // Helmet pour les headers de securite
 }
 ```
+
+### [19:00-20:00] Bonus BFF — SLO frontend-centric
+
+> Sur un BFF, monitorer la latence p95 par route critique, le taux d'erreur et le taux de fallback est prioritaire.
+
+**Action** : Montrer une cible simple (ex: p95 < 300ms) et comment suivre cette metrique dans les logs/monitoring.
 
 ### [19:00-21:00] Recap
 
@@ -292,6 +302,7 @@ async function bootstrap() {
 > Le lab est dans `labs/lab-23-docker-deploy/`. Vous allez dockeriser votre API, configurer docker-compose et ajouter les health checks. Au prochain et dernier screencast, le projet final e-commerce !
 
 ## Points d'attention pour l'enregistrement
+
 - Docker doit etre lance avant de commencer la demo
 - Le build Docker peut prendre du temps — couper la video pendant l'attente
 - Montrer les logs docker-compose pour voir les services démarrer dans l'ordre

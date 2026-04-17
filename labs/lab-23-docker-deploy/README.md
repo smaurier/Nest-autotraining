@@ -19,11 +19,13 @@ de health check pour le monitoring.
 Creez un Dockerfile multi-stage :
 
 **Stage 1 - Builder** :
+
 - Utiliser `node:20-alpine` comme image de base
 - Copier package.json et installer les dépendances
 - Copier le code source et builder avec `npm run build`
 
 **Stage 2 - Runner** :
+
 - Utiliser `node:20-alpine` comme image de base
 - Copier uniquement les fichiers nécessaires depuis le builder
 - Exposer le port 3000
@@ -32,6 +34,7 @@ Creez un Dockerfile multi-stage :
 ### 2. docker-compose.yml
 
 Configurez les services :
+
 - **app** : l'application NestJS
 - **postgres** : base de donnees PostgreSQL
 - **redis** : cache Redis
@@ -57,3 +60,9 @@ npm test
 - `docker-compose.yml`
 - `.dockerignore`
 - `src/health/health.controller.ts`
+
+## Defi bonus BFF
+
+- Ajouter une mesure de latence p95 par route BFF critique (meme via logs structures).
+- Propager un correlationId dans toutes les reponses et vers les appels upstream simules.
+- Definir un objectif de budget de latence (ex: p95 < 300ms) et verifier localement.

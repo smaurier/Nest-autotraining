@@ -12,6 +12,7 @@
 Dans ce lab, le service et le controller sont déjà implementes. Votre travail consiste à écrire les tests.
 
 Vous allez tester un CRUD complet pour des utilisateurs (users) :
+
 - Tests unitaires : tester le service directement
 - Tests E2E : tester les endpoints HTTP avec supertest
 
@@ -59,3 +60,9 @@ npm test
 
 - `test/users.unit.spec.ts`
 - `test/users.e2e-spec.ts`
+
+## Defi bonus BFF
+
+- Ajouter un test de contrat qui vérifie la forme stable de reponse BFF pour un endpoint critique.
+- Ajouter un test d'integration qui simule un timeout upstream et valide la degradation gracieuse.
+- Ajouter un test E2E auth + cookie + refresh pour un parcours frontend.

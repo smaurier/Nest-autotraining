@@ -1,12 +1,14 @@
 # Screencast 08 — Auth & Sécurité
 
 ## Informations
+
 - **Duree estimee** : 18-22 min
 - **Module** : `modules/08-express-auth-securite.md`
 - **Lab associe** : `labs/lab-08-auth-jwt/`
 - **Prérequis** : Screencast 07 (Validation & Erreurs)
 
 ## Setup
+
 - [ ] Node.js 20+ installe
 - [ ] Terminal ouvert dans `nest-course/`
 - [ ] Editeur de code ouvert
@@ -38,22 +40,22 @@ npm install express bcryptjs jsonwebtoken zod
 
 ```javascript
 // bcrypt-demo.js
-const bcrypt = require('bcryptjs');
+const bcrypt = require("bcryptjs");
 
 async function demo() {
-  const password = 'monMotDePasse123';
+  const password = "monMotDePasse123";
 
   // Hasher le mot de passe
   const salt = await bcrypt.genSalt(10);
   const hash = await bcrypt.hash(password, salt);
-  console.log('Hash :', hash);
+  console.log("Hash :", hash);
 
   // Verifier le mot de passe
   const isValid = await bcrypt.compare(password, hash);
-  console.log('Valide :', isValid); // true
+  console.log("Valide :", isValid); // true
 
-  const isInvalid = await bcrypt.compare('mauvaisMotDePasse', hash);
-  console.log('Invalide :', isInvalid); // false
+  const isInvalid = await bcrypt.compare("mauvaisMotDePasse", hash);
+  console.log("Invalide :", isInvalid); // false
 }
 
 demo();
@@ -73,28 +75,28 @@ node bcrypt-demo.js
 
 ```javascript
 // jwt-demo.js
-const jwt = require('jsonwebtoken');
+const jwt = require("jsonwebtoken");
 
-const SECRET = 'ma-cle-secrete-a-ne-pas-commiter';
+const SECRET = "ma-cle-secrete-a-ne-pas-commiter";
 
 // Creer un token
 const token = jwt.sign(
-  { userId: 1, email: 'alice@test.com', role: 'admin' },
+  { userId: 1, email: "alice@test.com", role: "admin" },
   SECRET,
-  { expiresIn: '1h' }
+  { expiresIn: "1h" },
 );
-console.log('Token :', token);
+console.log("Token :", token);
 
 // Decoder (sans verifier)
 const decoded = jwt.decode(token);
-console.log('Decode :', decoded);
+console.log("Decode :", decoded);
 
 // Verifier le token
 try {
   const verified = jwt.verify(token, SECRET);
-  console.log('Verifie :', verified);
+  console.log("Verifie :", verified);
 } catch (err) {
-  console.error('Token invalide :', err.message);
+  console.error("Token invalide :", err.message);
 }
 ```
 
@@ -104,20 +106,20 @@ try {
 
 ```javascript
 // app.js
-const express = require('express');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const { z } = require('zod');
+const express = require("express");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const { z } = require("zod");
 
 const app = express();
 app.use(express.json());
 
-const SECRET = 'super-secret-key';
+const SECRET = "super-secret-key";
 const users = [];
 
 const registerSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(8, 'Minimum 8 caracteres'),
+  password: z.string().min(8, "Minimum 8 caracteres"),
   name: z.string().min(2),
 });
 
@@ -127,7 +129,7 @@ const loginSchema = z.object({
 });
 
 // Register
-app.post('/api/auth/register', async (req, res) => {
+app.post("/api/auth/register", async (req, res) => {
   const result = registerSchema.safeParse(req.body);
   if (!result.success) {
     return res.status(400).json({ errors: result.error.issues });
@@ -135,41 +137,39 @@ app.post('/api/auth/register', async (req, res) => {
 
   const { email, password, name } = result.data;
 
-  if (users.find(u => u.email === email)) {
-    return res.status(409).json({ error: 'Email deja utilise' });
+  if (users.find((u) => u.email === email)) {
+    return res.status(409).json({ error: "Email deja utilise" });
   }
 
   const hash = await bcrypt.hash(password, 10);
   const user = { id: users.length + 1, email, name, password: hash };
   users.push(user);
 
-  res.status(201).json({ message: 'Utilisateur cree', id: user.id });
+  res.status(201).json({ message: "Utilisateur cree", id: user.id });
 });
 
 // Login
-app.post('/api/auth/login', async (req, res) => {
+app.post("/api/auth/login", async (req, res) => {
   const result = loginSchema.safeParse(req.body);
   if (!result.success) {
     return res.status(400).json({ errors: result.error.issues });
   }
 
   const { email, password } = result.data;
-  const user = users.find(u => u.email === email);
+  const user = users.find((u) => u.email === email);
 
   if (!user || !(await bcrypt.compare(password, user.password))) {
-    return res.status(401).json({ error: 'Identifiants invalides' });
+    return res.status(401).json({ error: "Identifiants invalides" });
   }
 
-  const token = jwt.sign(
-    { userId: user.id, email: user.email },
-    SECRET,
-    { expiresIn: '1h' }
-  );
+  const token = jwt.sign({ userId: user.id, email: user.email }, SECRET, {
+    expiresIn: "1h",
+  });
 
   res.json({ token });
 });
 
-app.listen(3000, () => console.log('Auth API sur http://localhost:3000'));
+app.listen(3000, () => console.log("Auth API sur http://localhost:3000"));
 ```
 
 ### [12:00-16:00] Middleware d'authentification et routes protegees
@@ -180,29 +180,29 @@ app.listen(3000, () => console.log('Auth API sur http://localhost:3000'));
 // Middleware d'authentification
 function authMiddleware(req, res, next) {
   const header = req.headers.authorization;
-  if (!header || !header.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Token manquant' });
+  if (!header || !header.startsWith("Bearer ")) {
+    return res.status(401).json({ error: "Token manquant" });
   }
 
   try {
-    const token = header.split(' ')[1];
+    const token = header.split(" ")[1];
     const payload = jwt.verify(token, SECRET);
     req.user = payload;
     next();
   } catch (err) {
-    res.status(401).json({ error: 'Token invalide ou expire' });
+    res.status(401).json({ error: "Token invalide ou expire" });
   }
 }
 
 // Route protegee
-app.get('/api/profile', authMiddleware, (req, res) => {
-  const user = users.find(u => u.id === req.user.userId);
+app.get("/api/profile", authMiddleware, (req, res) => {
+  const user = users.find((u) => u.id === req.user.userId);
   res.json({ id: user.id, email: user.email, name: user.name });
 });
 
 // Route admin
-app.get('/api/admin/users', authMiddleware, (req, res) => {
-  res.json(users.map(u => ({ id: u.id, email: u.email, name: u.name })));
+app.get("/api/admin/users", authMiddleware, (req, res) => {
+  res.json(users.map((u) => ({ id: u.id, email: u.email, name: u.name })));
 });
 ```
 
@@ -241,12 +241,18 @@ curl http://localhost:3000/api/profile
 // Bonne pratique : secret dans une variable d'environnement
 const SECRET = process.env.JWT_SECRET;
 if (!SECRET) {
-  console.error('JWT_SECRET non defini !');
+  console.error("JWT_SECRET non defini !");
   process.exit(1);
 }
 ```
 
 > Quatriemement, ne mettez jamais d'informations sensibles dans le payload du JWT. Le payload est encode en base64, pas chiffre. N'importe qui peut le lire.
+
+### [19:00-20:00] Bonus BFF — Session web robuste
+
+> Pour un BFF Angular web, montrer la variante cookie httpOnly + refresh token rotatif + CSRF.
+
+**Action** : Expliquer rapidement pourquoi cette approche est plus robuste qu'un simple JWT long-terme en localStorage.
 
 ### [19:00-20:30] Recap
 
@@ -257,6 +263,7 @@ if (!SECRET) {
 > Le lab est dans `labs/lab-08-auth-jwt/`. Vous allez construire votre propre système d'auth avec register, login et routes protegees. Au prochain screencast, on attaque NestJS !
 
 ## Points d'attention pour l'enregistrement
+
 - Ne pas montrer de vrais secrets a l'ecran, utiliser des valeurs d'exemple
 - Copier-coller le token JWT depuis la réponse login pour la requête profile
 - Montrer ce qui se passe quand le token expire (changer expiresIn a quelques secondes)
