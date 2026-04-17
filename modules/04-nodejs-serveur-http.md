@@ -267,6 +267,74 @@ const server = http.createServer((req, res) => {
 });
 ```
 
+### 4.3 HEAD, OPTIONS et 405 Method Not Allowed
+
+Deux verbes HTTP sont souvent oublies alors qu'ils sont tres utiles en pratique :
+
+- `HEAD` : meme semantics que `GET`, mais **sans body** dans la reponse
+- `OPTIONS` : permet de declarer quelles methodes sont autorisees sur une ressource, et sert au **preflight CORS**
+
+```typescript
+const server = http.createServer((req, res) => {
+  setCORSHeaders(res);
+
+  if (req.url === '/api/users' && req.method === 'GET') {
+    const body = JSON.stringify({ users: [] });
+    res.writeHead(200, {
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(body),
+    });
+    res.end(body);
+    return;
+  }
+
+  // HEAD: meme statut et memes headers que GET, mais pas de body
+  if (req.url === '/api/users' && req.method === 'HEAD') {
+    res.writeHead(200, {
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(JSON.stringify({ users: [] })),
+    });
+    res.end();
+    return;
+  }
+
+  // OPTIONS: decrire les methodes supportees
+  if (req.url === '/api/users' && req.method === 'OPTIONS') {
+    res.writeHead(204, {
+      Allow: 'GET, HEAD, POST, OPTIONS',
+    });
+    res.end();
+    return;
+  }
+
+  // Meme ressource, methode inconnue -> 405
+  if (req.url === '/api/users') {
+    res.writeHead(405, {
+      Allow: 'GET, HEAD, POST, OPTIONS',
+      'Content-Type': 'application/json',
+    });
+    res.end(JSON.stringify({ error: 'Method Not Allowed' }));
+    return;
+  }
+});
+```
+
+> **A retenir** : `404` signifie "route inconnue". `405` signifie "route connue, mais methode non autorisee". C'est une distinction importante pour diagnostiquer une API proprement.
+
+### 4.4 Methodes safe et idempotentes
+
+| Methode | Safe ? | Idempotente ? | Usage typique |
+|---|---|---|---|
+| `GET` | Oui | Oui | Lire une ressource |
+| `HEAD` | Oui | Oui | Lire les headers/metadonnees |
+| `OPTIONS` | Oui | Oui | Decouvrir les methodes supportees |
+| `POST` | Non | Non | Creer / declencher une action |
+| `PUT` | Non | Oui | Remplacer completement une ressource |
+| `PATCH` | Non | Pas toujours | Modifier partiellement une ressource |
+| `DELETE` | Non | Oui | Supprimer une ressource |
+
+> **Nuance utile** : `PATCH` n'est pas garanti idempotent. Il peut l'etre si votre implementation remplace un champ par une valeur donnee, mais pas si elle applique une operation comme `incrementer de 1`.
+
 ---
 
 ## 5. Servir des fichiers statiques

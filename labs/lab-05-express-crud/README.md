@@ -63,3 +63,10 @@ app.use((err, req, res, next) => {
   res.status(err.status || 500).json({ error: err.message });
 });
 ```
+
+## Defi bonus — Verbes HTTP moins travailles
+
+- Ajouter `HEAD /products/:id` pour verifier l'existence d'un produit sans body.
+- Ajouter `OPTIONS /products` avec le header `Allow`.
+- Renvoyer `405` sur une ressource connue quand la methode n'est pas supportee.
+- Verifier que `PUT` remplace completement et que `PATCH` modifie partiellement.

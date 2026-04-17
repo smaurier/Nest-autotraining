@@ -191,6 +191,16 @@ curl "http://localhost:3000/api/todos?search=express"
 
 > `req.query` contient tous les paramètres après le `?` dans l'URL. C'est parse automatiquement par Express. Pas besoin de decoder l'URL à la main.
 
+### [16:00-17:30] Bonus — PUT vs PATCH, HEAD et OPTIONS
+
+> `PUT` et `PATCH` sont souvent confondus. `PUT` remplace l'etat complet d'une ressource, `PATCH` applique une modification partielle. Et Express supporte aussi `HEAD` et `OPTIONS`.
+
+**Action** : Montrer un `app.head('/api/todos/:id')` pour verifier l'existence d'une ressource sans body.
+
+**Action** : Montrer un `app.options('/api/todos')` avec le header `Allow`.
+
+**Action** : Expliquer quand renvoyer `405` plutot que `404`.
+
 ### [16:00-18:30] Recap — Express simplifie tout
 
 > Resumons ce qu'on a construit. Une API REST complete avec Express : listing, création, modification, suppression, filtrage. En moins de 50 lignes de code.

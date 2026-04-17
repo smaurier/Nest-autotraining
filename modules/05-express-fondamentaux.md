@@ -139,6 +139,17 @@ app.patch('/api/users/:id', (req, res) => {
   res.json({ message: `Utilisateur ${req.params.id} modifie` });
 });
 
+// HEAD — Verifier qu'une ressource existe sans recuperer le body
+app.head('/api/users/:id', (req, res) => {
+  res.status(200).end();
+});
+
+// OPTIONS — Decrire les methodes autorisees sur une ressource
+app.options('/api/users', (req, res) => {
+  res.set('Allow', 'GET, HEAD, POST, OPTIONS');
+  res.status(204).end();
+});
+
 // DELETE — Supprimer une ressource
 app.delete('/api/users/:id', (req, res) => {
   res.status(204).end(); // 204 No Content — pas de body
@@ -150,7 +161,45 @@ app.all('/api/health', (req, res) => {
 });
 ```
 
-### 3.2 Parametres de route
+### 3.2 PUT vs PATCH, HEAD et OPTIONS
+
+| Methode | Quand l'utiliser ? |
+|---|---|
+| `PUT` | Remplacement complet d'une ressource |
+| `PATCH` | Modification partielle d'une ressource |
+| `HEAD` | Recuperer uniquement le statut et les headers |
+| `OPTIONS` | Decouvrir les methodes supportees et repondre au preflight CORS |
+
+```typescript
+// PUT: le client envoie l'etat complet souhaite
+app.put('/api/profile/:id', (req, res) => {
+  // Exemple: { name, email, role, active }
+  res.json({ replaced: true });
+});
+
+// PATCH: le client n'envoie que les champs a changer
+app.patch('/api/profile/:id', (req, res) => {
+  // Exemple: { email } seulement
+  res.json({ patched: true });
+});
+```
+
+> **Bonne pratique** : Si une ressource existe mais que la methode n'est pas supportee, renvoyez `405 Method Not Allowed` avec un header `Allow` plutot qu'un `404`.
+
+```typescript
+app.all('/api/reports', (req, res, next) => {
+  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+    return next();
+  }
+
+  res
+    .set('Allow', 'GET, HEAD, OPTIONS')
+    .status(405)
+    .json({ error: 'Method Not Allowed' });
+});
+```
+
+### 3.3 Parametres de route
 
 ```typescript
 // :id est un parametre de route → disponible dans req.params

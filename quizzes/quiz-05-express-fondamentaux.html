@@ -92,17 +92,17 @@
         explanation: "Les codes de statut HTTP permettent aux clients (front-end, applications mobiles, autres API) de comprendre le resultat de la requete : 200 (succes), 201 (cree), 400 (erreur client), 404 (non trouve), 500 (erreur serveur). Cela permet une gestion d'erreurs fiable et standardisee."
       },
       {
-        label: "Code",
-        text: "Quel est le probleme avec cette route Express ?",
-        code: "app.get('/api/users/:id', (req, res) => {\n  const user = users.find(u => u.id === req.params.id);\n  if (!user) {\n    res.status(404).json({ error: 'Not found' });\n  }\n  res.json(user);\n});",
+        label: "HTTP",
+        text: "Quelle affirmation est correcte sur PUT, PATCH, HEAD et OPTIONS ?",
+        code: null,
         options: [
-          "La methode find() ne fonctionne pas avec Express",
-          "Il manque un return ou un else apres le 404, la reponse sera envoyee deux fois",
-          "req.params.id est toujours un nombre",
-          "res.json() ne peut pas envoyer d'objets"
+          "PATCH remplace completement la ressource et PUT la modifie partiellement",
+          "HEAD renvoie les headers sans body, OPTIONS decrit les methodes supportees",
+          "OPTIONS sert uniquement a supprimer une ressource",
+          "HEAD est equivalent a DELETE sans body"
         ],
         answer: 1,
-        explanation: "Sans return apres res.status(404).json(), l'execution continue et res.json(user) est aussi appele, causant l'erreur 'Cannot set headers after they are sent'. Il faut ajouter return avant ou utiliser un bloc else pour eviter d'envoyer deux reponses."
+        explanation: "HEAD est utile pour verifier l'existence ou recuperer des metadonnees sans transferer le body. OPTIONS sert a annoncer les methodes disponibles, notamment pour le preflight CORS. PUT et PATCH ne sont pas interchangeables."
       }
     ];
 

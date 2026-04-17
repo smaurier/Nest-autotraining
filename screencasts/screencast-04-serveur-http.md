@@ -182,10 +182,18 @@ curl http://localhost:3000/api/users
 // Ajouter les headers CORS
 function setCORS(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 }
 ```
+
+### [15:00-17:00] Bonus — HEAD, OPTIONS et 405
+
+> Deux methodes souvent oubliees: `HEAD` et `OPTIONS`. `HEAD` repond comme `GET` sans envoyer le body. `OPTIONS` annonce les methodes supportees et sert au preflight CORS.
+
+**Action** : Ajouter `HEAD /api/users` et `OPTIONS /api/users`.
+
+**Action** : Montrer un `405 Method Not Allowed` avec le header `Allow` quand la route existe mais que la methode est refusee.
 
 **Action** : Ajouter le service de fichiers statiques.
 

@@ -68,3 +68,9 @@ const server = http.createServer((req, res) => {
   res.end(JSON.stringify({ message: 'ok' }));
 });
 ```
+
+## Defi bonus — HEAD, OPTIONS et 405
+
+- Ajouter `HEAD /users` qui renvoie les memes headers que `GET /users` sans body.
+- Ajouter `OPTIONS /users` avec un header `Allow` coherent.
+- Renvoyer `405 Method Not Allowed` quand la route existe mais que la methode n'est pas supportee.

@@ -71,17 +71,17 @@
         explanation: "L'evenement 'end' est emis quand toutes les donnees du body ont ete recues. Le body arrive en morceaux (chunks) via l'evenement 'data', et on les concatene. Une fois l'evenement 'end' emis, le body complet est disponible pour le parsing JSON."
       },
       {
-        label: "Concept",
-        text: "Quelles informations sont disponibles dans l'objet req (IncomingMessage) du module http ?",
+        label: "HTTP",
+        text: "Quelle reponse est la plus correcte si /api/users existe mais n'accepte pas PUT ?",
         code: null,
         options: [
-          "Uniquement l'URL et la methode",
-          "L'URL, la methode, les headers et le body sous forme de stream",
-          "L'URL, la methode et le body deja parse",
-          "Uniquement les headers HTTP"
+          "404 Not Found",
+          "405 Method Not Allowed avec header Allow",
+          "500 Internal Server Error",
+          "200 OK avec body vide"
         ],
         answer: 1,
-        explanation: "L'objet IncomingMessage (req) contient req.url, req.method, req.headers et le body sous forme de Readable Stream. Contrairement a Express, le body n'est pas automatiquement parse : il faut ecouter les evenements 'data' et 'end' pour le reconstituer."
+        explanation: "Si la ressource existe mais que la methode n'est pas autorisee, la bonne reponse est 405 avec un header Allow qui documente les methodes supportees. 404 est reserve aux routes inexistantes."
       },
       {
         label: "Pourquoi ?",
