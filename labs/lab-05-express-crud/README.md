@@ -23,39 +23,39 @@
 
 ## TODOs
 
-| # | Description |
-|---|-------------|
-| 1 | Créer l'application Express avec `express.json()` |
-| 2 | Implementer `GET /products` avec filtre optionnel `?category=` |
-| 3 | Implementer `GET /products/:id` |
-| 4 | Implementer `POST /products` avec validation (name, price, category requis) |
-| 5 | Implementer `PUT /products/:id` (remplacement complet) |
-| 6 | Implementer `PATCH /products/:id` (modification partielle) |
-| 7 | Implementer `DELETE /products/:id` |
-| 8 | Utiliser les bons status codes (201, 204, 400, 404) |
-| 9 | Créer un middleware d'erreur centralise |
+| #   | Description                                                                 |
+| --- | --------------------------------------------------------------------------- |
+| 1   | Créer l'application Express avec `express.json()`                           |
+| 2   | Implementer `GET /products` avec filtre optionnel `?category=`              |
+| 3   | Implementer `GET /products/:id`                                             |
+| 4   | Implementer `POST /products` avec validation (name, price, category requis) |
+| 5   | Implementer `PUT /products/:id` (remplacement complet)                      |
+| 6   | Implementer `PATCH /products/:id` (modification partielle)                  |
+| 7   | Implementer `DELETE /products/:id`                                          |
+| 8   | Utiliser les bons status codes (201, 204, 400, 404)                         |
+| 9   | Créer un middleware d'erreur centralise                                     |
 
 ## API Référence
 
-| Méthode | Route | Description | Status |
-|---------|-------|-------------|--------|
-| GET | /products | Liste tous les produits (filtre ?category=) | 200 |
-| GET | /products/:id | Recupere un produit | 200 / 404 |
-| POST | /products | Cree un produit | 201 / 400 |
-| PUT | /products/:id | Remplace un produit | 200 / 404 |
-| PATCH | /products/:id | Modifie partiellement un produit | 200 / 404 |
-| DELETE | /products/:id | Supprime un produit | 204 / 404 |
+| Méthode | Route         | Description                                 | Status    |
+| ------- | ------------- | ------------------------------------------- | --------- |
+| GET     | /products     | Liste tous les produits (filtre ?category=) | 200       |
+| GET     | /products/:id | Recupere un produit                         | 200 / 404 |
+| POST    | /products     | Cree un produit                             | 201 / 400 |
+| PUT     | /products/:id | Remplace un produit                         | 200 / 404 |
+| PATCH   | /products/:id | Modifie partiellement un produit            | 200 / 404 |
+| DELETE  | /products/:id | Supprime un produit                         | 204 / 404 |
 
 ## Aide
 
 ```typescript
-import express from 'express';
+import express from "express";
 
 const app = express();
 app.use(express.json());
 
-app.get('/route', (req, res) => {
-  res.json({ message: 'ok' });
+app.get("/route", (req, res) => {
+  res.json({ message: "ok" });
 });
 
 // Middleware d'erreur (4 arguments)

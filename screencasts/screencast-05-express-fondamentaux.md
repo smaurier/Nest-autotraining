@@ -1,12 +1,14 @@
 # Screencast 05 — Express Fondamentaux
 
 ## Informations
+
 - **Duree estimee** : 15-20 min
 - **Module** : `modules/05-express-fondamentaux.md`
 - **Lab associe** : `labs/lab-05-express-crud/`
 - **Prérequis** : Screencast 04 (Serveur HTTP natif)
 
 ## Setup
+
 - [ ] Node.js 20+ installe
 - [ ] Terminal ouvert dans `nest-course/`
 - [ ] Editeur de code ouvert
@@ -33,17 +35,17 @@ npm install express
 
 ```javascript
 // app.js
-const express = require('express');
+const express = require("express");
 const app = express();
 
 app.use(express.json());
 
-app.get('/', (req, res) => {
-  res.json({ message: 'Bienvenue sur l\'API Express !' });
+app.get("/", (req, res) => {
+  res.json({ message: "Bienvenue sur l'API Express !" });
 });
 
 app.listen(3000, () => {
-  console.log('Serveur Express sur http://localhost:3000');
+  console.log("Serveur Express sur http://localhost:3000");
 });
 ```
 
@@ -62,36 +64,36 @@ curl http://localhost:3000
 
 ```javascript
 // app.js
-const express = require('express');
+const express = require("express");
 const app = express();
 
 app.use(express.json());
 
 let todos = [
-  { id: 1, title: 'Apprendre Express', done: false },
-  { id: 2, title: 'Construire une API', done: false },
+  { id: 1, title: "Apprendre Express", done: false },
+  { id: 2, title: "Construire une API", done: false },
 ];
 let nextId = 3;
 
 // GET /api/todos - Lister toutes les taches
-app.get('/api/todos', (req, res) => {
+app.get("/api/todos", (req, res) => {
   res.json(todos);
 });
 
 // GET /api/todos/:id - Une tache par ID
-app.get('/api/todos/:id', (req, res) => {
-  const todo = todos.find(t => t.id === Number(req.params.id));
+app.get("/api/todos/:id", (req, res) => {
+  const todo = todos.find((t) => t.id === Number(req.params.id));
   if (!todo) {
-    return res.status(404).json({ error: 'Tache non trouvee' });
+    return res.status(404).json({ error: "Tache non trouvee" });
   }
   res.json(todo);
 });
 
 // POST /api/todos - Creer une tache
-app.post('/api/todos', (req, res) => {
+app.post("/api/todos", (req, res) => {
   const { title } = req.body;
   if (!title) {
-    return res.status(400).json({ error: 'Le titre est requis' });
+    return res.status(400).json({ error: "Le titre est requis" });
   }
   const todo = { id: nextId++, title, done: false };
   todos.push(todo);
@@ -99,26 +101,26 @@ app.post('/api/todos', (req, res) => {
 });
 
 // PUT /api/todos/:id - Modifier une tache
-app.put('/api/todos/:id', (req, res) => {
-  const todo = todos.find(t => t.id === Number(req.params.id));
+app.put("/api/todos/:id", (req, res) => {
+  const todo = todos.find((t) => t.id === Number(req.params.id));
   if (!todo) {
-    return res.status(404).json({ error: 'Tache non trouvee' });
+    return res.status(404).json({ error: "Tache non trouvee" });
   }
   Object.assign(todo, req.body);
   res.json(todo);
 });
 
 // DELETE /api/todos/:id - Supprimer une tache
-app.delete('/api/todos/:id', (req, res) => {
-  const index = todos.findIndex(t => t.id === Number(req.params.id));
+app.delete("/api/todos/:id", (req, res) => {
+  const index = todos.findIndex((t) => t.id === Number(req.params.id));
   if (index === -1) {
-    return res.status(404).json({ error: 'Tache non trouvee' });
+    return res.status(404).json({ error: "Tache non trouvee" });
   }
   todos.splice(index, 1);
   res.status(204).send();
 });
 
-app.listen(3000, () => console.log('API sur http://localhost:3000'));
+app.listen(3000, () => console.log("API sur http://localhost:3000"));
 ```
 
 **Action** : Démarrer le serveur et tester chaque endpoint.
@@ -164,17 +166,17 @@ curl http://localhost:3000/api/todos
 
 ```javascript
 // GET /api/todos?done=true
-app.get('/api/todos', (req, res) => {
+app.get("/api/todos", (req, res) => {
   let result = todos;
 
   if (req.query.done !== undefined) {
-    const isDone = req.query.done === 'true';
-    result = result.filter(t => t.done === isDone);
+    const isDone = req.query.done === "true";
+    result = result.filter((t) => t.done === isDone);
   }
 
   if (req.query.search) {
-    result = result.filter(t =>
-      t.title.toLowerCase().includes(req.query.search.toLowerCase())
+    result = result.filter((t) =>
+      t.title.toLowerCase().includes(req.query.search.toLowerCase()),
     );
   }
 
@@ -212,6 +214,7 @@ curl "http://localhost:3000/api/todos?search=express"
 > Dans le prochain screencast, on va découvrir les middlewares — c'est la ou la puissance d'Express se revele vraiment. Le lab est dans `labs/lab-05-express-crud/`. Construisez votre propre API CRUD et testez-la avec Thunder Client. A tout de suite !
 
 ## Points d'attention pour l'enregistrement
+
 - Montrer Thunder Client en parallele de curl pour que le public choisisse son outil
 - Bien montrer le code de statut 201 pour POST et 204 pour DELETE
 - Insister sur la différence entre req.params et req.query
