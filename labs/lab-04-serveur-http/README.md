@@ -22,32 +22,32 @@
 
 ## TODOs
 
-| # | Description |
-|---|-------------|
-| 1 | Implementer `parseBody(req)` — parser le corps JSON d'une requête |
-| 2 | Implementer `sendJson(res, statusCode, data)` — envoyer une réponse JSON |
-| 3 | Implementer `addCorsHeaders(res)` — ajouter les headers CORS |
-| 4 | Implementer `GET /users` — lister tous les utilisateurs |
-| 5 | Implementer `GET /users/:id` — récupérer un utilisateur par ID |
-| 6 | Implementer `POST /users` — créer un utilisateur |
-| 7 | Implementer `PUT /users/:id` — modifier un utilisateur |
-| 8 | Implementer `DELETE /users/:id` — supprimer un utilisateur |
-| 9 | Gérer les routes inconnues (404) et les erreurs JSON (400) |
+| #   | Description                                                              |
+| --- | ------------------------------------------------------------------------ |
+| 1   | Implementer `parseBody(req)` — parser le corps JSON d'une requête        |
+| 2   | Implementer `sendJson(res, statusCode, data)` — envoyer une réponse JSON |
+| 3   | Implementer `addCorsHeaders(res)` — ajouter les headers CORS             |
+| 4   | Implementer `GET /users` — lister tous les utilisateurs                  |
+| 5   | Implementer `GET /users/:id` — récupérer un utilisateur par ID           |
+| 6   | Implementer `POST /users` — créer un utilisateur                         |
+| 7   | Implementer `PUT /users/:id` — modifier un utilisateur                   |
+| 8   | Implementer `DELETE /users/:id` — supprimer un utilisateur               |
+| 9   | Gérer les routes inconnues (404) et les erreurs JSON (400)               |
 
 ## API Référence
 
-| Méthode | Route | Description | Status |
-|---------|-------|-------------|--------|
-| GET | /users | Liste tous les utilisateurs | 200 |
-| GET | /users/:id | Recupere un utilisateur | 200 / 404 |
-| POST | /users | Cree un utilisateur | 201 |
-| PUT | /users/:id | Modifie un utilisateur | 200 / 404 |
-| DELETE | /users/:id | Supprime un utilisateur | 204 / 404 |
+| Méthode | Route      | Description                 | Status    |
+| ------- | ---------- | --------------------------- | --------- |
+| GET     | /users     | Liste tous les utilisateurs | 200       |
+| GET     | /users/:id | Recupere un utilisateur     | 200 / 404 |
+| POST    | /users     | Cree un utilisateur         | 201       |
+| PUT     | /users/:id | Modifie un utilisateur      | 200 / 404 |
+| DELETE  | /users/:id | Supprime un utilisateur     | 204 / 404 |
 
 ## Aide
 
 ```typescript
-import http from 'node:http';
+import http from "node:http";
 
 const server = http.createServer((req, res) => {
   const { method, url } = req;
@@ -57,15 +57,15 @@ const server = http.createServer((req, res) => {
   const pathname = urlObj.pathname;
 
   // Lire le body
-  let body = '';
-  req.on('data', chunk => body += chunk);
-  req.on('end', () => {
+  let body = "";
+  req.on("data", (chunk) => (body += chunk));
+  req.on("end", () => {
     const data = JSON.parse(body);
   });
 
   // Envoyer une reponse
-  res.writeHead(200, { 'Content-Type': 'application/json' });
-  res.end(JSON.stringify({ message: 'ok' }));
+  res.writeHead(200, { "Content-Type": "application/json" });
+  res.end(JSON.stringify({ message: "ok" }));
 });
 ```
 
@@ -74,3 +74,9 @@ const server = http.createServer((req, res) => {
 - Ajouter `HEAD /users` qui renvoie les memes headers que `GET /users` sans body.
 - Ajouter `OPTIONS /users` avec un header `Allow` coherent.
 - Renvoyer `405 Method Not Allowed` quand la route existe mais que la methode n'est pas supportee.
+
+## Defi bonus 2 — TRACE et CONNECT
+
+- Detecter `TRACE` et renvoyer une reponse explicite de refus (`405` recommande dans ce lab).
+- Detecter `CONNECT` et renvoyer `501 Not Implemented`.
+- Expliquer en une phrase dans ton code pourquoi ces methodes sont rarement exposees dans une API applicative.

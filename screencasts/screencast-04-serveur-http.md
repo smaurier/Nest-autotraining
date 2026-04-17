@@ -1,12 +1,14 @@
 # Screencast 04 — Serveur HTTP natif
 
 ## Informations
+
 - **Duree estimee** : 15-20 min
 - **Module** : `modules/04-nodejs-serveur-http.md`
 - **Lab associe** : `labs/lab-04-serveur-http/`
 - **Prérequis** : Screencast 03 (Streams & Buffers)
 
 ## Setup
+
 - [ ] Node.js 20+ installe
 - [ ] Terminal ouvert dans `nest-course/`
 - [ ] Editeur de code ouvert
@@ -27,15 +29,15 @@
 
 ```javascript
 // server.js
-const http = require('http');
+const http = require("http");
 
 const server = http.createServer((req, res) => {
-  res.writeHead(200, { 'Content-Type': 'text/plain' });
-  res.end('Bonjour depuis Node.js !');
+  res.writeHead(200, { "Content-Type": "text/plain" });
+  res.end("Bonjour depuis Node.js !");
 });
 
 server.listen(3000, () => {
-  console.log('Serveur demarre sur http://localhost:3000');
+  console.log("Serveur demarre sur http://localhost:3000");
 });
 ```
 
@@ -59,38 +61,35 @@ curl http://localhost:3000
 
 ```javascript
 // server-routes.js
-const http = require('http');
+const http = require("http");
 
 const server = http.createServer((req, res) => {
   const { method, url } = req;
 
-  res.setHeader('Content-Type', 'application/json');
+  res.setHeader("Content-Type", "application/json");
 
-  if (method === 'GET' && url === '/') {
+  if (method === "GET" && url === "/") {
     res.writeHead(200);
-    res.end(JSON.stringify({ message: 'Bienvenue sur l\'API' }));
-
-  } else if (method === 'GET' && url === '/api/users') {
+    res.end(JSON.stringify({ message: "Bienvenue sur l'API" }));
+  } else if (method === "GET" && url === "/api/users") {
     const users = [
-      { id: 1, name: 'Alice' },
-      { id: 2, name: 'Bob' },
+      { id: 1, name: "Alice" },
+      { id: 2, name: "Bob" },
     ];
     res.writeHead(200);
     res.end(JSON.stringify(users));
-
-  } else if (method === 'GET' && url.startsWith('/api/users/')) {
-    const id = url.split('/')[3];
+  } else if (method === "GET" && url.startsWith("/api/users/")) {
+    const id = url.split("/")[3];
     res.writeHead(200);
-    res.end(JSON.stringify({ id: Number(id), name: 'Utilisateur ' + id }));
-
+    res.end(JSON.stringify({ id: Number(id), name: "Utilisateur " + id }));
   } else {
     res.writeHead(404);
-    res.end(JSON.stringify({ error: 'Route non trouvee' }));
+    res.end(JSON.stringify({ error: "Route non trouvee" }));
   }
 });
 
 server.listen(3000, () => {
-  console.log('Serveur demarre sur http://localhost:3000');
+  console.log("Serveur demarre sur http://localhost:3000");
 });
 ```
 
@@ -113,13 +112,13 @@ curl http://localhost:3000/api/inexistant
 
 ```javascript
 // server-post.js
-const http = require('http');
+const http = require("http");
 
 function parseBody(req) {
   return new Promise((resolve, reject) => {
     const chunks = [];
-    req.on('data', (chunk) => chunks.push(chunk));
-    req.on('end', () => {
+    req.on("data", (chunk) => chunks.push(chunk));
+    req.on("end", () => {
       const body = Buffer.concat(chunks).toString();
       try {
         resolve(JSON.parse(body));
@@ -127,37 +126,35 @@ function parseBody(req) {
         resolve(body);
       }
     });
-    req.on('error', reject);
+    req.on("error", reject);
   });
 }
 
 const users = [
-  { id: 1, name: 'Alice' },
-  { id: 2, name: 'Bob' },
+  { id: 1, name: "Alice" },
+  { id: 2, name: "Bob" },
 ];
 
 const server = http.createServer(async (req, res) => {
   const { method, url } = req;
-  res.setHeader('Content-Type', 'application/json');
+  res.setHeader("Content-Type", "application/json");
 
-  if (method === 'GET' && url === '/api/users') {
+  if (method === "GET" && url === "/api/users") {
     res.writeHead(200);
     res.end(JSON.stringify(users));
-
-  } else if (method === 'POST' && url === '/api/users') {
+  } else if (method === "POST" && url === "/api/users") {
     const body = await parseBody(req);
     const newUser = { id: users.length + 1, name: body.name };
     users.push(newUser);
     res.writeHead(201);
     res.end(JSON.stringify(newUser));
-
   } else {
     res.writeHead(404);
-    res.end(JSON.stringify({ error: 'Non trouve' }));
+    res.end(JSON.stringify({ error: "Non trouve" }));
   }
 });
 
-server.listen(3000, () => console.log('Serveur sur http://localhost:3000'));
+server.listen(3000, () => console.log("Serveur sur http://localhost:3000"));
 ```
 
 **Action** : Tester la création d'un utilisateur.
@@ -181,9 +178,12 @@ curl http://localhost:3000/api/users
 ```javascript
 // Ajouter les headers CORS
 function setCORS(res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader(
+    "Access-Control-Allow-Methods",
+    "GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS",
+  );
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 }
 ```
 
@@ -195,31 +195,37 @@ function setCORS(res) {
 
 **Action** : Montrer un `405 Method Not Allowed` avec le header `Allow` quand la route existe mais que la methode est refusee.
 
+### [17:00-18:00] Bonus avance — TRACE et CONNECT
+
+> Deux autres verbes existent mais vous les verrez surtout cote infra et proxy. `TRACE` sert au diagnostic HTTP bas niveau, `CONNECT` a l'ouverture de tunnels. Dans une API metier, on les refuse en general explicitement.
+
+**Action** : Montrer un refus propre de `TRACE` et `CONNECT`, puis expliquer pourquoi on evite de les exposer.
+
 **Action** : Ajouter le service de fichiers statiques.
 
 ```javascript
 // Servir un fichier statique
-const fs = require('fs');
-const path = require('path');
+const fs = require("fs");
+const path = require("path");
 
 const MIME_TYPES = {
-  '.html': 'text/html',
-  '.css': 'text/css',
-  '.js': 'application/javascript',
-  '.json': 'application/json',
-  '.png': 'image/png',
+  ".html": "text/html",
+  ".css": "text/css",
+  ".js": "application/javascript",
+  ".json": "application/json",
+  ".png": "image/png",
 };
 
 function serveStatic(filePath, res) {
   const ext = path.extname(filePath);
-  const mime = MIME_TYPES[ext] || 'application/octet-stream';
+  const mime = MIME_TYPES[ext] || "application/octet-stream";
 
   const stream = fs.createReadStream(filePath);
-  res.writeHead(200, { 'Content-Type': mime });
+  res.writeHead(200, { "Content-Type": mime });
   stream.pipe(res);
-  stream.on('error', () => {
+  stream.on("error", () => {
     res.writeHead(404);
-    res.end('Fichier non trouve');
+    res.end("Fichier non trouve");
   });
 }
 ```
@@ -237,6 +243,7 @@ function serveStatic(filePath, res) {
 > Le lab est dans `labs/lab-04-serveur-http/`. Vous allez construire votre propre API REST avec le module http natif. C'est un excellent exercice pour solidifier vos bases. On se retrouve au prochain screencast pour découvrir Express !
 
 ## Points d'attention pour l'enregistrement
+
 - Tuer le serveur entre chaque demo (Ctrl+C) pour éviter les conflits de port
 - Montrer les réponses curl de manière lisible (utiliser jq si disponible)
 - Insister sur le fait que req est un Readable stream et res un Writable stream

@@ -16,13 +16,13 @@ Express est un **framework web minimaliste** pour Node.js. Il ajoute une couche 
 
 ### 1.2 Express en chiffres
 
-| Statistique | Valeur |
-|---|---|
-| Telechargements npm/semaine | ~30 millions |
-| Stars GitHub | ~65 000 |
-| Premiere release | 2010 |
-| Taille (installe) | ~200 Ko |
-| Dependances | Très peu (~30) |
+| Statistique                 | Valeur         |
+| --------------------------- | -------------- |
+| Telechargements npm/semaine | ~30 millions   |
+| Stars GitHub                | ~65 000        |
+| Premiere release            | 2010           |
+| Taille (installe)           | ~200 Ko        |
+| Dependances                 | Très peu (~30) |
 
 ### 1.3 Initialiser un projet Express
 
@@ -68,14 +68,14 @@ Ajouter les scripts dans `package.json` :
 
 ```typescript
 // src/index.js
-import express from 'express';
+import express from "express";
 
 // Creer l'application Express
 const app = express();
 
 // Definir une route
-app.get('/', (req, res) => {
-  res.send('Hello World !');
+app.get("/", (req, res) => {
+  res.send("Hello World !");
 });
 
 // Demarrer le serveur
@@ -93,7 +93,7 @@ npm run dev
 ### 2.2 Comprendre express()
 
 ```typescript
-import express from 'express';
+import express from "express";
 
 // express() cree une application Express
 // C'est une fonction qui retourne un objet avec des methodes pour :
@@ -116,69 +116,69 @@ const app = express();
 ### 3.1 Les méthodes HTTP
 
 ```typescript
-import express from 'express';
+import express from "express";
 const app = express();
 
 // GET — Recuperer des donnees
-app.get('/api/users', (req, res) => {
+app.get("/api/users", (req, res) => {
   res.json({ users: [] });
 });
 
 // POST — Creer une ressource
-app.post('/api/users', (req, res) => {
-  res.status(201).json({ message: 'Utilisateur cree' });
+app.post("/api/users", (req, res) => {
+  res.status(201).json({ message: "Utilisateur cree" });
 });
 
 // PUT — Remplacer une ressource completement
-app.put('/api/users/:id', (req, res) => {
+app.put("/api/users/:id", (req, res) => {
   res.json({ message: `Utilisateur ${req.params.id} remplace` });
 });
 
 // PATCH — Modifier partiellement une ressource
-app.patch('/api/users/:id', (req, res) => {
+app.patch("/api/users/:id", (req, res) => {
   res.json({ message: `Utilisateur ${req.params.id} modifie` });
 });
 
 // HEAD — Verifier qu'une ressource existe sans recuperer le body
-app.head('/api/users/:id', (req, res) => {
+app.head("/api/users/:id", (req, res) => {
   res.status(200).end();
 });
 
 // OPTIONS — Decrire les methodes autorisees sur une ressource
-app.options('/api/users', (req, res) => {
-  res.set('Allow', 'GET, HEAD, POST, OPTIONS');
+app.options("/api/users", (req, res) => {
+  res.set("Allow", "GET, HEAD, POST, OPTIONS");
   res.status(204).end();
 });
 
 // DELETE — Supprimer une ressource
-app.delete('/api/users/:id', (req, res) => {
+app.delete("/api/users/:id", (req, res) => {
   res.status(204).end(); // 204 No Content — pas de body
 });
 
 // ALL — Toutes les methodes HTTP
-app.all('/api/health', (req, res) => {
-  res.json({ status: 'OK', method: req.method });
+app.all("/api/health", (req, res) => {
+  res.json({ status: "OK", method: req.method });
 });
 ```
 
 ### 3.2 PUT vs PATCH, HEAD et OPTIONS
 
-| Methode | Quand l'utiliser ? |
-|---|---|
-| `PUT` | Remplacement complet d'une ressource |
-| `PATCH` | Modification partielle d'une ressource |
-| `HEAD` | Recuperer uniquement le statut et les headers |
+| Methode   | Quand l'utiliser ?                                              |
+| --------- | --------------------------------------------------------------- |
+| `PUT`     | Remplacement complet d'une ressource                            |
+| `PATCH`   | Modification partielle d'une ressource                          |
+| `HEAD`    | Recuperer uniquement le statut et les headers                   |
 | `OPTIONS` | Decouvrir les methodes supportees et repondre au preflight CORS |
 
 ```typescript
 // PUT: le client envoie l'etat complet souhaite
-app.put('/api/profile/:id', (req, res) => {
+app.put("/api/profile/:id", (req, res) => {
   // Exemple: { name, email, role, active }
   res.json({ replaced: true });
 });
 
 // PATCH: le client n'envoie que les champs a changer
-app.patch('/api/profile/:id', (req, res) => {
+app.patch("/api/profile/:id", (req, res) => {
   // Exemple: { email } seulement
   res.json({ patched: true });
 });
@@ -187,43 +187,69 @@ app.patch('/api/profile/:id', (req, res) => {
 > **Bonne pratique** : Si une ressource existe mais que la methode n'est pas supportee, renvoyez `405 Method Not Allowed` avec un header `Allow` plutot qu'un `404`.
 
 ```typescript
-app.all('/api/reports', (req, res, next) => {
-  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+app.all("/api/reports", (req, res, next) => {
+  if (["GET", "HEAD", "OPTIONS"].includes(req.method)) {
     return next();
   }
 
   res
-    .set('Allow', 'GET, HEAD, OPTIONS')
+    .set("Allow", "GET, HEAD, OPTIONS")
     .status(405)
-    .json({ error: 'Method Not Allowed' });
+    .json({ error: "Method Not Allowed" });
 });
 ```
 
-### 3.3 Parametres de route
+### 3.3 TRACE et CONNECT en pratique avec Express
+
+Dans une application Express classique, on ne manipule presque jamais `TRACE` et `CONNECT` pour la logique metier.
+
+- `TRACE` : en general **desactive**
+- `CONNECT` : concerne surtout les **proxies HTTP**, pas une API CRUD/BFF classique
+
+```typescript
+app.all('*', (req, res, next) => {
+  if (req.method === 'TRACE') {
+    return res
+      .set('Allow', 'GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS')
+      .status(405)
+      .json({ error: 'TRACE desactive' });
+  }
+
+  if (req.method === 'CONNECT') {
+    return res.status(501).json({ error: 'CONNECT non implemente' });
+  }
+
+  next();
+});
+```
+
+> **A retenir** : connaitre `TRACE` et `CONNECT` est utile pour la culture HTTP, pour le debug infra, et pour comprendre certains comportements de proxy. En revanche, ce ne sont pas des verbes que l'on expose normalement dans une API applicative Express/Nest.
+
+### 3.4 Parametres de route
 
 ```typescript
 // :id est un parametre de route → disponible dans req.params
-app.get('/api/users/:id', (req, res) => {
+app.get("/api/users/:id", (req, res) => {
   console.log(req.params.id); // '42'
   res.json({ userId: req.params.id });
 });
 
 // Plusieurs parametres
-app.get('/api/users/:userId/posts/:postId', (req, res) => {
-  console.log(req.params.userId);  // '42'
-  console.log(req.params.postId);  // '7'
+app.get("/api/users/:userId/posts/:postId", (req, res) => {
+  console.log(req.params.userId); // '42'
+  console.log(req.params.postId); // '7'
   res.json(req.params);
 });
 
 // Parametres optionnels (avec ?)
-app.get('/api/files/:name.:ext?', (req, res) => {
+app.get("/api/files/:name.:ext?", (req, res) => {
   console.log(req.params.name); // 'photo'
-  console.log(req.params.ext);  // 'jpg' ou undefined
+  console.log(req.params.ext); // 'jpg' ou undefined
   res.json(req.params);
 });
 
 // Wildcards
-app.get('/api/docs/*', (req, res) => {
+app.get("/api/docs/*", (req, res) => {
   // Capture tout apres /api/docs/
   console.log(req.params[0]); // 'section/subsection/page'
   res.send(`Document : ${req.params[0]}`);
@@ -239,34 +265,34 @@ app.get('/api/docs/*', (req, res) => {
 L'objet `req` est une version enrichie de `http.IncomingMessage` :
 
 ```typescript
-app.post('/api/users', (req, res) => {
+app.post("/api/users", (req, res) => {
   // === Parametres de route ===
   // Definis par la route : '/api/users/:id'
-  console.log(req.params);          // { id: '42' }
+  console.log(req.params); // { id: '42' }
 
   // === Query parameters ===
   // URL: /api/users?page=2&limit=10
-  console.log(req.query);           // { page: '2', limit: '10' }
-  console.log(req.query.page);      // '2' (toujours une string !)
+  console.log(req.query); // { page: '2', limit: '10' }
+  console.log(req.query.page); // '2' (toujours une string !)
 
   // === Body de la requete ===
   // Necessite express.json() middleware
-  console.log(req.body);            // { nom: 'Alice', email: 'alice@...' }
+  console.log(req.body); // { nom: 'Alice', email: 'alice@...' }
 
   // === Headers ===
-  console.log(req.headers);         // { 'content-type': 'application/json', ... }
-  console.log(req.get('Content-Type')); // 'application/json'
-  console.log(req.get('Authorization')); // 'Bearer eyJhb...'
+  console.log(req.headers); // { 'content-type': 'application/json', ... }
+  console.log(req.get("Content-Type")); // 'application/json'
+  console.log(req.get("Authorization")); // 'Bearer eyJhb...'
 
   // === Methode et URL ===
-  console.log(req.method);          // 'POST'
-  console.log(req.path);            // '/api/users'
-  console.log(req.originalUrl);     // '/api/users?page=2'
-  console.log(req.baseUrl);         // '' (ou '/api' si utilise un Router)
-  console.log(req.hostname);        // 'localhost'
-  console.log(req.ip);              // '127.0.0.1'
-  console.log(req.protocol);        // 'http' ou 'https'
-  console.log(req.secure);          // false (true si HTTPS)
+  console.log(req.method); // 'POST'
+  console.log(req.path); // '/api/users'
+  console.log(req.originalUrl); // '/api/users?page=2'
+  console.log(req.baseUrl); // '' (ou '/api' si utilise un Router)
+  console.log(req.hostname); // 'localhost'
+  console.log(req.ip); // '127.0.0.1'
+  console.log(req.protocol); // 'http' ou 'https'
+  console.log(req.secure); // false (true si HTTPS)
 
   // === Cookies (avec cookie-parser) ===
   // console.log(req.cookies);      // { session: 'abc123' }
@@ -282,63 +308,60 @@ app.post('/api/users', (req, res) => {
 L'objet `res` est une version enrichie de `http.ServerResponse` :
 
 ```typescript
-app.get('/api/demo', (req, res) => {
+app.get("/api/demo", (req, res) => {
   // === Envoyer du JSON ===
-  res.json({ message: 'Hello' });
+  res.json({ message: "Hello" });
   // Equivalent de : res.setHeader('Content-Type', 'application/json');
   //                 res.end(JSON.stringify({ message: 'Hello' }));
 
   // === Envoyer du texte ===
-  res.send('Hello World');
+  res.send("Hello World");
   // Detecte automatiquement le Content-Type
 
   // === Definir le status code ===
   res.status(201).json({ id: 1 });
-  res.status(404).json({ error: 'Not found' });
+  res.status(404).json({ error: "Not found" });
   res.status(204).end(); // No Content, pas de body
 
   // === Redirection ===
-  res.redirect('/nouvelle-url');           // 302 par defaut
-  res.redirect(301, '/nouvelle-url');      // 301 Moved Permanently
+  res.redirect("/nouvelle-url"); // 302 par defaut
+  res.redirect(301, "/nouvelle-url"); // 301 Moved Permanently
 
   // === Definir des headers ===
-  res.set('X-Custom-Header', 'valeur');
+  res.set("X-Custom-Header", "valeur");
   res.set({
-    'X-Header-1': 'valeur1',
-    'X-Header-2': 'valeur2',
+    "X-Header-1": "valeur1",
+    "X-Header-2": "valeur2",
   });
 
   // === Envoyer un fichier ===
-  res.sendFile('/chemin/absolu/vers/fichier.pdf');
+  res.sendFile("/chemin/absolu/vers/fichier.pdf");
 
   // === Telecharger un fichier ===
-  res.download('/chemin/vers/rapport.pdf', 'rapport-2024.pdf');
+  res.download("/chemin/vers/rapport.pdf", "rapport-2024.pdf");
   // Declenche un telechargement dans le navigateur
 
   // === Cookies ===
-  res.cookie('session', 'abc123', {
+  res.cookie("session", "abc123", {
     httpOnly: true,
     secure: true,
     maxAge: 3600000, // 1 heure en ms
   });
-  res.clearCookie('session');
+  res.clearCookie("session");
 
   // === Chainer les methodes ===
-  res
-    .status(201)
-    .set('X-Request-Id', 'uuid')
-    .json({ id: 1, name: 'Alice' });
+  res.status(201).set("X-Request-Id", "uuid").json({ id: 1, name: "Alice" });
 });
 ```
 
 > **Piege classique** : Tu ne peux envoyer qu'UNE SEULE réponse par requête. Si tu appelles `res.json()` ou `res.send()` deux fois, Express leve une erreur `Error: Cannot set headers after they are sent`. Utilise `return` pour arreter la fonction après avoir envoye la réponse.
 
 ```typescript
-app.get('/api/users/:id', (req, res) => {
+app.get("/api/users/:id", (req, res) => {
   const user = findUser(req.params.id);
 
   if (!user) {
-    return res.status(404).json({ error: 'Not found' });
+    return res.status(404).json({ error: "Not found" });
     // SANS le return, le code continue et appelle res.json() une deuxieme fois !
   }
 
@@ -353,13 +376,13 @@ app.get('/api/users/:id', (req, res) => {
 ### 6.1 express.json() — Parser le body JSON
 
 ```typescript
-import express from 'express';
+import express from "express";
 const app = express();
 
 // OBLIGATOIRE pour lire req.body sur les requetes POST/PUT/PATCH
 app.use(express.json());
 
-app.post('/api/users', (req, res) => {
+app.post("/api/users", (req, res) => {
   console.log(req.body); // { nom: 'Alice', email: 'alice@...' }
   // Sans express.json(), req.body serait undefined !
   res.status(201).json(req.body);
@@ -374,7 +397,7 @@ app.post('/api/users', (req, res) => {
 // Pour les formulaires HTML classiques (Content-Type: application/x-www-form-urlencoded)
 app.use(express.urlencoded({ extended: true }));
 
-app.post('/login', (req, res) => {
+app.post("/login", (req, res) => {
   console.log(req.body.username); // Valeur du champ <input name="username">
   console.log(req.body.password); // Valeur du champ <input name="password">
 });
@@ -383,18 +406,18 @@ app.post('/login', (req, res) => {
 ### 6.3 express.static() — Servir des fichiers statiques
 
 ```typescript
-import path from 'path';
-import { fileURLToPath } from 'url';
+import path from "path";
+import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Servir les fichiers du dossier 'public'
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, "public")));
 // GET /style.css → public/style.css
 // GET /images/logo.png → public/images/logo.png
 
 // Avec un prefixe
-app.use('/static', express.static(path.join(__dirname, 'public')));
+app.use("/static", express.static(path.join(__dirname, "public")));
 // GET /static/style.css → public/style.css
 ```
 
@@ -437,16 +460,16 @@ Ou avec un fichier `nodemon.json` pour plus d'options :
 
 ```typescript
 // src/index.js
-import 'dotenv/config'; // Charge les variables depuis .env
-import express from 'express';
+import "dotenv/config"; // Charge les variables depuis .env
+import express from "express";
 
 const app = express();
 const PORT = parseInt(process.env.PORT, 10) || 3000;
-const NODE_ENV = process.env.NODE_ENV || 'development';
+const NODE_ENV = process.env.NODE_ENV || "development";
 
-app.get('/api/health', (req, res) => {
+app.get("/api/health", (req, res) => {
   res.json({
-    status: 'OK',
+    status: "OK",
     environment: NODE_ENV,
     uptime: process.uptime(),
   });
@@ -475,8 +498,8 @@ node_modules/
 
 ```typescript
 // src/index.js
-import express from 'express';
-import crypto from 'crypto';
+import express from "express";
+import crypto from "crypto";
 
 const app = express();
 app.use(express.json());
@@ -484,51 +507,52 @@ app.use(express.json());
 // === Base de donnees en memoire ===
 let books = [
   {
-    id: '1',
-    title: 'Clean Code',
-    author: 'Robert C. Martin',
+    id: "1",
+    title: "Clean Code",
+    author: "Robert C. Martin",
     year: 2008,
-    isbn: '978-0132350884',
+    isbn: "978-0132350884",
   },
   {
-    id: '2',
-    title: 'The Pragmatic Programmer',
-    author: 'David Thomas & Andrew Hunt',
+    id: "2",
+    title: "The Pragmatic Programmer",
+    author: "David Thomas & Andrew Hunt",
     year: 2019,
-    isbn: '978-0135957059',
+    isbn: "978-0135957059",
   },
   {
-    id: '3',
-    title: 'Design Patterns',
-    author: 'Gang of Four',
+    id: "3",
+    title: "Design Patterns",
+    author: "Gang of Four",
     year: 1994,
-    isbn: '978-0201633610',
+    isbn: "978-0201633610",
   },
 ];
 
 // === GET /api/books — Lister tous les livres ===
-app.get('/api/books', (req, res) => {
+app.get("/api/books", (req, res) => {
   const { author, year, search } = req.query;
   let result = [...books];
 
   // Filtrer par auteur
   if (author) {
-    result = result.filter(b =>
-      b.author.toLowerCase().includes(author.toLowerCase())
+    result = result.filter((b) =>
+      b.author.toLowerCase().includes(author.toLowerCase()),
     );
   }
 
   // Filtrer par annee
   if (year) {
-    result = result.filter(b => b.year === parseInt(year, 10));
+    result = result.filter((b) => b.year === parseInt(year, 10));
   }
 
   // Recherche textuelle
   if (search) {
     const searchLower = search.toLowerCase();
-    result = result.filter(b =>
-      b.title.toLowerCase().includes(searchLower) ||
-      b.author.toLowerCase().includes(searchLower)
+    result = result.filter(
+      (b) =>
+        b.title.toLowerCase().includes(searchLower) ||
+        b.author.toLowerCase().includes(searchLower),
     );
   }
 
@@ -539,12 +563,12 @@ app.get('/api/books', (req, res) => {
 });
 
 // === GET /api/books/:id — Recuperer un livre ===
-app.get('/api/books/:id', (req, res) => {
-  const book = books.find(b => b.id === req.params.id);
+app.get("/api/books/:id", (req, res) => {
+  const book = books.find((b) => b.id === req.params.id);
 
   if (!book) {
     return res.status(404).json({
-      error: 'Livre introuvable',
+      error: "Livre introuvable",
       id: req.params.id,
     });
   }
@@ -553,23 +577,26 @@ app.get('/api/books/:id', (req, res) => {
 });
 
 // === POST /api/books — Creer un livre ===
-app.post('/api/books', (req, res) => {
+app.post("/api/books", (req, res) => {
   const { title, author, year, isbn } = req.body;
 
   // Validation basique
   const errors = [];
-  if (!title || typeof title !== 'string') errors.push('title est requis (string)');
-  if (!author || typeof author !== 'string') errors.push('author est requis (string)');
-  if (!year || typeof year !== 'number') errors.push('year est requis (number)');
+  if (!title || typeof title !== "string")
+    errors.push("title est requis (string)");
+  if (!author || typeof author !== "string")
+    errors.push("author est requis (string)");
+  if (!year || typeof year !== "number")
+    errors.push("year est requis (number)");
 
   if (errors.length > 0) {
     return res.status(400).json({ errors });
   }
 
   // Verifier l'unicite de l'ISBN
-  if (isbn && books.some(b => b.isbn === isbn)) {
+  if (isbn && books.some((b) => b.isbn === isbn)) {
     return res.status(409).json({
-      error: 'Un livre avec cet ISBN existe deja',
+      error: "Un livre avec cet ISBN existe deja",
     });
   }
 
@@ -587,20 +614,20 @@ app.post('/api/books', (req, res) => {
 });
 
 // === PUT /api/books/:id — Remplacer un livre ===
-app.put('/api/books/:id', (req, res) => {
-  const index = books.findIndex(b => b.id === req.params.id);
+app.put("/api/books/:id", (req, res) => {
+  const index = books.findIndex((b) => b.id === req.params.id);
 
   if (index === -1) {
-    return res.status(404).json({ error: 'Livre introuvable' });
+    return res.status(404).json({ error: "Livre introuvable" });
   }
 
   const { title, author, year, isbn } = req.body;
 
   // PUT = remplacement total, tous les champs sont requis
   const errors = [];
-  if (!title) errors.push('title est requis');
-  if (!author) errors.push('author est requis');
-  if (!year) errors.push('year est requis');
+  if (!title) errors.push("title est requis");
+  if (!author) errors.push("author est requis");
+  if (!year) errors.push("year est requis");
 
   if (errors.length > 0) {
     return res.status(400).json({ errors });
@@ -618,11 +645,11 @@ app.put('/api/books/:id', (req, res) => {
 });
 
 // === PATCH /api/books/:id — Modifier partiellement ===
-app.patch('/api/books/:id', (req, res) => {
-  const book = books.find(b => b.id === req.params.id);
+app.patch("/api/books/:id", (req, res) => {
+  const book = books.find((b) => b.id === req.params.id);
 
   if (!book) {
-    return res.status(404).json({ error: 'Livre introuvable' });
+    return res.status(404).json({ error: "Livre introuvable" });
   }
 
   // PATCH = modification partielle, seuls les champs presents sont modifies
@@ -637,11 +664,11 @@ app.patch('/api/books/:id', (req, res) => {
 });
 
 // === DELETE /api/books/:id — Supprimer un livre ===
-app.delete('/api/books/:id', (req, res) => {
-  const index = books.findIndex(b => b.id === req.params.id);
+app.delete("/api/books/:id", (req, res) => {
+  const index = books.findIndex((b) => b.id === req.params.id);
 
   if (index === -1) {
-    return res.status(404).json({ error: 'Livre introuvable' });
+    return res.status(404).json({ error: "Livre introuvable" });
   }
 
   books.splice(index, 1);
@@ -659,18 +686,18 @@ app.listen(PORT, () => {
 
 ## 10. Comparaison HTTP natif vs Express
 
-| Fonctionnalite | HTTP natif | Express |
-|---|---|---|
-| Créer un serveur | `http.createServer(handler)` | `const app = express()` |
-| Routing GET | `if (method === 'GET' && url === '/path')` | `app.get('/path', handler)` |
-| Parametres de route | Regex manuelle | `req.params.id` |
-| Query params | `new URL(url).searchParams` | `req.query` |
-| Lire le body JSON | Collecter les chunks + JSON.parse | `express.json()` + `req.body` |
-| Envoyer du JSON | `res.writeHead(200); res.end(JSON.stringify(data))` | `res.json(data)` |
-| Status code | `res.statusCode = 404` | `res.status(404)` |
-| Fichiers statiques | Stream manuel + MIME types | `express.static()` |
-| Middleware | Implementation manuelle | `app.use(fn)` |
-| Gestion d'erreurs | try/catch partout | Error middleware |
+| Fonctionnalite      | HTTP natif                                          | Express                       |
+| ------------------- | --------------------------------------------------- | ----------------------------- |
+| Créer un serveur    | `http.createServer(handler)`                        | `const app = express()`       |
+| Routing GET         | `if (method === 'GET' && url === '/path')`          | `app.get('/path', handler)`   |
+| Parametres de route | Regex manuelle                                      | `req.params.id`               |
+| Query params        | `new URL(url).searchParams`                         | `req.query`                   |
+| Lire le body JSON   | Collecter les chunks + JSON.parse                   | `express.json()` + `req.body` |
+| Envoyer du JSON     | `res.writeHead(200); res.end(JSON.stringify(data))` | `res.json(data)`              |
+| Status code         | `res.statusCode = 404`                              | `res.status(404)`             |
+| Fichiers statiques  | Stream manuel + MIME types                          | `express.static()`            |
+| Middleware          | Implementation manuelle                             | `app.use(fn)`                 |
+| Gestion d'erreurs   | try/catch partout                                   | Error middleware              |
 
 > **A retenir** : Express ne fait rien de magique — il simplifie les patterns que tu as implementes manuellement au module 04. Connaître le HTTP natif te permet de comprendre ce qu'Express fait "sous le capot" et de debugger quand quelque chose ne fonctionne pas.
 
@@ -681,6 +708,7 @@ app.listen(PORT, () => {
 ### Exercice 1 — API de contacts
 
 Cree une API CRUD pour gérer des contacts (nom, email, telephone, entreprise) avec :
+
 - Recherche par nom ou entreprise via query params
 - Pagination (`?page=1&limit=10`)
 - Tri (`?sort=nom&order=asc`)
@@ -692,6 +720,7 @@ Reprends l'API Todo du module 04 et convertis-la en Express. Compare le nombre d
 ### Exercice 3 — API avec sous-ressources
 
 Cree une API avec des sous-ressources :
+
 - `GET /api/authors/:authorId/books` — Livres d'un auteur
 - `POST /api/authors/:authorId/books` — Ajouter un livre à un auteur
 
@@ -699,12 +728,12 @@ Cree une API avec des sous-ressources :
 
 ## Navigation
 
-| | Lien |
-|---|---|
-| Module précédent | [Module 04 — Node.js — Serveur HTTP natif](./04-nodejs-serveur-http.md) |
-| Module suivant | [Module 06 — Express — Middleware & Architecture](./06-express-middleware.md) |
-| Quiz | [Quiz Module 05](../quizzes/05-express-fondamentaux.quiz.md) |
-| Lab | [Lab 05 — Express CRUD](../labs/05-express-fondamentaux.lab.md) |
+|                  | Lien                                                                          |
+| ---------------- | ----------------------------------------------------------------------------- |
+| Module précédent | [Module 04 — Node.js — Serveur HTTP natif](./04-nodejs-serveur-http.md)       |
+| Module suivant   | [Module 06 — Express — Middleware & Architecture](./06-express-middleware.md) |
+| Quiz             | [Quiz Module 05](../quizzes/05-express-fondamentaux.quiz.md)                  |
+| Lab              | [Lab 05 — Express CRUD](../labs/05-express-fondamentaux.lab.md)               |
 
 ---
 
@@ -715,7 +744,8 @@ Cree une API avec des sous-ressources :
 <!-- parcours-recommande -->
 
 ::: tip Parcours recommandé
+
 1. **Screencast** : [screencast 05 express fondamentaux](../screencasts/screencast-05-express-fondamentaux.md)
 2. **Lab** : [lab-05-express-crud](../labs/lab-05-express-crud/README)
 3. **Quiz** : [quiz 05 express fondamentaux](../quizzes/quiz-05-express-fondamentaux.html)
-:::
+   :::

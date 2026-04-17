@@ -11,20 +11,20 @@
 ### 1.1 Créer un serveur minimal
 
 ```typescript
-import http from 'http';
+import http from "http";
 
 // Creer un serveur HTTP
 const server = http.createServer((req, res) => {
   // req = IncomingMessage (la requete du client)
   // res = ServerResponse (la reponse a envoyer)
 
-  res.writeHead(200, { 'Content-Type': 'text/plain' });
-  res.end('Hello World !');
+  res.writeHead(200, { "Content-Type": "text/plain" });
+  res.end("Hello World !");
 });
 
 // Ecouter sur le port 3000
 server.listen(3000, () => {
-  console.log('Serveur demarre sur http://localhost:3000');
+  console.log("Serveur demarre sur http://localhost:3000");
 });
 ```
 
@@ -37,22 +37,23 @@ Le callback de `createServer` recoit deux objets fondamentaux :
 ```typescript
 const server = http.createServer((req, res) => {
   // === req (IncomingMessage) — Ce que le client envoie ===
-  console.log(req.method);          // 'GET', 'POST', 'PUT', etc.
-  console.log(req.url);             // '/api/users?page=2'
-  console.log(req.headers);         // { host: 'localhost:3000', ... }
-  console.log(req.headers['content-type']); // 'application/json'
-  console.log(req.httpVersion);     // '1.1'
+  console.log(req.method); // 'GET', 'POST', 'PUT', etc.
+  console.log(req.url); // '/api/users?page=2'
+  console.log(req.headers); // { host: 'localhost:3000', ... }
+  console.log(req.headers["content-type"]); // 'application/json'
+  console.log(req.httpVersion); // '1.1'
 
   // === res (ServerResponse) — Ce que tu envoies au client ===
-  res.statusCode = 200;             // Definir le status code
-  res.setHeader('Content-Type', 'application/json'); // Definir un header
-  res.writeHead(200, {              // Status + headers en une fois
-    'Content-Type': 'application/json',
-    'X-Custom-Header': 'valeur',
+  res.statusCode = 200; // Definir le status code
+  res.setHeader("Content-Type", "application/json"); // Definir un header
+  res.writeHead(200, {
+    // Status + headers en une fois
+    "Content-Type": "application/json",
+    "X-Custom-Header": "valeur",
   });
-  res.write('partie 1');            // Ecrire une partie du body
-  res.write('partie 2');            // Ecrire une autre partie
-  res.end('fin');                   // Terminer la reponse (obligatoire !)
+  res.write("partie 1"); // Ecrire une partie du body
+  res.write("partie 2"); // Ecrire une autre partie
+  res.end("fin"); // Terminer la reponse (obligatoire !)
 });
 ```
 
@@ -65,81 +66,80 @@ const server = http.createServer((req, res) => {
 ### 2.1 Router selon l'URL et la méthode
 
 ```typescript
-import http from 'http';
+import http from "http";
 
 const server = http.createServer((req, res) => {
   const { method, url } = req;
 
   // Definir les headers par defaut
-  res.setHeader('Content-Type', 'application/json');
+  res.setHeader("Content-Type", "application/json");
 
   // Router les requetes
-  if (method === 'GET' && url === '/') {
+  if (method === "GET" && url === "/") {
     res.writeHead(200);
-    res.end(JSON.stringify({ message: 'Bienvenue sur l\'API' }));
-  }
-  else if (method === 'GET' && url === '/api/users') {
+    res.end(JSON.stringify({ message: "Bienvenue sur l'API" }));
+  } else if (method === "GET" && url === "/api/users") {
     res.writeHead(200);
     res.end(JSON.stringify({ users: [] }));
-  }
-  else if (method === 'POST' && url === '/api/users') {
+  } else if (method === "POST" && url === "/api/users") {
     // On traitera le body plus tard
     res.writeHead(201);
-    res.end(JSON.stringify({ message: 'Utilisateur cree' }));
-  }
-  else {
+    res.end(JSON.stringify({ message: "Utilisateur cree" }));
+  } else {
     res.writeHead(404);
-    res.end(JSON.stringify({ error: 'Route introuvable' }));
+    res.end(JSON.stringify({ error: "Route introuvable" }));
   }
 });
 
 server.listen(3000, () => {
-  console.log('Serveur sur http://localhost:3000');
+  console.log("Serveur sur http://localhost:3000");
 });
 ```
 
 ### 2.2 Extraire les paramètres d'URL
 
 ```typescript
-import http from 'http';
+import http from "http";
 
 const server = http.createServer((req, res) => {
   const { method, url } = req;
-  res.setHeader('Content-Type', 'application/json');
+  res.setHeader("Content-Type", "application/json");
 
   // Parser l'URL pour extraire le pathname et les query params
   const parsedUrl = new URL(url, `http://${req.headers.host}`);
-  const pathname = parsedUrl.pathname;     // '/api/users/42'
+  const pathname = parsedUrl.pathname; // '/api/users/42'
   const searchParams = parsedUrl.searchParams;
 
   // Route avec parametre : /api/users/:id
   const userMatch = pathname.match(/^\/api\/users\/(\d+)$/);
 
-  if (method === 'GET' && pathname === '/api/users') {
+  if (method === "GET" && pathname === "/api/users") {
     // Query params : /api/users?page=2&limit=10
-    const page = parseInt(searchParams.get('page')) || 1;
-    const limit = parseInt(searchParams.get('limit')) || 10;
+    const page = parseInt(searchParams.get("page")) || 1;
+    const limit = parseInt(searchParams.get("limit")) || 10;
 
     res.writeHead(200);
-    res.end(JSON.stringify({
-      page,
-      limit,
-      users: [],
-    }));
-  }
-  else if (method === 'GET' && userMatch) {
+    res.end(
+      JSON.stringify({
+        page,
+        limit,
+        users: [],
+      }),
+    );
+  } else if (method === "GET" && userMatch) {
     const userId = parseInt(userMatch[1]);
 
     res.writeHead(200);
-    res.end(JSON.stringify({
-      id: userId,
-      nom: 'Alice',
-      email: 'alice@example.com',
-    }));
-  }
-  else {
+    res.end(
+      JSON.stringify({
+        id: userId,
+        nom: "Alice",
+        email: "alice@example.com",
+      }),
+    );
+  } else {
     res.writeHead(404);
-    res.end(JSON.stringify({ error: 'Route introuvable' }));
+    res.end(JSON.stringify({ error: "Route introuvable" }));
   }
 });
 
@@ -157,59 +157,61 @@ server.listen(3000);
 En HTTP natif, le body n'est PAS disponible directement sur `req.body`. Il arrive sous forme de **chunks** (morceaux) via les événements du stream `req` :
 
 ```typescript
-import http from 'http';
+import http from "http";
 
 function parseJSON(req) {
   return new Promise((resolve, reject) => {
     const chunks = [];
 
-    req.on('data', (chunk) => {
+    req.on("data", (chunk) => {
       chunks.push(chunk);
     });
 
-    req.on('end', () => {
-      const raw = Buffer.concat(chunks).toString('utf-8');
+    req.on("end", () => {
+      const raw = Buffer.concat(chunks).toString("utf-8");
       try {
         const parsed = JSON.parse(raw);
         resolve(parsed);
       } catch (err) {
-        reject(new Error('JSON invalide'));
+        reject(new Error("JSON invalide"));
       }
     });
 
-    req.on('error', reject);
+    req.on("error", reject);
   });
 }
 
 const server = http.createServer(async (req, res) => {
   const { method, url } = req;
-  res.setHeader('Content-Type', 'application/json');
+  res.setHeader("Content-Type", "application/json");
 
-  if (method === 'POST' && url === '/api/users') {
+  if (method === "POST" && url === "/api/users") {
     try {
       const body = await parseJSON(req);
-      console.log('Body recu :', body);
+      console.log("Body recu :", body);
 
       // Validation basique
       if (!body.nom || !body.email) {
         res.writeHead(400);
-        res.end(JSON.stringify({ error: 'nom et email requis' }));
+        res.end(JSON.stringify({ error: "nom et email requis" }));
         return;
       }
 
       res.writeHead(201);
-      res.end(JSON.stringify({
-        id: Date.now(),
-        nom: body.nom,
-        email: body.email,
-      }));
+      res.end(
+        JSON.stringify({
+          id: Date.now(),
+          nom: body.nom,
+          email: body.email,
+        }),
+      );
     } catch (err) {
       res.writeHead(400);
       res.end(JSON.stringify({ error: err.message }));
     }
   } else {
     res.writeHead(404);
-    res.end(JSON.stringify({ error: 'Route introuvable' }));
+    res.end(JSON.stringify({ error: "Route introuvable" }));
   }
 });
 
@@ -227,19 +229,19 @@ server.listen(3000);
 ```typescript
 const server = http.createServer((req, res) => {
   // Methode 1 : setHeader (un par un)
-  res.setHeader('Content-Type', 'application/json');
-  res.setHeader('X-Request-Id', crypto.randomUUID());
-  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader("Content-Type", "application/json");
+  res.setHeader("X-Request-Id", crypto.randomUUID());
+  res.setHeader("Cache-Control", "no-cache");
   res.statusCode = 200;
-  res.end('{}');
+  res.end("{}");
 
   // Methode 2 : writeHead (tout en une fois)
   res.writeHead(200, {
-    'Content-Type': 'application/json',
-    'X-Request-Id': crypto.randomUUID(),
-    'Cache-Control': 'no-cache',
+    "Content-Type": "application/json",
+    "X-Request-Id": crypto.randomUUID(),
+    "Cache-Control": "no-cache",
   });
-  res.end('{}');
+  res.end("{}");
 });
 ```
 
@@ -247,17 +249,20 @@ const server = http.createServer((req, res) => {
 
 ```typescript
 function setCORSHeaders(res) {
-  res.setHeader('Access-Control-Allow-Origin', 'http://localhost:4200');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  res.setHeader('Access-Control-Max-Age', '86400'); // Cache preflight 24h
+  res.setHeader("Access-Control-Allow-Origin", "http://localhost:4200");
+  res.setHeader(
+    "Access-Control-Allow-Methods",
+    "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+  );
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.setHeader("Access-Control-Max-Age", "86400"); // Cache preflight 24h
 }
 
 const server = http.createServer((req, res) => {
   setCORSHeaders(res);
 
   // Gerer le preflight OPTIONS
-  if (req.method === 'OPTIONS') {
+  if (req.method === "OPTIONS") {
     res.writeHead(204); // No Content
     res.end();
     return;
@@ -278,42 +283,42 @@ Deux verbes HTTP sont souvent oublies alors qu'ils sont tres utiles en pratique 
 const server = http.createServer((req, res) => {
   setCORSHeaders(res);
 
-  if (req.url === '/api/users' && req.method === 'GET') {
+  if (req.url === "/api/users" && req.method === "GET") {
     const body = JSON.stringify({ users: [] });
     res.writeHead(200, {
-      'Content-Type': 'application/json',
-      'Content-Length': Buffer.byteLength(body),
+      "Content-Type": "application/json",
+      "Content-Length": Buffer.byteLength(body),
     });
     res.end(body);
     return;
   }
 
   // HEAD: meme statut et memes headers que GET, mais pas de body
-  if (req.url === '/api/users' && req.method === 'HEAD') {
+  if (req.url === "/api/users" && req.method === "HEAD") {
     res.writeHead(200, {
-      'Content-Type': 'application/json',
-      'Content-Length': Buffer.byteLength(JSON.stringify({ users: [] })),
+      "Content-Type": "application/json",
+      "Content-Length": Buffer.byteLength(JSON.stringify({ users: [] })),
     });
     res.end();
     return;
   }
 
   // OPTIONS: decrire les methodes supportees
-  if (req.url === '/api/users' && req.method === 'OPTIONS') {
+  if (req.url === "/api/users" && req.method === "OPTIONS") {
     res.writeHead(204, {
-      Allow: 'GET, HEAD, POST, OPTIONS',
+      Allow: "GET, HEAD, POST, OPTIONS",
     });
     res.end();
     return;
   }
 
   // Meme ressource, methode inconnue -> 405
-  if (req.url === '/api/users') {
+  if (req.url === "/api/users") {
     res.writeHead(405, {
-      Allow: 'GET, HEAD, POST, OPTIONS',
-      'Content-Type': 'application/json',
+      Allow: "GET, HEAD, POST, OPTIONS",
+      "Content-Type": "application/json",
     });
-    res.end(JSON.stringify({ error: 'Method Not Allowed' }));
+    res.end(JSON.stringify({ error: "Method Not Allowed" }));
     return;
   }
 });
@@ -323,74 +328,111 @@ const server = http.createServer((req, res) => {
 
 ### 4.4 Methodes safe et idempotentes
 
-| Methode | Safe ? | Idempotente ? | Usage typique |
-|---|---|---|---|
-| `GET` | Oui | Oui | Lire une ressource |
-| `HEAD` | Oui | Oui | Lire les headers/metadonnees |
-| `OPTIONS` | Oui | Oui | Decouvrir les methodes supportees |
-| `POST` | Non | Non | Creer / declencher une action |
-| `PUT` | Non | Oui | Remplacer completement une ressource |
-| `PATCH` | Non | Pas toujours | Modifier partiellement une ressource |
-| `DELETE` | Non | Oui | Supprimer une ressource |
+| Methode   | Safe ? | Idempotente ? | Usage typique                        |
+| --------- | ------ | ------------- | ------------------------------------ |
+| `GET`     | Oui    | Oui           | Lire une ressource                   |
+| `HEAD`    | Oui    | Oui           | Lire les headers/metadonnees         |
+| `OPTIONS` | Oui    | Oui           | Decouvrir les methodes supportees    |
+| `POST`    | Non    | Non           | Creer / declencher une action        |
+| `PUT`     | Non    | Oui           | Remplacer completement une ressource |
+| `PATCH`   | Non    | Pas toujours  | Modifier partiellement une ressource |
+| `DELETE`  | Non    | Oui           | Supprimer une ressource              |
 
 > **Nuance utile** : `PATCH` n'est pas garanti idempotent. Il peut l'etre si votre implementation remplace un champ par une valeur donnee, mais pas si elle applique une operation comme `incrementer de 1`.
+
+### 4.5 TRACE et CONNECT — A connaitre, rarement a implementer
+
+Deux autres verbes HTTP existent mais sont beaucoup moins utilises dans les APIs metier classiques :
+
+- `TRACE` : demande au serveur de **renvoyer la requete telle qu'il l'a recu**
+- `CONNECT` : demande l'ouverture d'un **tunnel** vers une destination, surtout pour les proxies HTTP
+
+```typescript
+const server = http.createServer((req, res) => {
+  // TRACE: utile pour diagnostic bas niveau, souvent desactive pour securite
+  if (req.method === 'TRACE') {
+    res.writeHead(405, {
+      Allow: 'GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS',
+      'Content-Type': 'application/json',
+    });
+    res.end(JSON.stringify({ error: 'TRACE desactive' }));
+    return;
+  }
+
+  // CONNECT: reserve aux serveurs proxy / tunnels, pas aux APIs applicatives classiques
+  if (req.method === 'CONNECT') {
+    res.writeHead(501, {
+      'Content-Type': 'application/json',
+    });
+    res.end(JSON.stringify({ error: 'CONNECT non implemente' }));
+    return;
+  }
+});
+```
+
+| Methode | Usage reel | Dans une API applicative ? |
+|---|---|---|
+| `TRACE` | Debug HTTP bas niveau | En general non, souvent desactive |
+| `CONNECT` | Proxy / tunnel HTTPS | Non, sauf serveur proxy specialise |
+
+> **Securite** : `TRACE` est souvent desactive pour eviter certaines fuites d'information. `CONNECT` ne doit pas etre implemente a la legere : ouvrir un tunnel arbitraire transforme votre serveur en proxy potentiel.
 
 ---
 
 ## 5. Servir des fichiers statiques
 
 ```typescript
-import http from 'http';
-import { createReadStream, existsSync, statSync } from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import http from "http";
+import { createReadStream, existsSync, statSync } from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PUBLIC_DIR = path.join(__dirname, 'public');
+const PUBLIC_DIR = path.join(__dirname, "public");
 
 // Map des types MIME
 const MIME_TYPES = {
-  '.html': 'text/html',
-  '.css': 'text/css',
-  '.js': 'application/javascript',
-  '.json': 'application/json',
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.gif': 'image/gif',
-  '.svg': 'image/svg+xml',
-  '.ico': 'image/x-icon',
-  '.txt': 'text/plain',
-  '.pdf': 'application/pdf',
+  ".html": "text/html",
+  ".css": "text/css",
+  ".js": "application/javascript",
+  ".json": "application/json",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".gif": "image/gif",
+  ".svg": "image/svg+xml",
+  ".ico": "image/x-icon",
+  ".txt": "text/plain",
+  ".pdf": "application/pdf",
 };
 
 const server = http.createServer((req, res) => {
   // Securite : empecher le path traversal (../../etc/passwd)
-  const safePath = path.normalize(req.url).replace(/^(\.\.[\/\\])+/, '');
+  const safePath = path.normalize(req.url).replace(/^(\.\.[\/\\])+/, "");
   let filePath = path.join(PUBLIC_DIR, safePath);
 
   // Si l'URL est '/', servir index.html
-  if (safePath === '/' || safePath === '\\') {
-    filePath = path.join(PUBLIC_DIR, 'index.html');
+  if (safePath === "/" || safePath === "\\") {
+    filePath = path.join(PUBLIC_DIR, "index.html");
   }
 
   // Verifier que le fichier existe
   if (!existsSync(filePath) || !statSync(filePath).isFile()) {
-    res.writeHead(404, { 'Content-Type': 'text/plain' });
-    res.end('404 Not Found');
+    res.writeHead(404, { "Content-Type": "text/plain" });
+    res.end("404 Not Found");
     return;
   }
 
   // Determiner le Content-Type
   const ext = path.extname(filePath);
-  const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+  const contentType = MIME_TYPES[ext] || "application/octet-stream";
 
   // Streamer le fichier
-  res.writeHead(200, { 'Content-Type': contentType });
+  res.writeHead(200, { "Content-Type": contentType });
   createReadStream(filePath).pipe(res);
 });
 
 server.listen(3000, () => {
-  console.log('Serveur statique sur http://localhost:3000');
+  console.log("Serveur statique sur http://localhost:3000");
 });
 ```
 
@@ -403,35 +445,45 @@ server.listen(3000, () => {
 ### 6.1 Le projet : API de gestion de taches (Todo)
 
 ```typescript
-import http from 'http';
-import crypto from 'crypto';
+import http from "http";
+import crypto from "crypto";
 
 // === Base de donnees en memoire ===
 let todos = [
-  { id: '1', title: 'Apprendre Node.js', completed: false, createdAt: new Date().toISOString() },
-  { id: '2', title: 'Construire une API', completed: false, createdAt: new Date().toISOString() },
+  {
+    id: "1",
+    title: "Apprendre Node.js",
+    completed: false,
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: "2",
+    title: "Construire une API",
+    completed: false,
+    createdAt: new Date().toISOString(),
+  },
 ];
 
 // === Utilitaires ===
 function parseJSON(req) {
   return new Promise((resolve, reject) => {
     const chunks = [];
-    req.on('data', (chunk) => chunks.push(chunk));
-    req.on('end', () => {
-      const raw = Buffer.concat(chunks).toString('utf-8');
+    req.on("data", (chunk) => chunks.push(chunk));
+    req.on("end", () => {
+      const raw = Buffer.concat(chunks).toString("utf-8");
       if (!raw) return resolve({});
       try {
         resolve(JSON.parse(raw));
       } catch {
-        reject(new Error('JSON invalide'));
+        reject(new Error("JSON invalide"));
       }
     });
-    req.on('error', reject);
+    req.on("error", reject);
   });
 }
 
 function sendJSON(res, statusCode, data) {
-  res.writeHead(statusCode, { 'Content-Type': 'application/json' });
+  res.writeHead(statusCode, { "Content-Type": "application/json" });
   res.end(JSON.stringify(data));
 }
 
@@ -442,12 +494,12 @@ function parseUrl(req) {
 // === Handlers ===
 function getAllTodos(req, res) {
   const url = parseUrl(req);
-  const completed = url.searchParams.get('completed');
+  const completed = url.searchParams.get("completed");
 
   let result = [...todos];
 
   if (completed !== null) {
-    result = result.filter(t => t.completed === (completed === 'true'));
+    result = result.filter((t) => t.completed === (completed === "true"));
   }
 
   sendJSON(res, 200, {
@@ -457,7 +509,7 @@ function getAllTodos(req, res) {
 }
 
 function getTodoById(res, id) {
-  const todo = todos.find(t => t.id === id);
+  const todo = todos.find((t) => t.id === id);
 
   if (!todo) {
     sendJSON(res, 404, { error: `Todo ${id} introuvable` });
@@ -471,8 +523,14 @@ async function createTodo(req, res) {
   try {
     const body = await parseJSON(req);
 
-    if (!body.title || typeof body.title !== 'string' || body.title.trim() === '') {
-      sendJSON(res, 400, { error: 'Le champ "title" est requis et doit etre une chaine non vide' });
+    if (
+      !body.title ||
+      typeof body.title !== "string" ||
+      body.title.trim() === ""
+    ) {
+      sendJSON(res, 400, {
+        error: 'Le champ "title" est requis et doit etre une chaine non vide',
+      });
       return;
     }
 
@@ -491,7 +549,7 @@ async function createTodo(req, res) {
 }
 
 async function updateTodo(req, res, id) {
-  const index = todos.findIndex(t => t.id === id);
+  const index = todos.findIndex((t) => t.id === id);
 
   if (index === -1) {
     sendJSON(res, 404, { error: `Todo ${id} introuvable` });
@@ -502,7 +560,7 @@ async function updateTodo(req, res, id) {
     const body = await parseJSON(req);
 
     if (body.title !== undefined) {
-      if (typeof body.title !== 'string' || body.title.trim() === '') {
+      if (typeof body.title !== "string" || body.title.trim() === "") {
         sendJSON(res, 400, { error: '"title" doit etre une chaine non vide' });
         return;
       }
@@ -510,7 +568,7 @@ async function updateTodo(req, res, id) {
     }
 
     if (body.completed !== undefined) {
-      if (typeof body.completed !== 'boolean') {
+      if (typeof body.completed !== "boolean") {
         sendJSON(res, 400, { error: '"completed" doit etre un booleen' });
         return;
       }
@@ -524,7 +582,7 @@ async function updateTodo(req, res, id) {
 }
 
 function deleteTodo(res, id) {
-  const index = todos.findIndex(t => t.id === id);
+  const index = todos.findIndex((t) => t.id === id);
 
   if (index === -1) {
     sendJSON(res, 404, { error: `Todo ${id} introuvable` });
@@ -542,11 +600,14 @@ const server = http.createServer(async (req, res) => {
   const pathname = url.pathname;
 
   // CORS
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader(
+    "Access-Control-Allow-Methods",
+    "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+  );
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
-  if (method === 'OPTIONS') {
+  if (method === "OPTIONS") {
     res.writeHead(204);
     res.end();
     return;
@@ -557,26 +618,26 @@ const server = http.createServer(async (req, res) => {
 
   try {
     // GET /api/todos
-    if (method === 'GET' && pathname === '/api/todos') {
+    if (method === "GET" && pathname === "/api/todos") {
       getAllTodos(req, res);
     }
     // GET /api/todos/:id
-    else if (method === 'GET' && pathname.match(/^\/api\/todos\/[\w-]+$/)) {
-      const id = pathname.split('/').pop();
+    else if (method === "GET" && pathname.match(/^\/api\/todos\/[\w-]+$/)) {
+      const id = pathname.split("/").pop();
       getTodoById(res, id);
     }
     // POST /api/todos
-    else if (method === 'POST' && pathname === '/api/todos') {
+    else if (method === "POST" && pathname === "/api/todos") {
       await createTodo(req, res);
     }
     // PATCH /api/todos/:id
-    else if (method === 'PATCH' && pathname.match(/^\/api\/todos\/[\w-]+$/)) {
-      const id = pathname.split('/').pop();
+    else if (method === "PATCH" && pathname.match(/^\/api\/todos\/[\w-]+$/)) {
+      const id = pathname.split("/").pop();
       await updateTodo(req, res, id);
     }
     // DELETE /api/todos/:id
-    else if (method === 'DELETE' && pathname.match(/^\/api\/todos\/[\w-]+$/)) {
-      const id = pathname.split('/').pop();
+    else if (method === "DELETE" && pathname.match(/^\/api\/todos\/[\w-]+$/)) {
+      const id = pathname.split("/").pop();
       deleteTodo(res, id);
     }
     // 404
@@ -584,8 +645,8 @@ const server = http.createServer(async (req, res) => {
       sendJSON(res, 404, { error: `Route ${method} ${pathname} introuvable` });
     }
   } catch (err) {
-    console.error('Erreur serveur :', err);
-    sendJSON(res, 500, { error: 'Erreur interne du serveur' });
+    console.error("Erreur serveur :", err);
+    sendJSON(res, 500, { error: "Erreur interne du serveur" });
   }
 
   const duration = Date.now() - start;
@@ -595,12 +656,12 @@ const server = http.createServer(async (req, res) => {
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`API Todo sur http://localhost:${PORT}`);
-  console.log('Endpoints :');
-  console.log('  GET    /api/todos');
-  console.log('  GET    /api/todos/:id');
-  console.log('  POST   /api/todos');
-  console.log('  PATCH  /api/todos/:id');
-  console.log('  DELETE /api/todos/:id');
+  console.log("Endpoints :");
+  console.log("  GET    /api/todos");
+  console.log("  GET    /api/todos/:id");
+  console.log("  POST   /api/todos");
+  console.log("  PATCH  /api/todos/:id");
+  console.log("  DELETE /api/todos/:id");
 });
 ```
 
@@ -642,15 +703,19 @@ const server = http.createServer(async (req, res) => {
     // ... routing et logique
   } catch (err) {
     // Erreur inattendue — toujours renvoyer une reponse
-    console.error('Erreur non geree :', err);
+    console.error("Erreur non geree :", err);
 
     if (!res.headersSent) {
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({
-        error: 'Erreur interne du serveur',
-        // En developpement, inclure le message d'erreur
-        ...(process.env.NODE_ENV !== 'production' && { details: err.message }),
-      }));
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          error: "Erreur interne du serveur",
+          // En developpement, inclure le message d'erreur
+          ...(process.env.NODE_ENV !== "production" && {
+            details: err.message,
+          }),
+        }),
+      );
     }
   }
 });
@@ -660,18 +725,20 @@ const server = http.createServer(async (req, res) => {
 
 ```typescript
 // Erreur au niveau du serveur (pas une requete specifique)
-server.on('error', (err) => {
-  if (err.code === 'EADDRINUSE') {
-    console.error(`Le port ${PORT} est deja utilise. Change de port ou arrete le processus existant.`);
+server.on("error", (err) => {
+  if (err.code === "EADDRINUSE") {
+    console.error(
+      `Le port ${PORT} est deja utilise. Change de port ou arrete le processus existant.`,
+    );
     process.exit(1);
   }
-  console.error('Erreur serveur :', err);
+  console.error("Erreur serveur :", err);
 });
 
 // Erreur de connexion client
-server.on('clientError', (err, socket) => {
-  if (err.code === 'ECONNRESET' || !socket.writable) return;
-  socket.end('HTTP/1.1 400 Bad Request\r\n\r\n');
+server.on("clientError", (err, socket) => {
+  if (err.code === "ECONNRESET" || !socket.writable) return;
+  socket.end("HTTP/1.1 400 Bad Request\r\n\r\n");
 });
 ```
 
@@ -681,43 +748,42 @@ server.on('clientError', (err, socket) => {
 
 Maintenant que tu as construit une API complete avec le module HTTP natif, voici ce qu'Express va simplifier :
 
-| Avec HTTP natif | Avec Express |
-|---|---|
-| `if (method === 'GET' && url === '/api/users')` | `app.get('/api/users', handler)` |
-| `parseJSON(req)` (fonction manuelle) | `express.json()` (middleware) |
-| `sendJSON(res, 200, data)` | `res.json(data)` |
-| Regex pour les paramètres d'URL | `app.get('/api/users/:id', ...)` → `req.params.id` |
-| `new URL(url).searchParams` | `req.query` |
-| CORS manuel | `app.use(cors())` |
-| Error handling try/catch partout | Error-handling middleware |
-| Pas de middleware | `app.use(middleware)` chainable |
+| Avec HTTP natif                                 | Avec Express                                       |
+| ----------------------------------------------- | -------------------------------------------------- |
+| `if (method === 'GET' && url === '/api/users')` | `app.get('/api/users', handler)`                   |
+| `parseJSON(req)` (fonction manuelle)            | `express.json()` (middleware)                      |
+| `sendJSON(res, 200, data)`                      | `res.json(data)`                                   |
+| Regex pour les paramètres d'URL                 | `app.get('/api/users/:id', ...)` → `req.params.id` |
+| `new URL(url).searchParams`                     | `req.query`                                        |
+| CORS manuel                                     | `app.use(cors())`                                  |
+| Error handling try/catch partout                | Error-handling middleware                          |
+| Pas de middleware                               | `app.use(middleware)` chainable                    |
 
 ```typescript
 // === HTTP natif : 80+ lignes pour un CRUD basique ===
-if (method === 'GET' && pathname === '/api/todos') {
-  res.writeHead(200, { 'Content-Type': 'application/json' });
+if (method === "GET" && pathname === "/api/todos") {
+  res.writeHead(200, { "Content-Type": "application/json" });
   res.end(JSON.stringify(todos));
-}
-else if (method === 'GET' && pathname.match(/^\/api\/todos\/(\d+)$/)) {
+} else if (method === "GET" && pathname.match(/^\/api\/todos\/(\d+)$/)) {
   const id = pathname.match(/^\/api\/todos\/(\d+)$/)[1];
-  const todo = todos.find(t => t.id === id);
+  const todo = todos.find((t) => t.id === id);
   if (!todo) {
-    res.writeHead(404, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Not found' }));
+    res.writeHead(404, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Not found" }));
     return;
   }
-  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.writeHead(200, { "Content-Type": "application/json" });
   res.end(JSON.stringify(todo));
 }
 
 // === Express : 10 lignes pour la meme chose ===
-app.get('/api/todos', (req, res) => {
+app.get("/api/todos", (req, res) => {
   res.json(todos);
 });
 
-app.get('/api/todos/:id', (req, res) => {
-  const todo = todos.find(t => t.id === req.params.id);
-  if (!todo) return res.status(404).json({ error: 'Not found' });
+app.get("/api/todos/:id", (req, res) => {
+  const todo = todos.find((t) => t.id === req.params.id);
+  if (!todo) return res.status(404).json({ error: "Not found" });
   res.json(todo);
 });
 ```
@@ -731,6 +797,7 @@ app.get('/api/todos/:id', (req, res) => {
 ### Exercice 1 — Serveur de fichiers statiques ameliore
 
 Ameliore le serveur de fichiers statiques de la section 5 avec :
+
 - Un cache `Cache-Control` de 1 heure pour les fichiers statiques
 - Le support du header `If-Modified-Since` / `304 Not Modified`
 - Un listing des fichiers si l'URL pointe vers un dossier
@@ -751,18 +818,18 @@ Implemente un système de middleware basic (tableau de fonctions executees dans 
 
 ## 10. Résumé — Les concepts clés
 
-| Concept | Definition |
-|---|---|
-| **http.createServer** | Cree un serveur HTTP qui ecoute les requêtes |
-| **IncomingMessage (req)** | Objet representant la requête du client |
-| **ServerResponse (res)** | Objet pour construire et envoyer la réponse |
-| **res.writeHead** | Définir le status code et les headers |
-| **res.end** | Terminer la réponse (OBLIGATOIRE) |
-| **Routing manuel** | if/else ou switch/case sur method + URL |
-| **Parsing du body** | Collecter les chunks et JSON.parse |
-| **URL/URLSearchParams** | API standard pour parser les URLs |
-| **CORS** | Headers nécessaires pour les requêtes cross-origin |
-| **Path traversal** | Attaque securitaire via les chemins (`../../`) |
+| Concept                   | Definition                                         |
+| ------------------------- | -------------------------------------------------- |
+| **http.createServer**     | Cree un serveur HTTP qui ecoute les requêtes       |
+| **IncomingMessage (req)** | Objet representant la requête du client            |
+| **ServerResponse (res)**  | Objet pour construire et envoyer la réponse        |
+| **res.writeHead**         | Définir le status code et les headers              |
+| **res.end**               | Terminer la réponse (OBLIGATOIRE)                  |
+| **Routing manuel**        | if/else ou switch/case sur method + URL            |
+| **Parsing du body**       | Collecter les chunks et JSON.parse                 |
+| **URL/URLSearchParams**   | API standard pour parser les URLs                  |
+| **CORS**                  | Headers nécessaires pour les requêtes cross-origin |
+| **Path traversal**        | Attaque securitaire via les chemins (`../../`)     |
 
 > **A retenir** : Le module HTTP natif est la fondation de tout serveur web Node.js. Express, Fastify, Koa, NestJS — tous sont construits par-dessus. Comprendre comment fonctionne le serveur HTTP natif te donne une comprehension profonde de ce que les frameworks abstraient, et te permet de debugger des problèmes que les développeurs qui n'ont jamais vu le code natif ne savent pas résoudre.
 
@@ -770,12 +837,12 @@ Implemente un système de middleware basic (tableau de fonctions executees dans 
 
 ## Navigation
 
-| | Lien |
-|---|---|
+|                  | Lien                                                                         |
+| ---------------- | ---------------------------------------------------------------------------- |
 | Module précédent | [Module 03 — Node.js — Streams & Buffers](./03-nodejs-streams-et-buffers.md) |
-| Module suivant | [Module 05 — Express — Fondamentaux](./05-express-fondamentaux.md) |
-| Quiz | [Quiz Module 04](../quizzes/04-nodejs-serveur-http.quiz.md) |
-| Lab | [Lab 04 — Serveur HTTP natif](../labs/04-nodejs-serveur-http.lab.md) |
+| Module suivant   | [Module 05 — Express — Fondamentaux](./05-express-fondamentaux.md)           |
+| Quiz             | [Quiz Module 04](../quizzes/04-nodejs-serveur-http.quiz.md)                  |
+| Lab              | [Lab 04 — Serveur HTTP natif](../labs/04-nodejs-serveur-http.lab.md)         |
 
 ---
 
@@ -786,7 +853,8 @@ Implemente un système de middleware basic (tableau de fonctions executees dans 
 <!-- parcours-recommande -->
 
 ::: tip Parcours recommandé
+
 1. **Screencast** : [screencast 04 serveur http](../screencasts/screencast-04-serveur-http.md)
 2. **Lab** : [lab-04-serveur-http](../labs/lab-04-serveur-http/README)
 3. **Quiz** : [quiz 04 serveur http](../quizzes/quiz-04-serveur-http.html)
-:::
+   :::
