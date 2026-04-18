@@ -54,6 +54,20 @@ NestJS est fortement inspire d'**Angular** :
 | Runtime sous-jacent | Express 5 (par defaut depuis NestJS 11) ou Fastify |
 | Langage | TypeScript (JavaScript possible mais deconseille) |
 
+### 1.4 Express ou Fastify avec NestJS ?
+
+NestJS te laisse choisir l'adaptateur HTTP. Dans la pratique, tu gardes **la meme architecture Nest** (modules, controllers, services, guards, pipes, interceptors), mais la couche serveur sous-jacente change.
+
+| Sujet | Express | Fastify |
+|---|---|---|
+| Ecosysteme | Le plus connu, documentation immense | Plus compact, tres oriente performance |
+| Compatibilite middleware | Excellente, beaucoup de middlewares historiques | Passe souvent par des plugins Fastify dedies |
+| Performance brute | Bonne | Souvent meilleure sur les charges HTTP pures |
+| Prise en main | Plus familiere si tu viens du monde Node/Express | Simple, mais demande d'apprendre ses plugins et conventions |
+| Cas typiques | API generalistes, equipes qui reutilisent du code Express | APIs a fort trafic, services tres I/O-bound, recherche de latence plus basse |
+
+> **A retenir** : pour apprendre NestJS, Express suffit largement. Fastify devient surtout utile quand tu veux un runtime HTTP plus nerveux, ou quand ton contexte production justifie ce choix.
+
 ---
 
 ## 2. Installation et premier projet
@@ -150,6 +164,42 @@ bootstrap();
 ```
 
 > **Analogie** : `main.ts` c'est comme la fonction `main()` en C ou Java. C'est le point de depart de ton application. Il créé l'application, la configure et la lance. C'est similaire au `main.ts` d'Angular qui bootstrap le `AppModule`.
+
+### 3.1.1 Variante Fastify
+
+Si tu veux faire tourner NestJS sur Fastify, le point d'entree change peu : tu remplaces simplement l'adaptateur HTTP.
+
+```typescript
+// src/main.ts
+import { NestFactory } from '@nestjs/core';
+import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
+import { AppModule } from './app.module';
+
+async function bootstrap() {
+  const app = await NestFactory.create<NestFastifyApplication>(
+    AppModule,
+    new FastifyAdapter(),
+  );
+
+  app.setGlobalPrefix('api');
+  await app.listen(3000, '0.0.0.0');
+}
+
+bootstrap();
+```
+
+Installation minimale :
+
+```bash
+npm install @nestjs/platform-fastify
+```
+
+Checklist de migration Express -> Fastify dans NestJS :
+
+- Verifier les packages ou middlewares qui dependent explicitement d'Express.
+- Remplacer les middlewares historiques par des plugins Fastify quand c'est necessaire.
+- Revalider cookies, uploads, Swagger et tout acces bas niveau a `req` ou `res`.
+- Rejouer les tests e2e avant de conclure que la migration est terminee.
 
 ### 3.2 app.module.ts — Le module racine
 

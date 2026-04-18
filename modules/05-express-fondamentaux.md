@@ -207,16 +207,16 @@ Dans une application Express classique, on ne manipule presque jamais `TRACE` et
 - `CONNECT` : concerne surtout les **proxies HTTP**, pas une API CRUD/BFF classique
 
 ```typescript
-app.all('*', (req, res, next) => {
-  if (req.method === 'TRACE') {
+app.all("*", (req, res, next) => {
+  if (req.method === "TRACE") {
     return res
-      .set('Allow', 'GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS')
+      .set("Allow", "GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS")
       .status(405)
-      .json({ error: 'TRACE desactive' });
+      .json({ error: "TRACE desactive" });
   }
 
-  if (req.method === 'CONNECT') {
-    return res.status(501).json({ error: 'CONNECT non implemente' });
+  if (req.method === "CONNECT") {
+    return res.status(501).json({ error: "CONNECT non implemente" });
   }
 
   next();

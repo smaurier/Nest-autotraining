@@ -1,7 +1,7 @@
 # Screencast 09 — NestJS Introduction
 
 ## Informations
-- **Duree estimee** : 15-20 min
+- **Duree estimee** : 18-22 min
 - **Module** : `modules/09-nestjs-introduction.md`
 - **Lab associe** : `labs/lab-09-nestjs-premiers-pas/`
 - **Prérequis** : Screencast 08 (Auth & Sécurité), connaissances TypeScript basiques
@@ -243,6 +243,33 @@ curl -X DELETE http://localhost:3000/tasks/1
 **Action** : Afficher le slide comparatif.
 
 > NestJS n'est pas "mieux" qu'Express, il est "au-dessus" d'Express. Sous le capot, NestJS utilise Express (où Fastify) comme couche HTTP. Il ajoute la structure, le typage et l'architecture.
+
+### [18:30-20:30] Bonus — Et Fastify dans tout ça ?
+
+> Petit bonus utile : NestJS peut aussi tourner sur Fastify. L'interet n'est pas de reapprendre Nest, mais de changer de moteur HTTP sous la meme carrosserie.
+
+**Action** : Montrer une variante de `main.ts` avec Fastify.
+
+```typescript
+import { NestFactory } from '@nestjs/core';
+import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
+import { AppModule } from './app.module';
+
+async function bootstrap() {
+  const app = await NestFactory.create<NestFastifyApplication>(
+    AppModule,
+    new FastifyAdapter(),
+  );
+
+  await app.listen(3000, '0.0.0.0');
+}
+
+bootstrap();
+```
+
+> Ce qui est important, c'est que vos controllers, vos providers, vos guards et vos DTOs restent globalement identiques. La vraie vigilance porte sur les integrations specifiques a Express : middlewares historiques, cookies, uploads, ou certains plugins.
+
+> Donc si demain vous tombez sur un projet Nest + Fastify, pas de panique : avec la base de ce cours, vous etes deja dans le bon cadre mental. Vous aurez surtout un adaptateur et quelques plugins a apprendre, pas un nouveau backend complet.
 
 > Le lab est dans `labs/lab-09-nestjs-premiers-pas/`. Vous allez créer votre premier projet NestJS et générer une API CRUD complete. C'est le debut de l'aventure NestJS, et on va approfondir chaque concept dans les screencasts suivants !
 

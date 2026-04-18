@@ -2,7 +2,7 @@
 
 Formation complete sur Node.js, Express et NestJS : de l'event loop au déploiement en production (débutant -> expert).
 
-**Ce cours couvre tout le spectre** : l'event loop Node.js, les modules, les streams, les serveurs HTTP natifs, Express (routing, middleware, validation, auth), NestJS (controllers, providers, DI, modules, pipes, guards, interceptors), TypeORM, Prisma, testing, authentification JWT, WebSockets, taches planifiees, files d'attente et déploiement Docker.
+**Ce cours couvre tout le spectre** : l'event loop Node.js, les modules, les streams, les serveurs HTTP natifs, Express (routing, middleware, validation, auth), NestJS (controllers, providers, DI, modules, pipes, guards, interceptors), TypeORM, Prisma, testing, authentification JWT, WebSockets, taches planifiees, files d'attente, déploiement Docker, MongoDB/Mongoose et GraphQL.
 
 ## Prérequis
 
@@ -17,42 +17,44 @@ Formation complete sur Node.js, Express et NestJS : de l'event loop au déploiem
 ## Structure
 
 ```
-modules/        → 25 cours theoriques (Markdown)
-labs/           → 24 labs pratiques executables (Node.js, Express, NestJS)
-quizzes/        → 25 quizzes interactifs (HTML)
+modules/        → 27 cours theoriques (Markdown)
+labs/           → 26 labs pratiques executables (Node.js, Express, NestJS)
+quizzes/        → 27 quizzes interactifs (HTML)
 visualizations/ → 5 visualisations animees (HTML)
-screencasts/    → 25 scripts de screencast (Markdown)
+screencasts/    → 27 scripts de screencast (Markdown)
 ```
 
 ## Programme
 
-| # | Module | Lab | Theme |
-|---|--------|-----|-------|
-| 00 | Prérequis & Le monde du backend | — | Introduction |
-| 01 | Node.js — Event Loop & Asynchrone | Event loop en action | Node.js |
-| 02 | Node.js — Modules, FS & Process | Modules & système de fichiers | Node.js |
-| 03 | Node.js — Streams & Buffers | Streams en pratique | Node.js |
-| 04 | Node.js — Serveur HTTP natif | Serveur HTTP from scratch | Node.js |
-| 05 | Express — Fondamentaux | CRUD Express | Express |
-| 06 | Express — Middleware & Architecture | Pipeline middleware | Express |
-| 07 | Express — Validation & Gestion d'erreurs | Validation & error handling | Express |
-| 08 | Express — Authentification & Sécurité | Auth JWT | Express |
-| 09 | NestJS — Introduction & Premiers pas | Premiers pas NestJS | NestJS |
-| 10 | NestJS — Controllers & Routing | Controllers & DTO | NestJS |
-| 11 | NestJS — Providers & Injection de Dependances | Providers & DI | NestJS |
-| 12 | NestJS — Modules & Architecture | Architecture modulaire | NestJS |
-| 13 | NestJS — Pipes, Guards, Interceptors & Filters | Request pipeline | NestJS |
-| 14 | TypeORM — Entites & Relations | Entites TypeORM | ORM |
-| 15 | TypeORM — Requetes, Transactions & Migrations | Requetes avancees TypeORM | ORM |
-| 16 | Prisma — Schema, Client & Migrations | Setup Prisma | ORM |
-| 17 | Prisma — Requetes avancees & Comparaison | Prisma avance | ORM |
-| 18 | NestJS — Testing | Tests unitaires & e2e | Testing |
-| 19 | NestJS — Authentification & Autorisation | Auth complete NestJS | Auth |
-| 20 | NestJS — Configuration & Swagger | Config & documentation API | Config |
-| 21 | NestJS — WebSockets, Fichiers & Temps réel | WebSockets & upload | Temps réel |
-| 22 | NestJS — Taches planifiees & Files d'attente | Queues & cron jobs | Queues |
-| 23 | Performance & Déploiement | Docker & production | DevOps |
-| 24 | Projet Final — API E-commerce complete | API complete | Synthese |
+| #   | Module                                         | Lab                                    | Theme            |
+| --- | ---------------------------------------------- | -------------------------------------- | ---------------- |
+| 00  | Prérequis & Le monde du backend                | —                                      | Introduction     |
+| 01  | Node.js — Event Loop & Asynchrone              | Event loop en action                   | Node.js          |
+| 02  | Node.js — Modules, FS & Process                | Modules & système de fichiers          | Node.js          |
+| 03  | Node.js — Streams & Buffers                    | Streams en pratique                    | Node.js          |
+| 04  | Node.js — Serveur HTTP natif                   | Serveur HTTP from scratch              | Node.js          |
+| 05  | Express — Fondamentaux                         | CRUD Express                           | Express          |
+| 06  | Express — Middleware & Architecture            | Pipeline middleware                    | Express          |
+| 07  | Express — Validation & Gestion d'erreurs       | Validation & error handling            | Express          |
+| 08  | Express — Authentification & Sécurité          | Auth JWT                               | Express          |
+| 09  | NestJS — Introduction & Premiers pas           | Premiers pas NestJS                    | NestJS           |
+| 10  | NestJS — Controllers & Routing                 | Controllers & DTO                      | NestJS           |
+| 11  | NestJS — Providers & Injection de Dependances  | Providers & DI                         | NestJS           |
+| 12  | NestJS — Modules & Architecture                | Architecture modulaire                 | NestJS           |
+| 13  | NestJS — Pipes, Guards, Interceptors & Filters | Request pipeline                       | NestJS           |
+| 14  | TypeORM — Entites & Relations                  | Entites TypeORM                        | ORM              |
+| 15  | TypeORM — Requetes, Transactions & Migrations  | Requetes avancees TypeORM              | ORM              |
+| 16  | Prisma — Schema, Client & Migrations           | Setup Prisma                           | ORM              |
+| 17  | Prisma — Requetes avancees & Comparaison       | Prisma avance                          | ORM              |
+| 18  | NestJS — Testing                               | Tests unitaires & e2e                  | Testing          |
+| 19  | NestJS — Authentification & Autorisation       | Auth complete NestJS                   | Auth             |
+| 20  | NestJS — Configuration & Swagger               | Config & documentation API             | Config           |
+| 21  | NestJS — WebSockets, Fichiers & Temps réel     | WebSockets & upload                    | Temps réel       |
+| 22  | NestJS — Taches planifiees & Files d'attente   | Queues & cron jobs                     | Queues           |
+| 23  | Performance & Déploiement                      | Docker & production                    | DevOps           |
+| 24  | Projet Final — API E-commerce complete         | API complete                           | Synthese         |
+| 25  | MongoDB & Mongoose                             | CRUD NoSQL & aggregation               | NoSQL            |
+| 26  | GraphQL avec NestJS                            | Schema GraphQL, resolvers & DataLoader | API alternatives |
 
 ## Exécution des labs
 
@@ -73,7 +75,7 @@ npm run lab:01
 npm run solution:01
 ```
 
-### Labs NestJS (09-24)
+### Labs NestJS (09-26)
 
 ```bash
 # Se placer dans le dossier du lab
@@ -105,11 +107,12 @@ docker run --name redis-nest-course -p 6379:6379 -d redis:7-alpine
 
 ## Duree estimee
 
-~80h (25 modules : 1 module d'introduction + 24 modules x ~3h : lecture + lab + defi)
+~95h (27 modules : 1 module d'introduction + 26 modules x ~3h30 en moyenne : lecture + lab + defi)
 
 ## Objectifs de sortie
 
 A la fin de ce cursus, tu es capable de :
+
 - Comprendre le fonctionnement interne de Node.js (event loop, libuv, V8)
 - Manipuler les modules, le système de fichiers et les streams Node.js
 - Créer un serveur HTTP natif et comprendre le protocole HTTP en detail
@@ -122,11 +125,12 @@ A la fin de ce cursus, tu es capable de :
 - Utiliser les WebSockets pour le temps réel
 - Mettre en place des taches planifiees et des files d'attente avec BullMQ
 - Déployer une application NestJS avec Docker et PM2
+- Manipuler MongoDB avec Mongoose dans une application NestJS
+- Exposer une API GraphQL avec resolvers, schema et DataLoader
 
 ## Niveau
 
 **Débutant -> Expert.** Ce cours part des bases de Node.js et progresse jusqu'à la construction et le déploiement d'une API NestJS enterprise-grade complete.
-
 
 ## Lancer le cours
 

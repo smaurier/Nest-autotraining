@@ -43,7 +43,7 @@
     <h1>Quiz 09 — NestJS Introduction</h1>
     <p class="subtitle">CLI, decorators, modules, controllers, services</p>
     <div class="progress-bar-container"><div class="progress-bar" id="progressBar"></div></div>
-    <p class="progress-text" id="progressText">Question 1 / 5</p>
+    <p class="progress-text" id="progressText">Question 1 / 6</p>
     <div id="quizContainer"></div>
     <div id="scoreContainer" class="card score-card hidden"></div>
   </div>
@@ -108,6 +108,19 @@
         ],
         answer: 2,
         explanation: "Les decorateurs ajoutent des metadonnees aux classes et methodes de maniere declarative. @Controller('users') indique a NestJS que cette classe gere les routes /users, @Get() indique la methode HTTP, etc. Cela separe la configuration du framework de la logique metier, rendant le code plus lisible et maintenable."
+      },
+      {
+        label: "Architecture",
+        text: "Si tu veux faire tourner NestJS sur Fastify au lieu d'Express, qu'est-ce qui change en premier ?",
+        code: "import { NestFactory } from '@nestjs/core';\nimport { FastifyAdapter } from '@nestjs/platform-fastify';",
+        options: [
+          "Il faut re-ecrire tous les controllers et services NestJS",
+          "Il faut changer l'adaptateur HTTP au bootstrap et verifier les integrations liees a Express",
+          "NestJS ne supporte Fastify que pour GraphQL",
+          "Il faut abandonner les guards et les interceptors"
+        ],
+        answer: 1,
+        explanation: "Le coeur de NestJS ne change pas : modules, controllers, services, guards et pipes restent les memes. Le changement principal se fait au niveau de l'adaptateur HTTP dans main.ts, puis dans la verification des plugins, middlewares et integrations qui etaient specifiques a Express."
       }
     ];
 

@@ -350,30 +350,30 @@ Deux autres verbes HTTP existent mais sont beaucoup moins utilises dans les APIs
 ```typescript
 const server = http.createServer((req, res) => {
   // TRACE: utile pour diagnostic bas niveau, souvent desactive pour securite
-  if (req.method === 'TRACE') {
+  if (req.method === "TRACE") {
     res.writeHead(405, {
-      Allow: 'GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS',
-      'Content-Type': 'application/json',
+      Allow: "GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS",
+      "Content-Type": "application/json",
     });
-    res.end(JSON.stringify({ error: 'TRACE desactive' }));
+    res.end(JSON.stringify({ error: "TRACE desactive" }));
     return;
   }
 
   // CONNECT: reserve aux serveurs proxy / tunnels, pas aux APIs applicatives classiques
-  if (req.method === 'CONNECT') {
+  if (req.method === "CONNECT") {
     res.writeHead(501, {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
     });
-    res.end(JSON.stringify({ error: 'CONNECT non implemente' }));
+    res.end(JSON.stringify({ error: "CONNECT non implemente" }));
     return;
   }
 });
 ```
 
-| Methode | Usage reel | Dans une API applicative ? |
-|---|---|---|
-| `TRACE` | Debug HTTP bas niveau | En general non, souvent desactive |
-| `CONNECT` | Proxy / tunnel HTTPS | Non, sauf serveur proxy specialise |
+| Methode   | Usage reel            | Dans une API applicative ?         |
+| --------- | --------------------- | ---------------------------------- |
+| `TRACE`   | Debug HTTP bas niveau | En general non, souvent desactive  |
+| `CONNECT` | Proxy / tunnel HTTPS  | Non, sauf serveur proxy specialise |
 
 > **Securite** : `TRACE` est souvent desactive pour eviter certaines fuites d'information. `CONNECT` ne doit pas etre implemente a la legere : ouvrir un tunnel arbitraire transforme votre serveur en proxy potentiel.
 
