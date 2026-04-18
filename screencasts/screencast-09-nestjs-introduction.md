@@ -1,12 +1,14 @@
 # Screencast 09 — NestJS Introduction
 
 ## Informations
+
 - **Duree estimee** : 18-22 min
 - **Module** : `modules/09-nestjs-introduction.md`
 - **Lab associe** : `labs/lab-09-nestjs-premiers-pas/`
 - **Prérequis** : Screencast 08 (Auth & Sécurité), connaissances TypeScript basiques
 
 ## Setup
+
 - [ ] Node.js 20+ installe
 - [ ] Terminal ouvert dans `nest-course/`
 - [ ] Editeur de code ouvert
@@ -51,8 +53,8 @@ ls -la src/
 
 ```typescript
 // src/main.ts — Point d'entree
-import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
+import { NestFactory } from "@nestjs/core";
+import { AppModule } from "./app.module";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -63,9 +65,9 @@ bootstrap();
 
 ```typescript
 // src/app.module.ts — Module racine
-import { Module } from '@nestjs/common';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
+import { Module } from "@nestjs/common";
+import { AppController } from "./app.controller";
+import { AppService } from "./app.service";
 
 @Module({
   imports: [],
@@ -77,8 +79,8 @@ export class AppModule {}
 
 ```typescript
 // src/app.controller.ts — Controller
-import { Controller, Get } from '@nestjs/common';
-import { AppService } from './app.service';
+import { Controller, Get } from "@nestjs/common";
+import { AppService } from "./app.service";
 
 @Controller()
 export class AppController {
@@ -121,12 +123,20 @@ nest g resource tasks
 
 ```typescript
 // src/tasks/tasks.controller.ts
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
-import { TasksService } from './tasks.service';
-import { CreateTaskDto } from './dto/create-task.dto';
-import { UpdateTaskDto } from './dto/update-task.dto';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+} from "@nestjs/common";
+import { TasksService } from "./tasks.service";
+import { CreateTaskDto } from "./dto/create-task.dto";
+import { UpdateTaskDto } from "./dto/update-task.dto";
 
-@Controller('tasks')
+@Controller("tasks")
 export class TasksController {
   constructor(private readonly tasksService: TasksService) {}
 
@@ -140,18 +150,18 @@ export class TasksController {
     return this.tasksService.findAll();
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
+  @Get(":id")
+  findOne(@Param("id") id: string) {
     return this.tasksService.findOne(+id);
   }
 
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateTaskDto: UpdateTaskDto) {
+  @Patch(":id")
+  update(@Param("id") id: string, @Body() updateTaskDto: UpdateTaskDto) {
     return this.tasksService.update(+id, updateTaskDto);
   }
 
-  @Delete(':id')
-  remove(@Param('id') id: string) {
+  @Delete(":id")
+  remove(@Param("id") id: string) {
     return this.tasksService.remove(+id);
   }
 }
@@ -167,9 +177,9 @@ export class TasksController {
 
 ```typescript
 // src/tasks/tasks.service.ts
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { CreateTaskDto } from './dto/create-task.dto';
-import { UpdateTaskDto } from './dto/update-task.dto';
+import { Injectable, NotFoundException } from "@nestjs/common";
+import { CreateTaskDto } from "./dto/create-task.dto";
+import { UpdateTaskDto } from "./dto/update-task.dto";
 
 @Injectable()
 export class TasksService {
@@ -192,7 +202,7 @@ export class TasksService {
   }
 
   findOne(id: number) {
-    const task = this.tasks.find(t => t.id === id);
+    const task = this.tasks.find((t) => t.id === id);
     if (!task) throw new NotFoundException(`Task #${id} non trouvee`);
     return task;
   }
@@ -204,7 +214,7 @@ export class TasksService {
   }
 
   remove(id: number) {
-    const index = this.tasks.findIndex(t => t.id === id);
+    const index = this.tasks.findIndex((t) => t.id === id);
     if (index === -1) throw new NotFoundException(`Task #${id} non trouvee`);
     this.tasks.splice(index, 1);
   }
@@ -251,9 +261,12 @@ curl -X DELETE http://localhost:3000/tasks/1
 **Action** : Montrer une variante de `main.ts` avec Fastify.
 
 ```typescript
-import { NestFactory } from '@nestjs/core';
-import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
-import { AppModule } from './app.module';
+import { NestFactory } from "@nestjs/core";
+import {
+  FastifyAdapter,
+  NestFastifyApplication,
+} from "@nestjs/platform-fastify";
+import { AppModule } from "./app.module";
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
@@ -261,7 +274,7 @@ async function bootstrap() {
     new FastifyAdapter(),
   );
 
-  await app.listen(3000, '0.0.0.0');
+  await app.listen(3000, "0.0.0.0");
 }
 
 bootstrap();
@@ -274,6 +287,7 @@ bootstrap();
 > Le lab est dans `labs/lab-09-nestjs-premiers-pas/`. Vous allez créer votre premier projet NestJS et générer une API CRUD complete. C'est le debut de l'aventure NestJS, et on va approfondir chaque concept dans les screencasts suivants !
 
 ## Points d'attention pour l'enregistrement
+
 - S'assurer que le CLI NestJS est installe globalement avant de commencer
 - Prendre le temps de montrer chaque fichier généré par `nest g resource`
 - Insister sur les decorateurs — c'est le concept central de NestJS

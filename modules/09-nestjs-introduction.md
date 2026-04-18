@@ -14,15 +14,15 @@
 
 Express est minimaliste — et c'est à la fois sa force et sa faiblesse. Il ne fournit aucune structure, aucune convention, aucune architecture. Chaque équipe organise son code differemment, ce qui rend la maintenance et l'onboarding difficiles.
 
-| Problème avec Express | Solution NestJS |
-|---|---|
-| Pas de structure imposee | Architecture modulaire avec conventions |
+| Problème avec Express               | Solution NestJS                           |
+| ----------------------------------- | ----------------------------------------- |
+| Pas de structure imposee            | Architecture modulaire avec conventions   |
 | Organisation libre (chaos possible) | Modules, controllers, services, providers |
-| Pas d'injection de dépendances | DI intégré, similaire a Angular |
-| Pas de TypeScript natif | TypeScript par defaut, decorateurs |
-| Middleware artisanal | Guards, Pipes, Interceptors, Filters |
-| Pas d'outil de génération | CLI avec `nest generate` |
-| Pas de testing intégré | Jest pre-configure avec mocks DI |
+| Pas d'injection de dépendances      | DI intégré, similaire a Angular           |
+| Pas de TypeScript natif             | TypeScript par defaut, decorateurs        |
+| Middleware artisanal                | Guards, Pipes, Interceptors, Filters      |
+| Pas d'outil de génération           | CLI avec `nest generate`                  |
+| Pas de testing intégré              | Jest pre-configure avec mocks DI          |
 
 > **Analogie** : Express c'est comme une feuille blanche — tu peux dessiner ce que tu veux, mais rien ne te guide. NestJS c'est comme un plan d'architecte — la structure est definie, les conventions sont claires, et chaque piece a sa place. Tu es libre de personnaliser, mais le cadre est pose.
 
@@ -30,41 +30,41 @@ Express est minimaliste — et c'est à la fois sa force et sa faiblesse. Il ne 
 
 NestJS est fortement inspire d'**Angular** :
 
-| Concept Angular | Equivalent NestJS |
-|---|---|
-| `@Component` | `@Controller` |
-| `@Injectable` service | `@Injectable` service |
-| `@NgModule` | `@Module` |
-| Dependency Injection | Dependency Injection |
-| Pipes (transform) | Pipes (validation/transform) |
-| Guards (routing) | Guards (authorization) |
-| Interceptors (HTTP) | Interceptors (request/response) |
-| Decorateurs TypeScript | Decorateurs TypeScript |
+| Concept Angular        | Equivalent NestJS               |
+| ---------------------- | ------------------------------- |
+| `@Component`           | `@Controller`                   |
+| `@Injectable` service  | `@Injectable` service           |
+| `@NgModule`            | `@Module`                       |
+| Dependency Injection   | Dependency Injection            |
+| Pipes (transform)      | Pipes (validation/transform)    |
+| Guards (routing)       | Guards (authorization)          |
+| Interceptors (HTTP)    | Interceptors (request/response) |
+| Decorateurs TypeScript | Decorateurs TypeScript          |
 
 > **A retenir** : Si tu connais Angular, NestJS te semblera très familier. Les patterns sont les memes — seul le contexte change (frontend → backend). Si tu ne connais pas Angular, pas d'inquietude : les concepts sont expliques de zero dans ce cours.
 
 ### 1.3 NestJS en chiffres
 
-| Statistique | Valeur |
-|---|---|
-| Telechargements npm/semaine | ~4 millions |
-| Stars GitHub | ~68 000 |
-| Premiere release | 2017 |
-| Createur | Kamil Mysliwiec |
-| Runtime sous-jacent | Express 5 (par defaut depuis NestJS 11) ou Fastify |
-| Langage | TypeScript (JavaScript possible mais deconseille) |
+| Statistique                 | Valeur                                             |
+| --------------------------- | -------------------------------------------------- |
+| Telechargements npm/semaine | ~4 millions                                        |
+| Stars GitHub                | ~68 000                                            |
+| Premiere release            | 2017                                               |
+| Createur                    | Kamil Mysliwiec                                    |
+| Runtime sous-jacent         | Express 5 (par defaut depuis NestJS 11) ou Fastify |
+| Langage                     | TypeScript (JavaScript possible mais deconseille)  |
 
 ### 1.4 Express ou Fastify avec NestJS ?
 
 NestJS te laisse choisir l'adaptateur HTTP. Dans la pratique, tu gardes **la meme architecture Nest** (modules, controllers, services, guards, pipes, interceptors), mais la couche serveur sous-jacente change.
 
-| Sujet | Express | Fastify |
-|---|---|---|
-| Ecosysteme | Le plus connu, documentation immense | Plus compact, tres oriente performance |
-| Compatibilite middleware | Excellente, beaucoup de middlewares historiques | Passe souvent par des plugins Fastify dedies |
-| Performance brute | Bonne | Souvent meilleure sur les charges HTTP pures |
-| Prise en main | Plus familiere si tu viens du monde Node/Express | Simple, mais demande d'apprendre ses plugins et conventions |
-| Cas typiques | API generalistes, equipes qui reutilisent du code Express | APIs a fort trafic, services tres I/O-bound, recherche de latence plus basse |
+| Sujet                    | Express                                                   | Fastify                                                                      |
+| ------------------------ | --------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Ecosysteme               | Le plus connu, documentation immense                      | Plus compact, tres oriente performance                                       |
+| Compatibilite middleware | Excellente, beaucoup de middlewares historiques           | Passe souvent par des plugins Fastify dedies                                 |
+| Performance brute        | Bonne                                                     | Souvent meilleure sur les charges HTTP pures                                 |
+| Prise en main            | Plus familiere si tu viens du monde Node/Express          | Simple, mais demande d'apprendre ses plugins et conventions                  |
+| Cas typiques             | API generalistes, equipes qui reutilisent du code Express | APIs a fort trafic, services tres I/O-bound, recherche de latence plus basse |
 
 > **A retenir** : pour apprendre NestJS, Express suffit largement. Fastify devient surtout utile quand tu veux un runtime HTTP plus nerveux, ou quand ton contexte production justifie ce choix.
 
@@ -143,8 +143,8 @@ npm run start:debug
 
 ```typescript
 // src/main.ts
-import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
+import { NestFactory } from "@nestjs/core";
+import { AppModule } from "./app.module";
 
 async function bootstrap() {
   // Creer l'application NestJS a partir du module racine
@@ -152,7 +152,7 @@ async function bootstrap() {
 
   // Configurer (CORS, prefixes, etc.)
   app.enableCors();
-  app.setGlobalPrefix('api'); // Toutes les routes commencent par /api
+  app.setGlobalPrefix("api"); // Toutes les routes commencent par /api
 
   // Demarrer le serveur
   const port = process.env.PORT || 3000;
@@ -171,9 +171,12 @@ Si tu veux faire tourner NestJS sur Fastify, le point d'entree change peu : tu r
 
 ```typescript
 // src/main.ts
-import { NestFactory } from '@nestjs/core';
-import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
-import { AppModule } from './app.module';
+import { NestFactory } from "@nestjs/core";
+import {
+  FastifyAdapter,
+  NestFastifyApplication,
+} from "@nestjs/platform-fastify";
+import { AppModule } from "./app.module";
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
@@ -181,8 +184,8 @@ async function bootstrap() {
     new FastifyAdapter(),
   );
 
-  app.setGlobalPrefix('api');
-  await app.listen(3000, '0.0.0.0');
+  app.setGlobalPrefix("api");
+  await app.listen(3000, "0.0.0.0");
 }
 
 bootstrap();
@@ -205,14 +208,14 @@ Checklist de migration Express -> Fastify dans NestJS :
 
 ```typescript
 // src/app.module.ts
-import { Module } from '@nestjs/common';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
+import { Module } from "@nestjs/common";
+import { AppController } from "./app.controller";
+import { AppService } from "./app.service";
 
 @Module({
-  imports: [],        // Autres modules importes
+  imports: [], // Autres modules importes
   controllers: [AppController], // Controllers de ce module
-  providers: [AppService],      // Services (providers) de ce module
+  providers: [AppService], // Services (providers) de ce module
 })
 export class AppModule {}
 ```
@@ -221,8 +224,8 @@ export class AppModule {}
 
 ```typescript
 // src/app.controller.ts
-import { Controller, Get } from '@nestjs/common';
-import { AppService } from './app.service';
+import { Controller, Get } from "@nestjs/common";
+import { AppService } from "./app.service";
 
 @Controller() // Route de base : '/'
 export class AppController {
@@ -240,12 +243,12 @@ export class AppController {
 
 ```typescript
 // src/app.service.ts
-import { Injectable } from '@nestjs/common';
+import { Injectable } from "@nestjs/common";
 
 @Injectable() // Indique que cette classe peut etre injectee
 export class AppService {
   getHello(): string {
-    return 'Hello World!';
+    return "Hello World!";
   }
 }
 ```
@@ -287,10 +290,12 @@ Sous le capot, un decorateur est une fonction qui ajoute des metadonnees à une 
 
 ```typescript
 // Ce que tu ecris :
-@Controller('users')
+@Controller("users")
 export class UsersController {
   @Get()
-  findAll() { return []; }
+  findAll() {
+    return [];
+  }
 }
 
 // Ce que NestJS comprend :
@@ -358,17 +363,17 @@ export class AppModule {}
 
 ### 5.3 Tableau des commandes de génération
 
-| Commande | Raccourci | Résultat |
-|---|---|---|
-| `nest g module <name>` | `nest g mo <name>` | Module |
-| `nest g controller <name>` | `nest g co <name>` | Controller + spec |
-| `nest g service <name>` | `nest g s <name>` | Service + spec |
-| `nest g resource <name>` | `nest g res <name>` | Module + Controller + Service + DTOs |
-| `nest g middleware <name>` | `nest g mi <name>` | Middleware |
-| `nest g guard <name>` | `nest g gu <name>` | Guard |
-| `nest g pipe <name>` | `nest g pi <name>` | Pipe |
-| `nest g interceptor <name>` | `nest g itc <name>` | Interceptor |
-| `nest g filter <name>` | `nest g f <name>` | Exception filter |
+| Commande                    | Raccourci           | Résultat                             |
+| --------------------------- | ------------------- | ------------------------------------ |
+| `nest g module <name>`      | `nest g mo <name>`  | Module                               |
+| `nest g controller <name>`  | `nest g co <name>`  | Controller + spec                    |
+| `nest g service <name>`     | `nest g s <name>`   | Service + spec                       |
+| `nest g resource <name>`    | `nest g res <name>` | Module + Controller + Service + DTOs |
+| `nest g middleware <name>`  | `nest g mi <name>`  | Middleware                           |
+| `nest g guard <name>`       | `nest g gu <name>`  | Guard                                |
+| `nest g pipe <name>`        | `nest g pi <name>`  | Pipe                                 |
+| `nest g interceptor <name>` | `nest g itc <name>` | Interceptor                          |
+| `nest g filter <name>`      | `nest g f <name>`   | Exception filter                     |
 
 > **Bonne pratique** : Utilise TOUJOURS la CLI pour générer des fichiers NestJS. Elle créé les fichiers avec les bonnes conventions de nommage, les bons decorateurs, et met a jour automatiquement les modules parents. Générer manuellement est une source d'erreurs.
 
@@ -411,8 +416,8 @@ export class CreateBookDto {
 
 ```typescript
 // src/books/dto/update-book.dto.ts
-import { PartialType } from '@nestjs/mapped-types';
-import { CreateBookDto } from './create-book.dto';
+import { PartialType } from "@nestjs/mapped-types";
+import { CreateBookDto } from "./create-book.dto";
 
 // PartialType rend tous les champs optionnels (comme .partial() de Zod)
 export class UpdateBookDto extends PartialType(CreateBookDto) {}
@@ -422,22 +427,22 @@ export class UpdateBookDto extends PartialType(CreateBookDto) {}
 
 ```typescript
 // src/books/books.service.ts
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { CreateBookDto } from './dto/create-book.dto';
-import { UpdateBookDto } from './dto/update-book.dto';
-import { Book } from './entities/book.entity';
-import { randomUUID } from 'crypto';
+import { Injectable, NotFoundException } from "@nestjs/common";
+import { CreateBookDto } from "./dto/create-book.dto";
+import { UpdateBookDto } from "./dto/update-book.dto";
+import { Book } from "./entities/book.entity";
+import { randomUUID } from "crypto";
 
 @Injectable()
 export class BooksService {
   // Base de donnees en memoire
   private books: Book[] = [
     {
-      id: '1',
-      title: 'Clean Code',
-      author: 'Robert C. Martin',
+      id: "1",
+      title: "Clean Code",
+      author: "Robert C. Martin",
       year: 2008,
-      isbn: '978-0132350884',
+      isbn: "978-0132350884",
       createdAt: new Date(),
     },
   ];
@@ -447,7 +452,7 @@ export class BooksService {
   }
 
   findOne(id: string): Book {
-    const book = this.books.find(b => b.id === id);
+    const book = this.books.find((b) => b.id === id);
     if (!book) {
       throw new NotFoundException(`Livre avec l'ID "${id}" introuvable`);
     }
@@ -471,7 +476,7 @@ export class BooksService {
   }
 
   remove(id: string): void {
-    const index = this.books.findIndex(b => b.id === id);
+    const index = this.books.findIndex((b) => b.id === id);
     if (index === -1) {
       throw new NotFoundException(`Livre avec l'ID "${id}" introuvable`);
     }
@@ -495,12 +500,12 @@ import {
   Param,
   HttpCode,
   HttpStatus,
-} from '@nestjs/common';
-import { BooksService } from './books.service';
-import { CreateBookDto } from './dto/create-book.dto';
-import { UpdateBookDto } from './dto/update-book.dto';
+} from "@nestjs/common";
+import { BooksService } from "./books.service";
+import { CreateBookDto } from "./dto/create-book.dto";
+import { UpdateBookDto } from "./dto/update-book.dto";
 
-@Controller('books')
+@Controller("books")
 export class BooksController {
   constructor(private readonly booksService: BooksService) {}
 
@@ -509,8 +514,8 @@ export class BooksController {
     return this.booksService.findAll();
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
+  @Get(":id")
+  findOne(@Param("id") id: string) {
     return this.booksService.findOne(id);
   }
 
@@ -520,14 +525,14 @@ export class BooksController {
     return this.booksService.create(createBookDto);
   }
 
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateBookDto: UpdateBookDto) {
+  @Patch(":id")
+  update(@Param("id") id: string, @Body() updateBookDto: UpdateBookDto) {
     return this.booksService.update(id, updateBookDto);
   }
 
-  @Delete(':id')
+  @Delete(":id")
   @HttpCode(HttpStatus.NO_CONTENT) // 204
-  remove(@Param('id') id: string) {
+  remove(@Param("id") id: string) {
     this.booksService.remove(id);
   }
 }
@@ -537,9 +542,9 @@ export class BooksController {
 
 ```typescript
 // src/books/books.module.ts
-import { Module } from '@nestjs/common';
-import { BooksController } from './books.controller';
-import { BooksService } from './books.service';
+import { Module } from "@nestjs/common";
+import { BooksController } from "./books.controller";
+import { BooksService } from "./books.service";
 
 @Module({
   controllers: [BooksController],
@@ -558,27 +563,27 @@ export class BooksModule {}
 // === Express ===
 const router = express.Router();
 
-router.get('/', (req, res) => {
+router.get("/", (req, res) => {
   res.json(booksService.findAll());
 });
 
-router.get('/:id', (req, res) => {
+router.get("/:id", (req, res) => {
   const book = booksService.findOne(req.params.id);
-  if (!book) return res.status(404).json({ error: 'Not found' });
+  if (!book) return res.status(404).json({ error: "Not found" });
   res.json(book);
 });
 
-router.post('/', (req, res) => {
+router.post("/", (req, res) => {
   const book = booksService.create(req.body);
   res.status(201).json(book);
 });
 
-app.use('/api/books', router);
+app.use("/api/books", router);
 ```
 
 ```typescript
 // === NestJS ===
-@Controller('books')
+@Controller("books")
 export class BooksController {
   constructor(private readonly booksService: BooksService) {}
 
@@ -587,8 +592,8 @@ export class BooksController {
     return this.booksService.findAll();
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
+  @Get(":id")
+  findOne(@Param("id") id: string) {
     return this.booksService.findOne(id);
   }
 
@@ -602,17 +607,17 @@ export class BooksController {
 
 ### 7.2 Comparaison structurelle
 
-| Aspect | Express | NestJS |
-|---|---|---|
-| **Organisation** | Libre (routes/, controllers/, services/) | Imposee par modules (books/, users/) |
-| **DI** | Manuelle (require/import) | Automatique (constructeur) |
-| **Validation** | Middleware Zod maison | Pipes + class-validator intégré |
-| **Erreurs** | Error middleware maison | Exception filters intégré |
-| **Auth** | Middleware maison | Guards intégré |
-| **Logging** | morgan | Interceptors + Logger intégré |
-| **TypeScript** | Optionnel, configuration manuelle | Natif, pre-configure |
-| **Tests** | Jest a configurer | Jest ou Vitest pre-configure avec DI mocking |
-| **Documentation** | Swagger a configurer | @nestjs/swagger intégré |
+| Aspect            | Express                                  | NestJS                                       |
+| ----------------- | ---------------------------------------- | -------------------------------------------- |
+| **Organisation**  | Libre (routes/, controllers/, services/) | Imposee par modules (books/, users/)         |
+| **DI**            | Manuelle (require/import)                | Automatique (constructeur)                   |
+| **Validation**    | Middleware Zod maison                    | Pipes + class-validator intégré              |
+| **Erreurs**       | Error middleware maison                  | Exception filters intégré                    |
+| **Auth**          | Middleware maison                        | Guards intégré                               |
+| **Logging**       | morgan                                   | Interceptors + Logger intégré                |
+| **TypeScript**    | Optionnel, configuration manuelle        | Natif, pre-configure                         |
+| **Tests**         | Jest a configurer                        | Jest ou Vitest pre-configure avec DI mocking |
+| **Documentation** | Swagger a configurer                     | @nestjs/swagger intégré                      |
 
 ---
 
@@ -663,25 +668,25 @@ NestJS fournit des exceptions HTTP pretes a l'emploi :
 
 ```typescript
 import {
-  NotFoundException,      // 404
-  BadRequestException,    // 400
-  UnauthorizedException,  // 401
-  ForbiddenException,     // 403
-  ConflictException,      // 409
+  NotFoundException, // 404
+  BadRequestException, // 400
+  UnauthorizedException, // 401
+  ForbiddenException, // 403
+  ConflictException, // 409
   InternalServerErrorException, // 500
-  HttpException,          // Custom
-} from '@nestjs/common';
+  HttpException, // Custom
+} from "@nestjs/common";
 
 // Utilisation dans un service
-throw new NotFoundException('Livre introuvable');
+throw new NotFoundException("Livre introuvable");
 // Reponse automatique :
 // { "statusCode": 404, "message": "Livre introuvable", "error": "Not Found" }
 
-throw new BadRequestException('Le titre est requis');
+throw new BadRequestException("Le titre est requis");
 // { "statusCode": 400, "message": "Le titre est requis", "error": "Bad Request" }
 
 // Exception personnalisee
-throw new HttpException('Erreur metier specifique', 422);
+throw new HttpException("Erreur metier specifique", 422);
 ```
 
 > **Bonne pratique** : NestJS géré automatiquement les exceptions — pas besoin de try/catch dans les controllers ni de error handler middleware. Lance simplement une exception et NestJS la transforme en réponse HTTP appropriee. C'est un enorme gain par rapport a Express.
@@ -693,6 +698,7 @@ throw new HttpException('Erreur metier specifique', 422);
 ### Exercice 1 — Projet NestJS de zero
 
 Cree un nouveau projet NestJS et généré une resource `tasks` (gestion de taches) avec :
+
 - Les operations CRUD
 - Les DTOs pour création et mise a jour
 - La gestion des erreurs avec `NotFoundException`
@@ -704,6 +710,7 @@ Reprends l'API de livres Express du module 05 et migre-la vers NestJS. Compare l
 ### Exercice 3 — Multiple resources
 
 Cree un projet NestJS avec trois resources liees :
+
 - `authors` (auteurs)
 - `books` (livres d'un auteur)
 - `reviews` (critiques d'un livre)
@@ -714,17 +721,17 @@ Chaque resource dans son propre module avec son service et son controller.
 
 ## 10. Résumé — Les concepts clés
 
-| Concept | Definition |
-|---|---|
-| **NestJS** | Framework Node.js structure, inspire d'Angular |
-| **@Module** | Decorateur qui declare un module (imports, controllers, providers) |
-| **@Controller** | Decorateur qui marque une classe comme controller HTTP |
-| **@Injectable** | Decorateur qui marque une classe comme injectable (service) |
-| **DI** | Injection de dépendances — les services sont injectes automatiquement |
-| **DTO** | Data Transfer Object — classe decrivant la forme des donnees |
-| **CLI** | `nest g resource` généré module + controller + service + DTOs |
-| **Exceptions** | `NotFoundException`, `BadRequestException`, etc. |
-| **main.ts** | Point d'entree qui bootstrap l'application |
+| Concept         | Definition                                                            |
+| --------------- | --------------------------------------------------------------------- |
+| **NestJS**      | Framework Node.js structure, inspire d'Angular                        |
+| **@Module**     | Decorateur qui declare un module (imports, controllers, providers)    |
+| **@Controller** | Decorateur qui marque une classe comme controller HTTP                |
+| **@Injectable** | Decorateur qui marque une classe comme injectable (service)           |
+| **DI**          | Injection de dépendances — les services sont injectes automatiquement |
+| **DTO**         | Data Transfer Object — classe decrivant la forme des donnees          |
+| **CLI**         | `nest g resource` généré module + controller + service + DTOs         |
+| **Exceptions**  | `NotFoundException`, `BadRequestException`, etc.                      |
+| **main.ts**     | Point d'entree qui bootstrap l'application                            |
 
 > **A retenir** : NestJS apporte a Node.js ce qu'Angular apporte au frontend : une architecture claire, une injection de dépendances puissante, et des conventions qui rendent le code previsible et maintenable. La CLI généré le boilerplate pour toi — tu te concentres sur la logique metier. Les modules suivants approfondiront les controllers, les providers et l'architecture modulaire.
 
@@ -732,12 +739,12 @@ Chaque resource dans son propre module avec son service et son controller.
 
 ## Navigation
 
-| | Lien |
-|---|---|
+|                  | Lien                                                                               |
+| ---------------- | ---------------------------------------------------------------------------------- |
 | Module précédent | [Module 08 — Express — Authentification & Sécurité](./08-express-auth-securite.md) |
-| Module suivant | [Module 10 — NestJS — Controllers & Routing](./10-nestjs-controllers.md) |
-| Quiz | [Quiz Module 09](../quizzes/09-nestjs-introduction.quiz.md) |
-| Lab | [Lab 09 — Premier projet NestJS](../labs/09-nestjs-introduction.lab.md) |
+| Module suivant   | [Module 10 — NestJS — Controllers & Routing](./10-nestjs-controllers.md)           |
+| Quiz             | [Quiz Module 09](../quizzes/09-nestjs-introduction.quiz.md)                        |
+| Lab              | [Lab 09 — Premier projet NestJS](../labs/09-nestjs-introduction.lab.md)            |
 
 ---
 
@@ -750,7 +757,8 @@ Chaque resource dans son propre module avec son service et son controller.
 <!-- parcours-recommande -->
 
 ::: tip Parcours recommandé
+
 1. **Screencast** : [screencast 09 nestjs introduction](../screencasts/screencast-09-nestjs-introduction.md)
 2. **Lab** : [lab-09-nestjs-premiers-pas](../labs/lab-09-nestjs-premiers-pas/README)
 3. **Quiz** : [quiz 09 nestjs introduction](../quizzes/quiz-09-nestjs-introduction.html)
-:::
+   :::
