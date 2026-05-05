@@ -678,6 +678,19 @@ async onFailed(job: Job, error: Error) {
 }
 ```
 
+#### Reperes operationnels utiles
+
+En pratique, l'objectif n'est pas d'avoir 0 echec, mais de **maitriser** les echecs.
+
+| Indicateur | Cible de depart | Seuil d'alerte |
+|---|---|---|
+| Taux de jobs en echec (15 min) | < 1% | > 5% |
+| Taille DLQ | proche de 0 | > 100 messages |
+| Age du plus vieux job en attente | < 60 s | > 300 s |
+| Temps moyen de traitement d'un job | stable (baseline) | x2 vs baseline |
+
+Ces seuils donnent une base de pilotage. Ils doivent etre ajustes selon le volume reel de votre application.
+
 ### 5.3 Bull Board — Interface de monitoring
 
 ```bash
