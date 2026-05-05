@@ -11,7 +11,7 @@ Formation complete sur Node.js, Express et NestJS : de l'event loop au déploiem
 - Node.js 20+ installe
 - npm installe
 - VS Code (recommande)
-- PostgreSQL 16 via Docker (pour les labs TypeORM/Prisma)
+- PostgreSQL 17 via Docker (pour les labs TypeORM/Prisma)
 - Redis via Docker (pour les labs avances : queues, sessions)
 
 ## Structure
@@ -99,7 +99,7 @@ npm run solution:09
 
 ```bash
 # Demarrer PostgreSQL via Docker (labs 14-17, 19, 24)
-docker run --name pg-nest-course -e POSTGRES_PASSWORD=postgres -p 5432:5432 -d postgres:16
+docker run --name pg-nest-course -e POSTGRES_PASSWORD=postgres -p 5432:5432 -d postgres:17
 
 # Demarrer Redis via Docker (labs 22, 24)
 docker run --name redis-nest-course -p 6379:6379 -d redis:7-alpine
@@ -124,6 +124,8 @@ A la fin de ce cursus, tu es capable de :
 - Configurer Swagger/OpenAPI pour documenter une API
 - Utiliser les WebSockets pour le temps réel
 - Mettre en place des taches planifiees et des files d'attente avec BullMQ
+- Concevoir des traitements asynchrones fiables (retries, idempotence, gestion des erreurs transitoires)
+- Diagnostiquer un flux backend en production avec logs structures, correlation id et indicateurs techniques
 - Déployer une application NestJS avec Docker et PM2
 - Manipuler MongoDB avec Mongoose dans une application NestJS
 - Exposer une API GraphQL avec resolvers, schema et DataLoader
