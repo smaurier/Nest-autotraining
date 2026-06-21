@@ -15,19 +15,19 @@ Vous allez construire **ShopNest**, une API REST complète pour une plateforme e
 
 ### 1.2 Fonctionnalites principales
 
-| Fonctionnalite | Modules utilises |
-|----------------|-----------------|
-| Authentification JWT + RBAC | Module 19 |
-| CRUD Produits + Categories | Modules 10-12, 14-17 |
-| Panier d'achat | Modules 14-17 |
-| Commandes transactionnelles | Module 15 ou 17 |
-| Notifications temps réel | Module 21 |
-| Tache de nettoyage des paniers abandonnes | Module 22 |
-| Validation avancee des DTOs | Module 13 |
-| Documentation Swagger | Module 20 |
-| Tests unitaires + E2E | Module 18 |
-| Docker Compose | Module 23 |
-| Cache + Rate Limiting | Module 23 |
+| Fonctionnalite                            | Modules utilises     |
+| ----------------------------------------- | -------------------- |
+| Authentification JWT + RBAC               | Module 19            |
+| CRUD Produits + Categories                | Modules 10-12, 14-17 |
+| Panier d'achat                            | Modules 14-17        |
+| Commandes transactionnelles               | Module 15 ou 17      |
+| Notifications temps réel                  | Module 21            |
+| Tache de nettoyage des paniers abandonnes | Module 22            |
+| Validation avancee des DTOs               | Module 13            |
+| Documentation Swagger                     | Module 20            |
+| Tests unitaires + E2E                     | Module 18            |
+| Docker Compose                            | Module 23            |
+| Cache + Rate Limiting                     | Module 23            |
 
 ### 1.3 Architecture du projet
 
@@ -320,30 +320,30 @@ npx prisma init --datasource-provider postgresql
 
 ```typescript
 // src/app.module.ts
-import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
-import { CacheModule } from '@nestjs/cache-manager';
-import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
-import { ScheduleModule } from '@nestjs/schedule';
-import { BullModule } from '@nestjs/bull';
-import { APP_GUARD } from '@nestjs/core';
-import * as Joi from 'joi';
+import { Module } from "@nestjs/common";
+import { ConfigModule } from "@nestjs/config";
+import { CacheModule } from "@nestjs/cache-manager";
+import { ThrottlerModule, ThrottlerGuard } from "@nestjs/throttler";
+import { ScheduleModule } from "@nestjs/schedule";
+import { BullModule } from "@nestjs/bull";
+import { APP_GUARD } from "@nestjs/core";
+import * as Joi from "joi";
 
 // Modules metier
-import { PrismaModule } from './prisma/prisma.module';
-import { AuthModule } from './auth/auth.module';
-import { UsersModule } from './users/users.module';
-import { CategoriesModule } from './categories/categories.module';
-import { ProductsModule } from './products/products.module';
-import { CartModule } from './cart/cart.module';
-import { OrdersModule } from './orders/orders.module';
-import { NotificationsModule } from './notifications/notifications.module';
-import { TasksModule } from './tasks/tasks.module';
-import { HealthModule } from './health/health.module';
+import { PrismaModule } from "./prisma/prisma.module";
+import { AuthModule } from "./auth/auth.module";
+import { UsersModule } from "./users/users.module";
+import { CategoriesModule } from "./categories/categories.module";
+import { ProductsModule } from "./products/products.module";
+import { CartModule } from "./cart/cart.module";
+import { OrdersModule } from "./orders/orders.module";
+import { NotificationsModule } from "./notifications/notifications.module";
+import { TasksModule } from "./tasks/tasks.module";
+import { HealthModule } from "./health/health.module";
 
 // Guards
-import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
-import { RolesGuard } from './common/guards/roles.guard';
+import { JwtAuthGuard } from "./auth/guards/jwt-auth.guard";
+import { RolesGuard } from "./common/guards/roles.guard";
 
 @Module({
   imports: [
@@ -351,12 +351,14 @@ import { RolesGuard } from './common/guards/roles.guard';
     ConfigModule.forRoot({
       isGlobal: true,
       validationSchema: Joi.object({
-        NODE_ENV: Joi.string().valid('development', 'production', 'test').default('development'),
+        NODE_ENV: Joi.string()
+          .valid("development", "production", "test")
+          .default("development"),
         PORT: Joi.number().default(3000),
         DATABASE_URL: Joi.string().required(),
         JWT_ACCESS_SECRET: Joi.string().min(32).required(),
         JWT_REFRESH_SECRET: Joi.string().min(32).required(),
-        REDIS_HOST: Joi.string().default('localhost'),
+        REDIS_HOST: Joi.string().default("localhost"),
         REDIS_PORT: Joi.number().default(6379),
       }),
     }),
@@ -366,8 +368,8 @@ import { RolesGuard } from './common/guards/roles.guard';
 
     // Rate limiting
     ThrottlerModule.forRoot([
-      { name: 'short', ttl: 1000, limit: 5 },
-      { name: 'long', ttl: 60000, limit: 100 },
+      { name: "short", ttl: 1000, limit: 5 },
+      { name: "long", ttl: 60000, limit: 100 },
     ]),
 
     // Taches planifiees
@@ -376,8 +378,8 @@ import { RolesGuard } from './common/guards/roles.guard';
     // Files d'attente (Bull + Redis)
     BullModule.forRoot({
       redis: {
-        host: process.env.REDIS_HOST || 'localhost',
-        port: parseInt(process.env.REDIS_PORT || '6379'),
+        host: process.env.REDIS_HOST || "localhost",
+        port: parseInt(process.env.REDIS_PORT || "6379"),
       },
     }),
 
@@ -407,18 +409,18 @@ export class AppModule {}
 
 ```typescript
 // src/main.ts
-import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
-import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
-import { ConfigService } from '@nestjs/config';
-import * as compression from 'compression';
-import helmet from 'helmet';
-import { AppModule } from './app.module';
+import { NestFactory } from "@nestjs/core";
+import { ValidationPipe } from "@nestjs/common";
+import { SwaggerModule, DocumentBuilder } from "@nestjs/swagger";
+import { ConfigService } from "@nestjs/config";
+import * as compression from "compression";
+import helmet from "helmet";
+import { AppModule } from "./app.module";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
-  const nodeEnv = configService.get<string>('NODE_ENV', 'development');
+  const nodeEnv = configService.get<string>("NODE_ENV", "development");
 
   // Securite
   app.use(helmet());
@@ -426,9 +428,10 @@ async function bootstrap() {
 
   // CORS
   app.enableCors({
-    origin: nodeEnv === 'production'
-      ? ['https://shopnest.com']
-      : ['http://localhost:4200', 'http://localhost:3001'],
+    origin:
+      nodeEnv === "production"
+        ? ["https://shopnest.com"]
+        : ["http://localhost:4200", "http://localhost:3001"],
     credentials: true,
   });
 
@@ -443,26 +446,26 @@ async function bootstrap() {
   );
 
   // Prefix global de l'API
-  app.setGlobalPrefix('api/v1');
+  app.setGlobalPrefix("api/v1");
 
   // Swagger (sauf en production)
-  if (nodeEnv !== 'production') {
+  if (nodeEnv !== "production") {
     const config = new DocumentBuilder()
-      .setTitle('ShopNest API')
-      .setDescription('API E-commerce complete — Projet final du cours NestJS')
-      .setVersion('1.0')
+      .setTitle("ShopNest API")
+      .setDescription("API E-commerce complete — Projet final du cours NestJS")
+      .setVersion("1.0")
       .addBearerAuth()
-      .addTag('auth', 'Authentification')
-      .addTag('users', 'Gestion des utilisateurs')
-      .addTag('categories', 'Gestion des categories')
-      .addTag('products', 'Catalogue produits')
-      .addTag('cart', 'Panier d\'achat')
-      .addTag('orders', 'Commandes')
-      .addTag('health', 'Sante de l\'application')
+      .addTag("auth", "Authentification")
+      .addTag("users", "Gestion des utilisateurs")
+      .addTag("categories", "Gestion des categories")
+      .addTag("products", "Catalogue produits")
+      .addTag("cart", "Panier d'achat")
+      .addTag("orders", "Commandes")
+      .addTag("health", "Sante de l'application")
       .build();
 
     const document = SwaggerModule.createDocument(app, config);
-    SwaggerModule.setup('api/docs', app, document, {
+    SwaggerModule.setup("api/docs", app, document, {
       swaggerOptions: { persistAuthorization: true },
     });
   }
@@ -470,11 +473,11 @@ async function bootstrap() {
   // Graceful shutdown
   app.enableShutdownHooks();
 
-  const port = configService.get<number>('PORT', 3000);
+  const port = configService.get<number>("PORT", 3000);
   await app.listen(port);
 
   console.log(`ShopNest API lancee sur le port ${port} (env: ${nodeEnv})`);
-  if (nodeEnv !== 'production') {
+  if (nodeEnv !== "production") {
     console.log(`Swagger : http://localhost:${port}/api/docs`);
   }
 }
@@ -485,13 +488,13 @@ bootstrap();
 
 ```typescript
 // src/products/products.service.ts
-import { Injectable, NotFoundException, Inject } from '@nestjs/common';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import { Cache } from 'cache-manager';
-import { PrismaService } from '../prisma/prisma.service';
-import { CreateProductDto } from './dto/create-product.dto';
-import { UpdateProductDto } from './dto/update-product.dto';
-import { Prisma } from '@prisma/client';
+import { Injectable, NotFoundException, Inject } from "@nestjs/common";
+import { CACHE_MANAGER } from "@nestjs/cache-manager";
+import { Cache } from "cache-manager";
+import { PrismaService } from "../prisma/prisma.service";
+import { CreateProductDto } from "./dto/create-product.dto";
+import { UpdateProductDto } from "./dto/update-product.dto";
+import { Prisma } from "@prisma/client";
 
 @Injectable()
 export class ProductsService {
@@ -530,7 +533,7 @@ export class ProductsService {
     minPrix?: number;
     maxPrix?: number;
     sort?: string;
-    order?: 'asc' | 'desc';
+    order?: "asc" | "desc";
   }) {
     const {
       page = 1,
@@ -539,8 +542,8 @@ export class ProductsService {
       search,
       minPrix,
       maxPrix,
-      sort = 'createdAt',
-      order = 'desc',
+      sort = "createdAt",
+      order = "desc",
     } = params;
 
     // Construire les conditions de filtre
@@ -550,8 +553,8 @@ export class ProductsService {
       ...(search
         ? {
             OR: [
-              { nom: { contains: search, mode: 'insensitive' } },
-              { description: { contains: search, mode: 'insensitive' } },
+              { nom: { contains: search, mode: "insensitive" } },
+              { description: { contains: search, mode: "insensitive" } },
             ],
           }
         : {}),
@@ -662,8 +665,8 @@ export class ProductsService {
   private generateSlug(nom: string): string {
     return nom
       .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '');
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
   }
 
   private async invalidateListCache() {
@@ -681,11 +684,11 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
-} from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { NotificationsGateway } from '../notifications/notifications.gateway';
-import { CreateOrderDto } from './dto/create-order.dto';
-import { Prisma } from '@prisma/client';
+} from "@nestjs/common";
+import { PrismaService } from "../prisma/prisma.service";
+import { NotificationsGateway } from "../notifications/notifications.gateway";
+import { CreateOrderDto } from "./dto/create-order.dto";
+import { Prisma } from "@prisma/client";
 
 @Injectable()
 export class OrdersService {
@@ -704,7 +707,7 @@ export class OrdersService {
       });
 
       if (cartItems.length === 0) {
-        throw new BadRequestException('Le panier est vide');
+        throw new BadRequestException("Le panier est vide");
       }
 
       // 2. Verifier le stock de chaque produit
@@ -720,7 +723,7 @@ export class OrdersService {
         if (item.product.stock < item.quantite) {
           throw new BadRequestException(
             `Stock insuffisant pour "${item.product.nom}". ` +
-            `Disponible: ${item.product.stock}, Demande: ${item.quantite}`,
+              `Disponible: ${item.product.stock}, Demande: ${item.quantite}`,
           );
         }
 
@@ -733,7 +736,7 @@ export class OrdersService {
       const order = await tx.order.create({
         data: {
           userId,
-          statut: 'PENDING',
+          statut: "PENDING",
           total,
           adresse: dto.adresse,
           items: {
@@ -765,14 +768,14 @@ export class OrdersService {
       await tx.cartItem.deleteMany({ where: { userId } });
 
       // 6. Notification temps reel
-      this.notifications.notifyUser(userId, 'orderCreated', {
+      this.notifications.notifyUser(userId, "orderCreated", {
         orderId: order.id,
         total: order.total,
         message: `Votre commande #${order.id} a ete confirmee !`,
       });
 
       // Notifier les admins
-      this.notifications.notifyAdmins('newOrder', {
+      this.notifications.notifyAdmins("newOrder", {
         orderId: order.id,
         userId,
         total: order.total,
@@ -791,11 +794,13 @@ export class OrdersService {
         include: {
           items: {
             include: {
-              product: { select: { id: true, nom: true, slug: true, images: true } },
+              product: {
+                select: { id: true, nom: true, slug: true, images: true },
+              },
             },
           },
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: "desc" },
         skip,
         take: limit,
       }),
@@ -848,7 +853,7 @@ export class OrdersService {
     });
 
     // Notification au client
-    this.notifications.notifyUser(order.userId, 'orderStatusUpdate', {
+    this.notifications.notifyUser(order.userId, "orderStatusUpdate", {
       orderId: id,
       oldStatut: order.statut,
       newStatut: statut,
@@ -870,9 +875,9 @@ export class OrdersService {
         throw new NotFoundException(`Commande #${id} introuvable`);
       }
 
-      if (order.statut !== 'PENDING') {
+      if (order.statut !== "PENDING") {
         throw new BadRequestException(
-          'Seules les commandes en attente peuvent etre annulees',
+          "Seules les commandes en attente peuvent etre annulees",
         );
       }
 
@@ -887,7 +892,7 @@ export class OrdersService {
       // Mettre a jour le statut
       return tx.order.update({
         where: { id },
-        data: { statut: 'CANCELLED' },
+        data: { statut: "CANCELLED" },
       });
     });
   }
@@ -898,13 +903,13 @@ export class OrdersService {
 
 ```typescript
 // src/tasks/tasks.service.ts
-import { Injectable, Logger } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
-import { PrismaService } from '../prisma/prisma.service';
+import { Injectable, Logger } from "@nestjs/common";
+import { Cron, CronExpression } from "@nestjs/schedule";
+import { PrismaService } from "../prisma/prisma.service";
 
 @Injectable()
 export class TasksService {
-  private readonly logger = new Logger('TasksService');
+  private readonly logger = new Logger("TasksService");
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -933,7 +938,7 @@ export class TasksService {
 
     const pendingOrders = await this.prisma.order.findMany({
       where: {
-        statut: 'PENDING',
+        statut: "PENDING",
         createdAt: { lt: oneDayAgo },
       },
       select: { id: true, userId: true },
@@ -967,16 +972,16 @@ export class TasksService {
         _sum: { total: true },
         where: {
           createdAt: { gte: yesterday, lt: today },
-          statut: { not: 'CANCELLED' },
+          statut: { not: "CANCELLED" },
         },
       }),
     ]);
 
     this.logger.log(
-      `Statistiques du ${yesterday.toISOString().split('T')[0]} : ` +
-      `${newUsers} nouveaux utilisateurs, ` +
-      `${newOrders} commandes, ` +
-      `${revenue._sum.total || 0} EUR de chiffre d'affaires`,
+      `Statistiques du ${yesterday.toISOString().split("T")[0]} : ` +
+        `${newUsers} nouveaux utilisateurs, ` +
+        `${newOrders} commandes, ` +
+        `${revenue._sum.total || 0} EUR de chiffre d'affaires`,
     );
   }
 }
@@ -991,20 +996,20 @@ import {
   WebSocketServer,
   OnGatewayConnection,
   OnGatewayDisconnect,
-} from '@nestjs/websockets';
-import { Logger } from '@nestjs/common';
-import { Server, Socket } from 'socket.io';
-import { JwtService } from '@nestjs/jwt';
-import { ConfigService } from '@nestjs/config';
+} from "@nestjs/websockets";
+import { Logger } from "@nestjs/common";
+import { Server, Socket } from "socket.io";
+import { JwtService } from "@nestjs/jwt";
+import { ConfigService } from "@nestjs/config";
 
-@WebSocketGateway({ cors: { origin: '*' }, namespace: '/notifications' })
+@WebSocketGateway({ cors: { origin: "*" }, namespace: "/notifications" })
 export class NotificationsGateway
   implements OnGatewayConnection, OnGatewayDisconnect
 {
   @WebSocketServer()
   server: Server;
 
-  private readonly logger = new Logger('NotificationsGateway');
+  private readonly logger = new Logger("NotificationsGateway");
   private connectedUsers = new Map<number, string[]>(); // userId → socketIds
 
   constructor(
@@ -1021,7 +1026,7 @@ export class NotificationsGateway
       }
 
       const payload = this.jwtService.verify(token, {
-        secret: this.configService.get('JWT_ACCESS_SECRET'),
+        secret: this.configService.get("JWT_ACCESS_SECRET"),
       });
 
       const userId = payload.sub;
@@ -1034,8 +1039,8 @@ export class NotificationsGateway
       this.connectedUsers.set(userId, existing);
 
       // Les admins rejoignent la room admin
-      if (payload.role === 'ADMIN') {
-        client.join('admin-room');
+      if (payload.role === "ADMIN") {
+        client.join("admin-room");
       }
 
       // Chaque utilisateur a sa propre room
@@ -1071,7 +1076,7 @@ export class NotificationsGateway
 
   // Envoyer a tous les admins
   notifyAdmins(event: string, data: any) {
-    this.server.to('admin-room').emit(event, {
+    this.server.to("admin-room").emit(event, {
       ...data,
       timestamp: new Date().toISOString(),
     });
@@ -1094,6 +1099,7 @@ export class NotificationsGateway
 ### 4.1 Tests unitaires
 
 Testez chaque service avec des mocks :
+
 - `ProductsService` : toutes les méthodes CRUD
 - `OrdersService` : création transactionnelle, annulation
 - `CartService` : ajout, modification, suppression
@@ -1103,7 +1109,7 @@ Testez chaque service avec des mocks :
 
 ```typescript
 // test/products.e2e-spec.ts (extrait)
-describe('Products E2E', () => {
+describe("Products E2E", () => {
   let app: INestApplication;
   let adminToken: string;
 
@@ -1111,10 +1117,10 @@ describe('Products E2E', () => {
     // ... setup de l'app et login admin
   });
 
-  describe('GET /api/v1/products', () => {
-    it('devrait lister les produits sans authentification', () => {
+  describe("GET /api/v1/products", () => {
+    it("devrait lister les produits sans authentification", () => {
       return request(app.getHttpServer())
-        .get('/api/v1/products')
+        .get("/api/v1/products")
         .expect(200)
         .expect((res) => {
           expect(res.body.data).toBeInstanceOf(Array);
@@ -1123,27 +1129,27 @@ describe('Products E2E', () => {
         });
     });
 
-    it('devrait filtrer par categorie', () => {
+    it("devrait filtrer par categorie", () => {
       return request(app.getHttpServer())
-        .get('/api/v1/products?categoryId=1')
+        .get("/api/v1/products?categoryId=1")
         .expect(200);
     });
 
-    it('devrait chercher par terme', () => {
+    it("devrait chercher par terme", () => {
       return request(app.getHttpServer())
-        .get('/api/v1/products?search=clavier')
+        .get("/api/v1/products?search=clavier")
         .expect(200);
     });
   });
 
-  describe('POST /api/v1/products', () => {
-    it('devrait creer un produit (admin)', () => {
+  describe("POST /api/v1/products", () => {
+    it("devrait creer un produit (admin)", () => {
       return request(app.getHttpServer())
-        .post('/api/v1/products')
-        .set('Authorization', `Bearer ${adminToken}`)
+        .post("/api/v1/products")
+        .set("Authorization", `Bearer ${adminToken}`)
         .send({
-          nom: 'Clavier mecanique',
-          description: 'Clavier gaming RGB',
+          nom: "Clavier mecanique",
+          description: "Clavier gaming RGB",
           prix: 89.99,
           stock: 50,
           categoryId: 1,
@@ -1151,10 +1157,10 @@ describe('Products E2E', () => {
         .expect(201);
     });
 
-    it('devrait refuser sans authentification (401)', () => {
+    it("devrait refuser sans authentification (401)", () => {
       return request(app.getHttpServer())
-        .post('/api/v1/products')
-        .send({ nom: 'Test' })
+        .post("/api/v1/products")
+        .send({ nom: "Test" })
         .expect(401);
     });
   });
@@ -1167,13 +1173,13 @@ describe('Products E2E', () => {
 
 ```yaml
 # docker-compose.yml
-version: '3.8'
+version: "3.8"
 
 services:
   app:
     build: .
     ports:
-      - '3000:3000'
+      - "3000:3000"
     env_file: .env
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/shopnest
@@ -1186,17 +1192,17 @@ services:
     restart: unless-stopped
 
   postgres:
-    image: postgres:16-alpine
+    image: postgres:17-alpine
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: shopnest
     ports:
-      - '5432:5432'
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -1204,11 +1210,11 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - '6379:6379'
+      - "6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -1257,18 +1263,18 @@ npm run test:cov
 
 ## 7. Criteres d'évaluation
 
-| Critere | Points | Description |
-|---------|--------|-------------|
-| Schema de base fonctionnel | /10 | Toutes les tables et relations correctes |
-| Authentification JWT + RBAC | /15 | Login, register, refresh, roles |
-| CRUD Produits + Categories | /15 | Toutes les operations avec validation |
-| Panier d'achat | /10 | Ajout, modification, suppression |
-| Commandes transactionnelles | /15 | Integrite des donnees, gestion du stock |
-| WebSocket notifications | /10 | Temps réel fonctionnel |
-| Tache planifiee | /5 | Nettoyage des paniers abandonnes |
-| Tests (unitaires + E2E) | /10 | Couverture > 70% |
-| Documentation Swagger | /5 | Complete et a jour |
-| Docker Compose | /5 | Les 3 services fonctionnent |
+| Critere                     | Points | Description                              |
+| --------------------------- | ------ | ---------------------------------------- |
+| Schema de base fonctionnel  | /10    | Toutes les tables et relations correctes |
+| Authentification JWT + RBAC | /15    | Login, register, refresh, roles          |
+| CRUD Produits + Categories  | /15    | Toutes les operations avec validation    |
+| Panier d'achat              | /10    | Ajout, modification, suppression         |
+| Commandes transactionnelles | /15    | Integrite des donnees, gestion du stock  |
+| WebSocket notifications     | /10    | Temps réel fonctionnel                   |
+| Tache planifiee             | /5     | Nettoyage des paniers abandonnes         |
+| Tests (unitaires + E2E)     | /10    | Couverture > 70%                         |
+| Documentation Swagger       | /5     | Complete et a jour                       |
+| Docker Compose              | /5     | Les 3 services fonctionnent              |
 
 ---
 
@@ -1294,6 +1300,7 @@ Pour aller plus loin après le projet de base :
 ### Exercice 1 : Implementation du panier
 
 Implementez le `CartService` complet avec :
+
 1. `addToCart(userId, productId, quantite)` — vérifié le stock
 2. `updateQuantity(userId, productId, quantite)`
 3. `removeFromCart(userId, productId)`
@@ -1303,6 +1310,7 @@ Implementez le `CartService` complet avec :
 ### Exercice 2 : Administration
 
 Creez un `AdminController` avec :
+
 1. `GET /admin/dashboard` — statistiques (nombre d'utilisateurs, commandes, CA)
 2. `GET /admin/orders` — toutes les commandes avec filtres
 3. `PATCH /admin/orders/:id/status` — changer le statut d'une commande
@@ -1311,6 +1319,7 @@ Creez un `AdminController` avec :
 ### Exercice 3 : Tests complets
 
 Ecrivez :
+
 1. Tests unitaires pour `OrdersService` (création, annulation)
 2. Tests E2E pour le flux complet : inscription → login → ajout au panier → commande
 3. Atteignez une couverture de tests > 80%
@@ -1319,24 +1328,25 @@ Ecrivez :
 
 ## Liens
 
-| Ressource | Lien |
-|-----------|------|
-| Quiz Module 24 | `quiz/24-quiz.md` |
-| Lab Module 24 | `labs/24-lab-projet-final.md` |
-| Screencast | `screencasts/24-screencast.md` |
-| Module précédent | [Module 23 — Performance & Déploiement](23-performance-deploiement.md) |
-| Premier module | [Module 1 — Introduction](01-introduction.md) |
-| NestJS Documentation | https://docs.nestjs.com/ |
-| Prisma Documentation | https://www.prisma.io/docs |
-| Docker Documentation | https://docs.docker.com/ |
-| GitHub du projet | A définir par le formateur |
+| Ressource            | Lien                                                                   |
+| -------------------- | ---------------------------------------------------------------------- |
+| Quiz Module 24       | `quiz/24-quiz.md`                                                      |
+| Lab Module 24        | `labs/24-lab-projet-final.md`                                          |
+| Screencast           | `screencasts/24-screencast.md`                                         |
+| Module précédent     | [Module 23 — Performance & Déploiement](23-performance-deploiement.md) |
+| Premier module       | [Module 1 — Introduction](01-introduction.md)                          |
+| NestJS Documentation | https://docs.nestjs.com/                                               |
+| Prisma Documentation | https://www.prisma.io/docs                                             |
+| Docker Documentation | https://docs.docker.com/                                               |
+| GitHub du projet     | A définir par le formateur                                             |
 
 ---
 
 <!-- parcours-recommande -->
 
 ::: tip Parcours recommandé
+
 1. **Screencast** : [screencast 24 projet final](../screencasts/screencast-24-projet-final.md)
 2. **Lab** : [lab-24-projet-final](../labs/lab-24-projet-final/README)
 3. **Quiz** : [quiz 24 projet final](../quizzes/quiz-24-projet-final.html)
-:::
+   :::

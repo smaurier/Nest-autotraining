@@ -1,12 +1,14 @@
 # Screencast 24 — Projet Final E-commerce
 
 ## Informations
+
 - **Duree estimee** : 25-30 min
 - **Module** : `modules/24-projet-final.md`
 - **Lab associe** : `labs/lab-24-projet-final/`
 - **Prérequis** : Tous les screencasts précédents (00-23)
 
 ## Setup
+
 - [ ] Node.js 20+ installe
 - [ ] Docker et docker-compose installes
 - [ ] Terminal ouvert dans `nest-course/`
@@ -183,7 +185,14 @@ export class ProductsService {
     });
   }
 
-  async findAll(filters: { categoryId?: number; minPrice?: number; maxPrice?: number; search?: string; page?: number; limit?: number }) {
+  async findAll(filters: {
+    categoryId?: number;
+    minPrice?: number;
+    maxPrice?: number;
+    search?: string;
+    page?: number;
+    limit?: number;
+  }) {
     const where: any = {};
 
     if (filters.categoryId) where.categoryId = filters.categoryId;
@@ -194,8 +203,8 @@ export class ProductsService {
     }
     if (filters.search) {
       where.OR = [
-        { name: { contains: filters.search, mode: 'insensitive' } },
-        { description: { contains: filters.search, mode: 'insensitive' } },
+        { name: { contains: filters.search, mode: "insensitive" } },
+        { description: { contains: filters.search, mode: "insensitive" } },
       ];
     }
 
@@ -208,12 +217,15 @@ export class ProductsService {
         include: { category: true },
         skip: (page - 1) * limit,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: "desc" },
       }),
       this.prisma.product.count({ where }),
     ]);
 
-    return { data, meta: { total, page, limit, pages: Math.ceil(total / limit) } };
+    return {
+      data,
+      meta: { total, page, limit, pages: Math.ceil(total / limit) },
+    };
   }
 }
 ```
@@ -226,7 +238,7 @@ export class ProductsService {
 export class OrdersService {
   constructor(
     private prisma: PrismaService,
-    @InjectQueue('notifications') private notifQueue: Queue,
+    @InjectQueue("notifications") private notifQueue: Queue,
   ) {}
 
   async createFromCart(userId: number) {
@@ -238,7 +250,7 @@ export class OrdersService {
       });
 
       if (cartItems.length === 0) {
-        throw new BadRequestException('Le panier est vide');
+        throw new BadRequestException("Le panier est vide");
       }
 
       // 2. Verifier le stock
@@ -252,7 +264,8 @@ export class OrdersService {
 
       // 3. Calculer le total
       const total = cartItems.reduce(
-        (sum, item) => sum + Number(item.product.price) * item.quantity, 0,
+        (sum, item) => sum + Number(item.product.price) * item.quantity,
+        0,
       );
 
       // 4. Creer la commande
@@ -261,7 +274,7 @@ export class OrdersService {
           userId,
           total,
           items: {
-            create: cartItems.map(item => ({
+            create: cartItems.map((item) => ({
               productId: item.productId,
               quantity: item.quantity,
               price: item.product.price,
@@ -283,7 +296,7 @@ export class OrdersService {
       await tx.cartItem.deleteMany({ where: { userId } });
 
       // 7. Envoyer une notification
-      await this.notifQueue.add('order-confirmation', {
+      await this.notifQueue.add("order-confirmation", {
         userId,
         orderId: order.id,
         total,
@@ -303,51 +316,58 @@ export class OrdersService {
 
 ```typescript
 // src/products/products.controller.ts
-@ApiTags('products')
-@Controller('products')
+@ApiTags("products")
+@Controller("products")
 export class ProductsController {
   constructor(private productsService: ProductsService) {}
 
   @Get()
   @Public()
-  @ApiOperation({ summary: 'Lister les produits avec filtres' })
+  @ApiOperation({ summary: "Lister les produits avec filtres" })
   findAll(
-    @Query('category') categoryId?: number,
-    @Query('minPrice') minPrice?: number,
-    @Query('maxPrice') maxPrice?: number,
-    @Query('search') search?: string,
-    @Query('page') page?: number,
-    @Query('limit') limit?: number,
+    @Query("category") categoryId?: number,
+    @Query("minPrice") minPrice?: number,
+    @Query("maxPrice") maxPrice?: number,
+    @Query("search") search?: string,
+    @Query("page") page?: number,
+    @Query("limit") limit?: number,
   ) {
-    return this.productsService.findAll({ categoryId, minPrice, maxPrice, search, page, limit });
+    return this.productsService.findAll({
+      categoryId,
+      minPrice,
+      maxPrice,
+      search,
+      page,
+      limit,
+    });
   }
 
   @Post()
-  @Roles('SELLER', 'ADMIN')
+  @Roles("SELLER", "ADMIN")
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Creer un produit (vendeur/admin)' })
-  create(@Body() dto: CreateProductDto, @CurrentUser('id') sellerId: number) {
+  @ApiOperation({ summary: "Creer un produit (vendeur/admin)" })
+  create(@Body() dto: CreateProductDto, @CurrentUser("id") sellerId: number) {
     return this.productsService.create(dto, sellerId);
   }
 }
 
 // src/orders/orders.controller.ts
-@ApiTags('orders')
+@ApiTags("orders")
 @ApiBearerAuth()
-@Controller('orders')
+@Controller("orders")
 @UseGuards(JwtAuthGuard)
 export class OrdersController {
   constructor(private ordersService: OrdersService) {}
 
-  @Post('checkout')
-  @ApiOperation({ summary: 'Creer une commande a partir du panier' })
-  checkout(@CurrentUser('id') userId: number) {
+  @Post("checkout")
+  @ApiOperation({ summary: "Creer une commande a partir du panier" })
+  checkout(@CurrentUser("id") userId: number) {
     return this.ordersService.createFromCart(userId);
   }
 
-  @Get('my-orders')
-  @ApiOperation({ summary: 'Mes commandes' })
-  getMyOrders(@CurrentUser('id') userId: number) {
+  @Get("my-orders")
+  @ApiOperation({ summary: "Mes commandes" })
+  getMyOrders(@CurrentUser("id") userId: number) {
     return this.ordersService.findByUser(userId);
   }
 }
@@ -405,7 +425,7 @@ curl http://localhost:3000/health | jq
 
 ### [22:00-26:00] Retrospective — Ce qu'on a appris
 
-> Prenons du recul. En 25 modules, on a parcouru tout le chemin du backend Node.js.
+> Prenons du recul. En 27 modules, on a parcouru tout le chemin du backend Node.js.
 
 **Action** : Afficher le slide retrospective.
 
@@ -424,6 +444,7 @@ curl http://localhost:3000/health | jq
 > Quelques pistes pour aller plus loin : GraphQL avec NestJS, les microservices, le serverless, le monitoring avec Prometheus et Grafana. Le backend est un monde vaste — cette formation vous a donne les fondations solides pour l'explorer. Merci et bonne continuation !
 
 ## Points d'attention pour l'enregistrement
+
 - C'est le screencast le plus long — prevoir des pauses si nécessaire
 - Le flux complet (register -> login -> browse -> cart -> checkout) doit fonctionner du premier coup
 - Swagger doit etre impressionnant avec toutes les routes documentees

@@ -1,12 +1,14 @@
 # Screencast 00 — Prérequis & Le monde du backend
 
 ## Informations
+
 - **Duree estimee** : 12-15 min
 - **Module** : `modules/00-prerequis-et-monde-backend.md`
 - **Lab associe** : aucun
 - **Prérequis** : Connaissances de base en HTML, CSS, JavaScript
 
 ## Setup
+
 - [ ] Node.js 20+ installe
 - [ ] Terminal ouvert dans `nest-course/`
 - [ ] Editeur de code ouvert (VS Code recommande)
@@ -69,9 +71,9 @@ npm --version
 
 ```javascript
 // hello.js
-console.log('Bonjour depuis le backend !');
+console.log("Bonjour depuis le backend !");
 
-const os = require('os');
+const os = require("os");
 console.log(`Machine : ${os.hostname()}`);
 console.log(`OS : ${os.platform()}`);
 console.log(`CPUs : ${os.cpus().length} coeurs`);
@@ -88,7 +90,7 @@ node hello.js
 
 ### [11:00-13:00] Plan de la formation — La feuille de route
 
-> Maintenant, voyons ce qui nous attend. Cette formation est structuree en 25 modules progressifs.
+> Maintenant, voyons ce qui nous attend. Cette formation est structuree en 27 modules progressifs.
 
 **Action** : Afficher la table des matieres de la formation.
 
@@ -114,6 +116,7 @@ ls labs/
 > Assurez-vous que Node.js 20+ est installe, ouvrez votre editeur de code, et on se retrouve dans le prochain screencast pour comprendre l'event loop. A tout de suite !
 
 ## Points d'attention pour l'enregistrement
+
 - Garder un ton enthousiaste et accessible, c'est le premier contact avec la formation
 - Ne pas trop s'attarder sur les details HTTP, ils seront couverts en profondeur au module 04
 - Vérifier que `node --version` affiche bien la version 20+ avant d'enregistrer

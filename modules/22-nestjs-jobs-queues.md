@@ -25,10 +25,10 @@ Si vous executez ces operations directement dans un endpoint, l'utilisateur atte
 
 ### 1.2 Deux approches complementaires
 
-| Approche | Utilite | Exemple |
-|----------|---------|---------|
+| Approche                     | Utilite                                  | Exemple                                   |
+| ---------------------------- | ---------------------------------------- | ----------------------------------------- |
 | **Taches planifiees** (Cron) | Exécuter une tache a intervalle regulier | Nettoyage quotidien, rapport hebdomadaire |
-| **Files d'attente** (Queue) | Traiter une tache quand elle arrive | Envoi d'email, génération PDF |
+| **Files d'attente** (Queue)  | Traiter une tache quand elle arrive      | Envoi d'email, génération PDF             |
 
 ---
 
@@ -44,9 +44,9 @@ npm install @nestjs/schedule
 
 ```typescript
 // app.module.ts
-import { Module } from '@nestjs/common';
-import { ScheduleModule } from '@nestjs/schedule';
-import { TasksModule } from './tasks/tasks.module';
+import { Module } from "@nestjs/common";
+import { ScheduleModule } from "@nestjs/schedule";
+import { TasksModule } from "./tasks/tasks.module";
 
 @Module({
   imports: [
@@ -61,47 +61,47 @@ export class AppModule {}
 
 ```typescript
 // tasks/tasks.service.ts
-import { Injectable, Logger } from '@nestjs/common';
-import { Cron, CronExpression, Interval, Timeout } from '@nestjs/schedule';
+import { Injectable, Logger } from "@nestjs/common";
+import { Cron, CronExpression, Interval, Timeout } from "@nestjs/schedule";
 
 @Injectable()
 export class TasksService {
-  private readonly logger = new Logger('TasksService');
+  private readonly logger = new Logger("TasksService");
 
   // === @Cron — Expression cron ===
 
   // Chaque jour a minuit
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
   async handleDailyCleanup() {
-    this.logger.log('Nettoyage quotidien des sessions expirees');
+    this.logger.log("Nettoyage quotidien des sessions expirees");
     // Logique de nettoyage...
   }
 
   // Chaque lundi a 8h00
   @Cron(CronExpression.EVERY_WEEK)
   async handleWeeklyReport() {
-    this.logger.log('Generation du rapport hebdomadaire');
+    this.logger.log("Generation du rapport hebdomadaire");
     // Logique de rapport...
   }
 
   // Expression cron personnalisee : chaque jour a 2h30 du matin
-  @Cron('30 2 * * *')
+  @Cron("30 2 * * *")
   async handleDatabaseBackup() {
-    this.logger.log('Sauvegarde de la base de donnees');
+    this.logger.log("Sauvegarde de la base de donnees");
     // Logique de backup...
   }
 
   // Toutes les 5 minutes (du lundi au vendredi)
-  @Cron('*/5 * * * 1-5')
+  @Cron("*/5 * * * 1-5")
   async handleHealthCheck() {
-    this.logger.log('Verification de sante des services externes');
+    this.logger.log("Verification de sante des services externes");
     // Logique de health check...
   }
 
   // Le premier jour de chaque mois a 6h00
-  @Cron('0 6 1 * *')
+  @Cron("0 6 1 * *")
   async handleMonthlyInvoice() {
-    this.logger.log('Generation des factures mensuelles');
+    this.logger.log("Generation des factures mensuelles");
     // Logique de facturation...
   }
 }
@@ -120,36 +120,36 @@ export class TasksService {
 * * * * * *
 ```
 
-| Expression | Description |
-|-----------|-------------|
-| `* * * * *` | Chaque minute |
-| `*/5 * * * *` | Toutes les 5 minutes |
-| `0 * * * *` | Chaque heure (à la minute 0) |
-| `0 0 * * *` | Chaque jour a minuit |
-| `0 8 * * 1-5` | Du lundi au vendredi a 8h00 |
-| `0 0 1 * *` | Le 1er de chaque mois a minuit |
-| `0 6,18 * * *` | A 6h et 18h chaque jour |
-| `30 2 * * *` | Chaque jour a 2h30 |
+| Expression     | Description                    |
+| -------------- | ------------------------------ |
+| `* * * * *`    | Chaque minute                  |
+| `*/5 * * * *`  | Toutes les 5 minutes           |
+| `0 * * * *`    | Chaque heure (à la minute 0)   |
+| `0 0 * * *`    | Chaque jour a minuit           |
+| `0 8 * * 1-5`  | Du lundi au vendredi a 8h00    |
+| `0 0 1 * *`    | Le 1er de chaque mois a minuit |
+| `0 6,18 * * *` | A 6h et 18h chaque jour        |
+| `30 2 * * *`   | Chaque jour a 2h30             |
 
 ### 2.5 CronExpression — Constantes predefinies
 
 ```typescript
-import { CronExpression } from '@nestjs/schedule';
+import { CronExpression } from "@nestjs/schedule";
 
-CronExpression.EVERY_SECOND           // * * * * * *
-CronExpression.EVERY_5_SECONDS        // */5 * * * * *
-CronExpression.EVERY_10_SECONDS       // */10 * * * * *
-CronExpression.EVERY_30_SECONDS       // */30 * * * * *
-CronExpression.EVERY_MINUTE           // */1 * * * *
-CronExpression.EVERY_5_MINUTES        // 0 */5 * * * *
-CronExpression.EVERY_10_MINUTES       // 0 */10 * * * *
-CronExpression.EVERY_30_MINUTES       // 0 */30 * * * *
-CronExpression.EVERY_HOUR             // 0 0 * * * *
-CronExpression.EVERY_DAY_AT_MIDNIGHT  // 0 0 0 * * *
-CronExpression.EVERY_DAY_AT_1AM      // 0 0 1 * * *
-CronExpression.EVERY_WEEK             // 0 0 0 * * 0
-CronExpression.EVERY_1ST_DAY_OF_MONTH_AT_MIDNIGHT // 0 0 0 1 * *
-CronExpression.EVERY_QUARTER          // 0 0 0 1 */3 *
+CronExpression.EVERY_SECOND; // * * * * * *
+CronExpression.EVERY_5_SECONDS; // */5 * * * * *
+CronExpression.EVERY_10_SECONDS; // */10 * * * * *
+CronExpression.EVERY_30_SECONDS; // */30 * * * * *
+CronExpression.EVERY_MINUTE; // */1 * * * *
+CronExpression.EVERY_5_MINUTES; // 0 */5 * * * *
+CronExpression.EVERY_10_MINUTES; // 0 */10 * * * *
+CronExpression.EVERY_30_MINUTES; // 0 */30 * * * *
+CronExpression.EVERY_HOUR; // 0 0 * * * *
+CronExpression.EVERY_DAY_AT_MIDNIGHT; // 0 0 0 * * *
+CronExpression.EVERY_DAY_AT_1AM; // 0 0 1 * * *
+CronExpression.EVERY_WEEK; // 0 0 0 * * 0
+CronExpression.EVERY_1ST_DAY_OF_MONTH_AT_MIDNIGHT; // 0 0 0 1 * *
+CronExpression.EVERY_QUARTER; // 0 0 0 1 */3 *
 ```
 
 ### 2.6 @Interval et @Timeout
@@ -160,25 +160,25 @@ export class TasksService {
   // Executer toutes les 30 secondes (en millisecondes)
   @Interval(30000)
   handleInterval() {
-    this.logger.log('Tache executee toutes les 30 secondes');
+    this.logger.log("Tache executee toutes les 30 secondes");
   }
 
   // Nommer l'intervalle pour pouvoir l'arreter
-  @Interval('metricsCollection', 60000)
+  @Interval("metricsCollection", 60000)
   handleMetrics() {
-    this.logger.log('Collecte des metriques');
+    this.logger.log("Collecte des metriques");
   }
 
   // Executer UNE SEULE FOIS apres un delai (en millisecondes)
   @Timeout(5000)
   handleTimeout() {
-    this.logger.log('Execute une seule fois, 5 secondes apres le demarrage');
+    this.logger.log("Execute une seule fois, 5 secondes apres le demarrage");
   }
 
   // Timeout nomme
-  @Timeout('warmup', 10000)
+  @Timeout("warmup", 10000)
   handleWarmup() {
-    this.logger.log('Prechauffage du cache au demarrage');
+    this.logger.log("Prechauffage du cache au demarrage");
   }
 }
 ```
@@ -186,9 +186,9 @@ export class TasksService {
 ### 2.7 Controle dynamique des taches
 
 ```typescript
-import { Injectable } from '@nestjs/common';
-import { SchedulerRegistry } from '@nestjs/schedule';
-import { CronJob } from 'cron';
+import { Injectable } from "@nestjs/common";
+import { SchedulerRegistry } from "@nestjs/schedule";
+import { CronJob } from "cron";
 
 @Injectable()
 export class TasksService {
@@ -271,10 +271,10 @@ docker run -d --name redis -p 6379:6379 redis
 
 ```typescript
 // app.module.ts
-import { Module } from '@nestjs/common';
-import { BullModule } from '@nestjs/bull';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { EmailModule } from './email/email.module';
+import { Module } from "@nestjs/common";
+import { BullModule } from "@nestjs/bull";
+import { ConfigModule, ConfigService } from "@nestjs/config";
+import { EmailModule } from "./email/email.module";
 
 @Module({
   imports: [
@@ -284,18 +284,18 @@ import { EmailModule } from './email/email.module';
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
         redis: {
-          host: configService.get<string>('REDIS_HOST', 'localhost'),
-          port: configService.get<number>('REDIS_PORT', 6379),
-          password: configService.get<string>('REDIS_PASSWORD', undefined),
+          host: configService.get<string>("REDIS_HOST", "localhost"),
+          port: configService.get<number>("REDIS_PORT", 6379),
+          password: configService.get<string>("REDIS_PASSWORD", undefined),
         },
         defaultJobOptions: {
-          attempts: 3,           // 3 tentatives en cas d'echec
+          attempts: 3, // 3 tentatives en cas d'echec
           backoff: {
-            type: 'exponential', // Delai exponentiel entre les tentatives
-            delay: 1000,         // 1s, 2s, 4s, 8s...
+            type: "exponential", // Delai exponentiel entre les tentatives
+            delay: 1000, // 1s, 2s, 4s, 8s...
           },
           removeOnComplete: 100, // Garder les 100 derniers jobs completes
-          removeOnFail: 200,     // Garder les 200 derniers jobs echoues
+          removeOnFail: 200, // Garder les 200 derniers jobs echoues
         },
       }),
     }),
@@ -309,19 +309,19 @@ export class AppModule {}
 
 ```typescript
 // email/email.module.ts
-import { Module } from '@nestjs/common';
-import { BullModule } from '@nestjs/bull';
-import { EmailService } from './email.service';
-import { EmailProcessor } from './email.processor';
+import { Module } from "@nestjs/common";
+import { BullModule } from "@nestjs/bull";
+import { EmailService } from "./email.service";
+import { EmailProcessor } from "./email.processor";
 
 @Module({
   imports: [
     // Enregistrer la queue 'email'
     BullModule.registerQueue({
-      name: 'email',
+      name: "email",
       // Options specifiques a cette queue
       limiter: {
-        max: 10,       // Maximum 10 jobs traites
+        max: 10, // Maximum 10 jobs traites
         duration: 1000, // par seconde (rate limiting)
       },
     }),
@@ -336,9 +336,9 @@ export class EmailModule {}
 
 ```typescript
 // email/email.service.ts
-import { Injectable, Logger } from '@nestjs/common';
-import { InjectQueue } from '@nestjs/bull';
-import { Queue } from 'bull';
+import { Injectable, Logger } from "@nestjs/common";
+import { InjectQueue } from "@nestjs/bull";
+import { Queue } from "bull";
 
 // Types des donnees de job
 interface SendEmailJobData {
@@ -357,22 +357,22 @@ interface SendBulkEmailJobData {
 
 @Injectable()
 export class EmailService {
-  private readonly logger = new Logger('EmailService');
+  private readonly logger = new Logger("EmailService");
 
   constructor(
-    @InjectQueue('email')
+    @InjectQueue("email")
     private readonly emailQueue: Queue,
   ) {}
 
   // Ajouter un job d'envoi d'email
   async sendEmail(data: SendEmailJobData) {
-    const job = await this.emailQueue.add('send', data, {
+    const job = await this.emailQueue.add("send", data, {
       // Options specifiques a ce job
-      priority: 1,        // Priorite (1 = plus haute)
-      attempts: 5,         // 5 tentatives
+      priority: 1, // Priorite (1 = plus haute)
+      attempts: 5, // 5 tentatives
       backoff: {
-        type: 'exponential',
-        delay: 2000,       // 2s, 4s, 8s, 16s, 32s
+        type: "exponential",
+        delay: 2000, // 2s, 4s, 8s, 16s, 32s
       },
     });
 
@@ -382,19 +382,17 @@ export class EmailService {
 
   // Envoi differe (dans 30 minutes)
   async sendEmailLater(data: SendEmailJobData, delayMs: number) {
-    const job = await this.emailQueue.add('send', data, {
-      delay: delayMs,  // Delai en millisecondes
+    const job = await this.emailQueue.add("send", data, {
+      delay: delayMs, // Delai en millisecondes
     });
 
-    this.logger.log(
-      `Email programme dans ${delayMs / 1000}s : #${job.id}`,
-    );
+    this.logger.log(`Email programme dans ${delayMs / 1000}s : #${job.id}`);
     return { jobId: job.id };
   }
 
   // Envoi en masse
   async sendBulkEmail(data: SendBulkEmailJobData) {
-    const job = await this.emailQueue.add('sendBulk', data, {
+    const job = await this.emailQueue.add("sendBulk", data, {
       attempts: 3,
       timeout: 60000, // Timeout de 60 secondes pour les envois en masse
     });
@@ -409,9 +407,9 @@ export class EmailService {
   async sendWelcomeEmail(email: string, nom: string) {
     return this.sendEmail({
       to: email,
-      subject: 'Bienvenue sur notre plateforme !',
-      template: 'welcome',
-      context: { nom, loginUrl: 'https://example.com/login' },
+      subject: "Bienvenue sur notre plateforme !",
+      template: "welcome",
+      context: { nom, loginUrl: "https://example.com/login" },
     });
   }
 
@@ -419,11 +417,11 @@ export class EmailService {
   async sendPasswordResetEmail(email: string, token: string) {
     return this.sendEmail({
       to: email,
-      subject: 'Reinitialisation de votre mot de passe',
-      template: 'password-reset',
+      subject: "Reinitialisation de votre mot de passe",
+      template: "password-reset",
       context: {
         resetUrl: `https://example.com/reset?token=${token}`,
-        expiration: '1 heure',
+        expiration: "1 heure",
       },
     });
   }
@@ -432,7 +430,7 @@ export class EmailService {
   async getJobStatus(jobId: string) {
     const job = await this.emailQueue.getJob(jobId);
     if (!job) {
-      return { status: 'not_found' };
+      return { status: "not_found" };
     }
 
     const state = await job.getState();
@@ -473,17 +471,19 @@ import {
   OnQueueCompleted,
   OnQueueFailed,
   OnQueueStalled,
-} from '@nestjs/bull';
-import { Logger } from '@nestjs/common';
-import { Job } from 'bull';
+} from "@nestjs/bull";
+import { Logger } from "@nestjs/common";
+import { Job } from "bull";
 
-@Processor('email') // Le nom doit correspondre a la queue
+@Processor("email") // Le nom doit correspondre a la queue
 export class EmailProcessor {
-  private readonly logger = new Logger('EmailProcessor');
+  private readonly logger = new Logger("EmailProcessor");
 
   // Traiter les jobs de type 'send'
-  @Process('send')
-  async handleSendEmail(job: Job<{ to: string; subject: string; template: string; context: any }>) {
+  @Process("send")
+  async handleSendEmail(
+    job: Job<{ to: string; subject: string; template: string; context: any }>,
+  ) {
     this.logger.log(`Traitement du job #${job.id} : envoi a ${job.data.to}`);
 
     try {
@@ -515,8 +515,15 @@ export class EmailProcessor {
   }
 
   // Traiter les jobs de type 'sendBulk'
-  @Process('sendBulk')
-  async handleSendBulkEmail(job: Job<{ recipients: string[]; subject: string; template: string; context: any }>) {
+  @Process("sendBulk")
+  async handleSendBulkEmail(
+    job: Job<{
+      recipients: string[];
+      subject: string;
+      template: string;
+      context: any;
+    }>,
+  ) {
     const { recipients } = job.data;
     this.logger.log(
       `Envoi en masse : ${recipients.length} destinataires (Job #${job.id})`,
@@ -573,7 +580,7 @@ export class EmailProcessor {
     await new Promise((resolve) => setTimeout(resolve, 500));
     // 5% de chance d'echec pour tester les retries
     if (Math.random() < 0.05) {
-      throw new Error('Erreur SMTP simulee');
+      throw new Error("Erreur SMTP simulee");
     }
   }
 }
@@ -637,19 +644,19 @@ export class EmailProcessor {}
 
 ```typescript
 // Le job sera retente avec des delais croissants
-const job = await this.emailQueue.add('send', data, {
+const job = await this.emailQueue.add("send", data, {
   attempts: 5,
   backoff: {
-    type: 'exponential',
+    type: "exponential",
     delay: 1000, // Delais : 1s, 2s, 4s, 8s, 16s
   },
 });
 
 // Ou backoff fixe
-const job = await this.emailQueue.add('send', data, {
+const job = await this.emailQueue.add("send", data, {
   attempts: 3,
   backoff: {
-    type: 'fixed',
+    type: "fixed",
     delay: 5000, // Toujours 5 secondes entre les tentatives
   },
 });
@@ -682,11 +689,11 @@ async onFailed(job: Job, error: Error) {
 
 En pratique, l'objectif n'est pas d'avoir 0 echec, mais de **maitriser** les echecs.
 
-| Indicateur | Cible de depart | Seuil d'alerte |
-|---|---|---|
-| Taux de jobs en echec (15 min) | < 1% | > 5% |
-| Taille DLQ | proche de 0 | > 100 messages |
-| Age du plus vieux job en attente | < 60 s | > 300 s |
+| Indicateur                         | Cible de depart   | Seuil d'alerte |
+| ---------------------------------- | ----------------- | -------------- |
+| Taux de jobs en echec (15 min)     | < 1%              | > 5%           |
+| Taille DLQ                         | proche de 0       | > 100 messages |
+| Age du plus vieux job en attente   | < 60 s            | > 300 s        |
 | Temps moyen de traitement d'un job | stable (baseline) | x2 vs baseline |
 
 Ces seuils donnent une base de pilotage. Ils doivent etre ajustes selon le volume reel de votre application.
@@ -699,34 +706,31 @@ npm install @bull-board/express @bull-board/api
 
 ```typescript
 // main.ts
-import { createBullBoard } from '@bull-board/api';
-import { BullAdapter } from '@bull-board/api/bullAdapter';
-import { ExpressAdapter } from '@bull-board/express';
+import { createBullBoard } from "@bull-board/api";
+import { BullAdapter } from "@bull-board/api/bullAdapter";
+import { ExpressAdapter } from "@bull-board/express";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   // Recuperer les queues
-  const emailQueue = app.get<Queue>('BullQueue_email');
-  const reportQueue = app.get<Queue>('BullQueue_report');
+  const emailQueue = app.get<Queue>("BullQueue_email");
+  const reportQueue = app.get<Queue>("BullQueue_report");
 
   // Configurer Bull Board
   const serverAdapter = new ExpressAdapter();
-  serverAdapter.setBasePath('/admin/queues');
+  serverAdapter.setBasePath("/admin/queues");
 
   createBullBoard({
-    queues: [
-      new BullAdapter(emailQueue),
-      new BullAdapter(reportQueue),
-    ],
+    queues: [new BullAdapter(emailQueue), new BullAdapter(reportQueue)],
     serverAdapter,
   });
 
   // Monter l'interface
-  app.use('/admin/queues', serverAdapter.getRouter());
+  app.use("/admin/queues", serverAdapter.getRouter());
 
   await app.listen(3000);
-  console.log('Bull Board : http://localhost:3000/admin/queues');
+  console.log("Bull Board : http://localhost:3000/admin/queues");
 }
 ```
 
@@ -736,16 +740,16 @@ async function bootstrap() {
 
 ```typescript
 // reports/reports.module.ts
-import { Module } from '@nestjs/common';
-import { BullModule } from '@nestjs/bull';
-import { ReportsService } from './reports.service';
-import { ReportsProcessor } from './reports.processor';
-import { ReportsController } from './reports.controller';
+import { Module } from "@nestjs/common";
+import { BullModule } from "@nestjs/bull";
+import { ReportsService } from "./reports.service";
+import { ReportsProcessor } from "./reports.processor";
+import { ReportsController } from "./reports.controller";
 
 @Module({
   imports: [
     BullModule.registerQueue({
-      name: 'report',
+      name: "report",
     }),
   ],
   controllers: [ReportsController],
@@ -756,19 +760,22 @@ export class ReportsModule {}
 
 ```typescript
 // reports/reports.service.ts
-import { Injectable } from '@nestjs/common';
-import { InjectQueue } from '@nestjs/bull';
-import { Queue } from 'bull';
+import { Injectable } from "@nestjs/common";
+import { InjectQueue } from "@nestjs/bull";
+import { Queue } from "bull";
 
 @Injectable()
 export class ReportsService {
   constructor(
-    @InjectQueue('report')
+    @InjectQueue("report")
     private readonly reportQueue: Queue,
   ) {}
 
-  async generateReport(type: 'ventes' | 'utilisateurs' | 'produits', params: any) {
-    const job = await this.reportQueue.add('generate', {
+  async generateReport(
+    type: "ventes" | "utilisateurs" | "produits",
+    params: any,
+  ) {
+    const job = await this.reportQueue.add("generate", {
       type,
       params,
       requestedAt: new Date().toISOString(),
@@ -790,8 +797,8 @@ export class ReportsService {
       id: job.id,
       status: state,
       progress: job.progress(),
-      result: state === 'completed' ? job.returnvalue : undefined,
-      error: state === 'failed' ? job.failedReason : undefined,
+      result: state === "completed" ? job.returnvalue : undefined,
+      error: state === "failed" ? job.failedReason : undefined,
     };
   }
 }
@@ -799,15 +806,15 @@ export class ReportsService {
 
 ```typescript
 // reports/reports.processor.ts
-import { Processor, Process } from '@nestjs/bull';
-import { Logger } from '@nestjs/common';
-import { Job } from 'bull';
+import { Processor, Process } from "@nestjs/bull";
+import { Logger } from "@nestjs/common";
+import { Job } from "bull";
 
-@Processor('report')
+@Processor("report")
 export class ReportsProcessor {
-  private readonly logger = new Logger('ReportsProcessor');
+  private readonly logger = new Logger("ReportsProcessor");
 
-  @Process('generate')
+  @Process("generate")
   async handleGenerate(job: Job) {
     const { type, params } = job.data;
     this.logger.log(`Generation du rapport "${type}" (Job #${job.id})`);
@@ -817,13 +824,13 @@ export class ReportsProcessor {
     // Simulation de la generation (remplacer par la vraie logique)
     let data: any;
     switch (type) {
-      case 'ventes':
+      case "ventes":
         data = await this.generateSalesReport(params);
         break;
-      case 'utilisateurs':
+      case "utilisateurs":
         data = await this.generateUsersReport(params);
         break;
-      case 'produits':
+      case "produits":
         data = await this.generateProductsReport(params);
         break;
     }
@@ -846,7 +853,7 @@ export class ReportsProcessor {
 
   private async generateSalesReport(params: any) {
     await new Promise((r) => setTimeout(r, 5000));
-    return [{ mois: 'Janvier', total: 15000 }];
+    return [{ mois: "Janvier", total: 15000 }];
   }
 
   private async generateUsersReport(params: any) {
@@ -856,26 +863,26 @@ export class ReportsProcessor {
 
   private async generateProductsReport(params: any) {
     await new Promise((r) => setTimeout(r, 4000));
-    return [{ categorie: 'Tech', count: 45 }];
+    return [{ categorie: "Tech", count: 45 }];
   }
 }
 ```
 
 ```typescript
 // reports/reports.controller.ts
-import { Controller, Post, Get, Body, Param } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param } from "@nestjs/common";
 
-@Controller('reports')
+@Controller("reports")
 export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
 
-  @Post('generate')
+  @Post("generate")
   generate(@Body() body: { type: string; params: any }) {
     return this.reportsService.generateReport(body.type as any, body.params);
   }
 
-  @Get('status/:jobId')
-  getStatus(@Param('jobId') jobId: string) {
+  @Get("status/:jobId")
+  getStatus(@Param("jobId") jobId: string) {
     return this.reportsService.getStatus(jobId);
   }
 }
@@ -888,6 +895,7 @@ export class ReportsController {
 ### Exercice 1 : Taches planifiees
 
 Implementez :
+
 1. Un nettoyage quotidien des tokens de refresh expires
 2. Un rapport hebdomadaire par email du nombre de nouveaux utilisateurs
 3. Une vérification toutes les 5 minutes de la connectivite à la base de donnees
@@ -895,6 +903,7 @@ Implementez :
 ### Exercice 2 : Queue d'emails
 
 Implementez un système complet d'envoi d'emails avec :
+
 1. Queue pour les emails individuels
 2. Queue pour les emails en masse
 3. Retry avec backoff exponentiel
@@ -904,6 +913,7 @@ Implementez un système complet d'envoi d'emails avec :
 ### Exercice 3 : Traitement d'images
 
 Creez une queue de traitement d'images qui :
+
 1. Recoit une image uploadee
 2. Genere 3 tailles (thumbnail 100x100, medium 400x400, large 800x800)
 3. Met a jour la base de donnees avec les chemins des images
@@ -913,25 +923,26 @@ Creez une queue de traitement d'images qui :
 
 ## Liens
 
-| Ressource | Lien |
-|-----------|------|
-| Quiz Module 22 | `quiz/22-quiz.md` |
-| Lab Module 22 | `labs/22-lab-jobs-queues.md` |
-| Screencast | `screencasts/22-screencast.md` |
-| Module précédent | [Module 21 — WebSockets & Fichiers](21-nestjs-websockets-fichiers.md) |
-| Module suivant | [Module 23 — Performance & Déploiement](23-performance-deploiement.md) |
-| @nestjs/schedule | https://docs.nestjs.com/techniques/task-scheduling |
-| @nestjs/bull | https://docs.nestjs.com/techniques/queues |
-| Bull Documentation | https://optimalbits.github.io/bull/ |
-| BullMQ Documentation | https://docs.bullmq.io/ |
-| Bull Board | https://github.com/felixmosh/bull-board |
+| Ressource            | Lien                                                                   |
+| -------------------- | ---------------------------------------------------------------------- |
+| Quiz Module 22       | `quiz/22-quiz.md`                                                      |
+| Lab Module 22        | `labs/22-lab-jobs-queues.md`                                           |
+| Screencast           | `screencasts/22-screencast.md`                                         |
+| Module précédent     | [Module 21 — WebSockets & Fichiers](21-nestjs-websockets-fichiers.md)  |
+| Module suivant       | [Module 23 — Performance & Déploiement](23-performance-deploiement.md) |
+| @nestjs/schedule     | https://docs.nestjs.com/techniques/task-scheduling                     |
+| @nestjs/bull         | https://docs.nestjs.com/techniques/queues                              |
+| Bull Documentation   | https://optimalbits.github.io/bull/                                    |
+| BullMQ Documentation | https://docs.bullmq.io/                                                |
+| Bull Board           | https://github.com/felixmosh/bull-board                                |
 
 ---
 
 <!-- parcours-recommande -->
 
 ::: tip Parcours recommandé
+
 1. **Screencast** : [screencast 22 queues](../screencasts/screencast-22-queues.md)
 2. **Lab** : [lab-22-queues](../labs/lab-22-queues/README)
 3. **Quiz** : [quiz 22 queues](../quizzes/quiz-22-queues.html)
-:::
+   :::
