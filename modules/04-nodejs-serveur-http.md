@@ -1,860 +1,440 @@
-# Module 04 — Node.js — Serveur HTTP natif
-
-> **Objectif** : Créer un serveur HTTP complet avec le module natif `http` de Node.js, comprendre IncomingMessage et ServerResponse, implementer du routing manuel et construire une API REST complete — pour ensuite comprendre ce qu'Express abstrait.
->
-> **Difficulte** : ⭐⭐ (intermédiaire)
-
+---
+titre: Node.js serveur HTTP
+cours: 09-nestjs
+notions: [module http, createServer, objet request et response, méthodes et URL, routing manuel, codes de statut, en-têtes HTTP, lecture du body, réponse JSON, limites du http brut]
+outcomes: [créer un serveur HTTP avec le module http natif, router manuellement selon méthode/URL, lire un body et répondre en JSON, comprendre pourquoi Express existe]
+prerequis: [03-nodejs-streams-et-buffers]
+next: 05-express-fondamentaux
+libs: [{ name: node, version: "22" }]
+tribuzen: serveur HTTP brut d'une route TribuZen avant d'introduire Express/Nest
+last-reviewed: 2026-07
 ---
 
-## 1. Le module http de Node.js
+# Node.js serveur HTTP
 
-### 1.1 Créer un serveur minimal
+> **Outcomes — tu sauras FAIRE :** créer un serveur HTTP avec le module natif `http`, router manuellement selon la méthode et l'URL, lire un body JSON et répondre en JSON, comprendre pourquoi Express existe.
+> **Difficulté :** :star::star:
 
-```typescript
-import http from "http";
+## 1. Cas concret d'abord
 
-// Creer un serveur HTTP
+Tu rejoins TribuZen pour la première semaine. Le mobile React Native a besoin d'une route `GET /api/families` pour afficher les familles de l'utilisateur connecté. Pas d'Express, pas de NestJS — tu dois exposer cette route avec uniquement Node.js.
+
+Voici ce que tu écris, sans rien installer :
+
+```ts
+import http from 'node:http'
+
 const server = http.createServer((req, res) => {
-  // req = IncomingMessage (la requete du client)
-  // res = ServerResponse (la reponse a envoyer)
+  if (req.method === 'GET' && req.url === '/api/families') {
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ data: [] }))
+    return
+  }
+  res.writeHead(404, { 'Content-Type': 'application/json' })
+  res.end(JSON.stringify({ error: 'Route introuvable' }))
+})
 
-  res.writeHead(200, { "Content-Type": "text/plain" });
-  res.end("Hello World !");
-});
-
-// Ecouter sur le port 3000
-server.listen(3000, () => {
-  console.log("Serveur demarre sur http://localhost:3000");
-});
+server.listen(3000, () => console.log('http://localhost:3000'))
 ```
 
-> **Analogie** : `http.createServer()` c'est comme embaucher un receptionniste a l'entree d'un batiment. A chaque visiteur (requête), il regarde ce que le visiteur demandé (URL, méthode), decide quoi faire, et lui donne une réponse. Le `server.listen(3000)` c'est ouvrir la porte du batiment — le receptionniste commence a accueillir les visiteurs.
+Ça fonctionne. Mais quand tu ajoutes `POST /api/families`, tu découvres que `req.body` n'existe pas — le body arrive en morceaux via un stream et tu dois l'assembler manuellement. Quand tu atteins 5 routes, le `if/else` devient ingérable. Ce module explique pourquoi, puis montre ce qu'Express va régler.
 
-### 1.2 Anatomie du callback
+## 2. Théorie complète, concise
 
-Le callback de `createServer` recoit deux objets fondamentaux :
+### Le module `http`
 
-```typescript
+Node.js expose le module `http` en natif — aucun `npm install`. Import ESM avec le préfixe `node:` (recommandé depuis Node 14, préfixe obligatoire en Node 22 pour les modules built-in) :
+
+```ts
+import http from 'node:http'
+```
+
+### `createServer` — anatomie
+
+`http.createServer(requestListener)` enregistre un callback invoqué à chaque requête entrante. Il retourne un `http.Server`. La mise en écoute se fait avec `.listen(port[, callback])` :
+
+```ts
 const server = http.createServer((req, res) => {
-  // === req (IncomingMessage) — Ce que le client envoie ===
-  console.log(req.method); // 'GET', 'POST', 'PUT', etc.
-  console.log(req.url); // '/api/users?page=2'
-  console.log(req.headers); // { host: 'localhost:3000', ... }
-  console.log(req.headers["content-type"]); // 'application/json'
-  console.log(req.httpVersion); // '1.1'
+  // req = IncomingMessage  (Readable stream — ce que le client envoie)
+  // res = ServerResponse   (Writable stream — ce que tu renvoies)
+  res.writeHead(200)
+  res.end('ok')
+})
 
-  // === res (ServerResponse) — Ce que tu envoies au client ===
-  res.statusCode = 200; // Definir le status code
-  res.setHeader("Content-Type", "application/json"); // Definir un header
+// listen() est asynchrone — le callback est appelé quand la socket est ouverte
+server.listen(3000, () => {
+  console.log('Serveur en écoute sur le port 3000')
+})
+```
+
+### Objet `request` — `IncomingMessage`
+
+`IncomingMessage` étend `stream.Readable` (Node.js docs). Les propriétés disponibles dès réception des headers :
+
+```ts
+const server = http.createServer((req, res) => {
+  req.method      // 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | ...
+  req.url         // '/api/families?page=2' — inclut la query string
+  req.headers     // { 'content-type': 'application/json', host: 'localhost:3000', ... }
+  req.httpVersion // '1.1' ou '1.0'
+
+  // Le body N'EST PAS disponible directement sur req
+  // Il arrive en chunks via les événements 'data' et 'end' (voir section Lecture du body)
+})
+```
+
+Les noms de headers sont toujours en **minuscules** dans `req.headers` (normalisation HTTP/1.1).
+
+### Objet `response` — `ServerResponse`
+
+```ts
+const server = http.createServer((req, res) => {
+  // Option A — writeHead (status + headers en une instruction, retourne this pour chaînage)
   res.writeHead(200, {
-    // Status + headers en une fois
-    "Content-Type": "application/json",
-    "X-Custom-Header": "valeur",
-  });
-  res.write("partie 1"); // Ecrire une partie du body
-  res.write("partie 2"); // Ecrire une autre partie
-  res.end("fin"); // Terminer la reponse (obligatoire !)
-});
+    'Content-Type': 'application/json',
+    'X-Request-Id': crypto.randomUUID(),
+  })
+  res.end(JSON.stringify({ ok: true }))
+
+  // Option B — statusCode + setHeader (séparément, avant write/end)
+  res.statusCode = 200
+  res.setHeader('Content-Type', 'application/json')
+  res.end(JSON.stringify({ ok: true }))
+
+  // writeHead() prend précédence sur setHeader() si les deux définissent la même clé
+})
 ```
 
-> **Piege classique** : Tu DOIS toujours appeler `res.end()` pour terminer la réponse. Si tu oublies, le client reste en attente indefiniment (timeout). C'est le bug le plus courant des débutants avec le serveur HTTP natif.
+**`res.end()` est obligatoire dans tous les chemins d'exécution.** Sans appel à `end()`, la connexion HTTP reste ouverte et le client attend jusqu'au timeout.
 
----
+`writeHead()` doit être appelé **avant** `write()` ou `end()`. Modifier les headers après leur envoi lève `Error [ERR_HTTP_HEADERS_SENT]`.
 
-## 2. Routing manuel
+### Méthodes et URL
 
-### 2.1 Router selon l'URL et la méthode
+Le routing repose sur `req.method` et l'URL parsée. **Ne jamais comparer directement `req.url`** à une route fixe quand une query string est possible — utiliser l'API `URL` standard :
 
-```typescript
-import http from "http";
-
+```ts
 const server = http.createServer((req, res) => {
-  const { method, url } = req;
+  const { method } = req
 
-  // Definir les headers par defaut
-  res.setHeader("Content-Type", "application/json");
+  // req.url peut valoir '/api/families?page=2'
+  // new URL sépare le pathname des query params
+  const parsed = new URL(req.url!, `http://${req.headers.host}`)
+  const pathname = parsed.pathname                 // '/api/families'
+  const page = parsed.searchParams.get('page')    // '2' ou null
 
-  // Router les requetes
-  if (method === "GET" && url === "/") {
-    res.writeHead(200);
-    res.end(JSON.stringify({ message: "Bienvenue sur l'API" }));
-  } else if (method === "GET" && url === "/api/users") {
-    res.writeHead(200);
-    res.end(JSON.stringify({ users: [] }));
-  } else if (method === "POST" && url === "/api/users") {
-    // On traitera le body plus tard
-    res.writeHead(201);
-    res.end(JSON.stringify({ message: "Utilisateur cree" }));
-  } else {
-    res.writeHead(404);
-    res.end(JSON.stringify({ error: "Route introuvable" }));
+  if (method === 'GET' && pathname === '/api/families') {
+    // route matchée correctement, même avec query string
   }
-});
-
-server.listen(3000, () => {
-  console.log("Serveur sur http://localhost:3000");
-});
+})
 ```
 
-### 2.2 Extraire les paramètres d'URL
+### Routing manuel
 
-```typescript
-import http from "http";
+Routing par `if/else` sur `method` + `pathname`. Segments dynamiques (`/api/families/:id`) : regex avec groupe capturant.
 
+```ts
 const server = http.createServer((req, res) => {
-  const { method, url } = req;
-  res.setHeader("Content-Type", "application/json");
+  const { method } = req
+  const parsed = new URL(req.url!, `http://${req.headers.host}`)
+  const pathname = parsed.pathname
 
-  // Parser l'URL pour extraire le pathname et les query params
-  const parsedUrl = new URL(url, `http://${req.headers.host}`);
-  const pathname = parsedUrl.pathname; // '/api/users/42'
-  const searchParams = parsedUrl.searchParams;
+  // Route statique
+  if (method === 'GET' && pathname === '/api/families') { /* ... */ }
 
-  // Route avec parametre : /api/users/:id
-  const userMatch = pathname.match(/^\/api\/users\/(\d+)$/);
-
-  if (method === "GET" && pathname === "/api/users") {
-    // Query params : /api/users?page=2&limit=10
-    const page = parseInt(searchParams.get("page")) || 1;
-    const limit = parseInt(searchParams.get("limit")) || 10;
-
-    res.writeHead(200);
-    res.end(
-      JSON.stringify({
-        page,
-        limit,
-        users: [],
-      }),
-    );
-  } else if (method === "GET" && userMatch) {
-    const userId = parseInt(userMatch[1]);
-
-    res.writeHead(200);
-    res.end(
-      JSON.stringify({
-        id: userId,
-        nom: "Alice",
-        email: "alice@example.com",
-      }),
-    );
-  } else {
-    res.writeHead(404);
-    res.end(JSON.stringify({ error: "Route introuvable" }));
+  // Route avec paramètre dynamique
+  // ([^/]+) capture tout sauf '/' — retourne null si pas de match
+  const byId = pathname.match(/^\/api\/families\/([^/]+)$/)
+  if (method === 'GET' && byId) {
+    const familyId = byId[1]   // premier groupe capturant
+    // ...
   }
-});
-
-server.listen(3000);
+})
 ```
 
-> **A retenir** : La classe `URL` (API Web standard, disponible nativement en Node.js) est la meilleure façon de parser les URLs. `URLSearchParams` facilite l'acces aux query parameters. Pas besoin de librairie externe.
+### Codes de statut
 
----
+| Code | Signification HTTP |
+|------|--------------------|
+| 200  | OK |
+| 201  | Created |
+| 204  | No Content (DELETE réussi, body vide) |
+| 400  | Bad Request (body invalide, champ manquant) |
+| 404  | Not Found (route inconnue) |
+| 405  | Method Not Allowed (route connue, méthode refusée) |
+| 500  | Internal Server Error |
 
-## 3. Parser le body JSON
+`404` = route inconnue. `405` = route connue, méthode non autorisée. La distinction est indispensable pour diagnostiquer une API proprement.
 
-### 3.1 Le body arrive en chunks
+### En-têtes HTTP
 
-En HTTP natif, le body n'est PAS disponible directement sur `req.body`. Il arrive sous forme de **chunks** (morceaux) via les événements du stream `req` :
+`Content-Type` indique au client comment interpréter le body. Pour une API JSON, c'est toujours `application/json`. `Content-Length` est facultatif mais recommandé pour le keep-alive :
 
-```typescript
-import http from "http";
+```ts
+res.writeHead(200, {
+  'Content-Type': 'application/json',
+  'Content-Length': Buffer.byteLength(body),  // taille en octets, pas en caractères
+})
+```
 
-function parseJSON(req) {
+`Buffer.byteLength(string)` donne la taille en octets (indispensable pour UTF-8 où un caractère peut occuper plusieurs octets).
+
+### Lecture du body
+
+`IncomingMessage` est un `Readable`. Le body arrive en chunks `Buffer` via l'événement `'data'`, et se termine par `'end'`. Assembler avec `Buffer.concat` **avant** de décoder en UTF-8 :
+
+```ts
+function readBody(req: http.IncomingMessage): Promise<unknown> {
   return new Promise((resolve, reject) => {
-    const chunks = [];
+    const chunks: Buffer[] = []
 
-    req.on("data", (chunk) => {
-      chunks.push(chunk);
-    });
+    // Chaque 'data' est un Buffer — on accumule sans convertir en string
+    req.on('data', (chunk: Buffer) => chunks.push(chunk))
 
-    req.on("end", () => {
-      const raw = Buffer.concat(chunks).toString("utf-8");
+    req.on('end', () => {
+      // Assembler tous les octets, puis décoder en une seule passe
+      const raw = Buffer.concat(chunks).toString('utf-8')
+
+      // POST sans body → chaîne vide → JSON.parse('') lèverait SyntaxError
+      if (!raw) return resolve({})
+
       try {
-        const parsed = JSON.parse(raw);
-        resolve(parsed);
-      } catch (err) {
-        reject(new Error("JSON invalide"));
-      }
-    });
-
-    req.on("error", reject);
-  });
-}
-
-const server = http.createServer(async (req, res) => {
-  const { method, url } = req;
-  res.setHeader("Content-Type", "application/json");
-
-  if (method === "POST" && url === "/api/users") {
-    try {
-      const body = await parseJSON(req);
-      console.log("Body recu :", body);
-
-      // Validation basique
-      if (!body.nom || !body.email) {
-        res.writeHead(400);
-        res.end(JSON.stringify({ error: "nom et email requis" }));
-        return;
-      }
-
-      res.writeHead(201);
-      res.end(
-        JSON.stringify({
-          id: Date.now(),
-          nom: body.nom,
-          email: body.email,
-        }),
-      );
-    } catch (err) {
-      res.writeHead(400);
-      res.end(JSON.stringify({ error: err.message }));
-    }
-  } else {
-    res.writeHead(404);
-    res.end(JSON.stringify({ error: "Route introuvable" }));
-  }
-});
-
-server.listen(3000);
-```
-
-> **Analogie** : Parser le body en HTTP natif, c'est comme recevoir un colis par la poste en plusieurs paquets. Tu dois attendre d'avoir TOUS les paquets (`end`), les assembler (`Buffer.concat`), puis ouvrir le carton (`JSON.parse`). Express fait tout ça automatiquement avec `express.json()`.
-
----
-
-## 4. Status codes et headers
-
-### 4.1 Définir les headers correctement
-
-```typescript
-const server = http.createServer((req, res) => {
-  // Methode 1 : setHeader (un par un)
-  res.setHeader("Content-Type", "application/json");
-  res.setHeader("X-Request-Id", crypto.randomUUID());
-  res.setHeader("Cache-Control", "no-cache");
-  res.statusCode = 200;
-  res.end("{}");
-
-  // Methode 2 : writeHead (tout en une fois)
-  res.writeHead(200, {
-    "Content-Type": "application/json",
-    "X-Request-Id": crypto.randomUUID(),
-    "Cache-Control": "no-cache",
-  });
-  res.end("{}");
-});
-```
-
-### 4.2 Headers CORS
-
-```typescript
-function setCORSHeaders(res) {
-  res.setHeader("Access-Control-Allow-Origin", "http://localhost:4200");
-  res.setHeader(
-    "Access-Control-Allow-Methods",
-    "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-  );
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  res.setHeader("Access-Control-Max-Age", "86400"); // Cache preflight 24h
-}
-
-const server = http.createServer((req, res) => {
-  setCORSHeaders(res);
-
-  // Gerer le preflight OPTIONS
-  if (req.method === "OPTIONS") {
-    res.writeHead(204); // No Content
-    res.end();
-    return;
-  }
-
-  // ... suite du routing
-});
-```
-
-### 4.3 HEAD, OPTIONS et 405 Method Not Allowed
-
-Deux verbes HTTP sont souvent oublies alors qu'ils sont tres utiles en pratique :
-
-- `HEAD` : meme semantics que `GET`, mais **sans body** dans la reponse
-- `OPTIONS` : permet de declarer quelles methodes sont autorisees sur une ressource, et sert au **preflight CORS**
-
-```typescript
-const server = http.createServer((req, res) => {
-  setCORSHeaders(res);
-
-  if (req.url === "/api/users" && req.method === "GET") {
-    const body = JSON.stringify({ users: [] });
-    res.writeHead(200, {
-      "Content-Type": "application/json",
-      "Content-Length": Buffer.byteLength(body),
-    });
-    res.end(body);
-    return;
-  }
-
-  // HEAD: meme statut et memes headers que GET, mais pas de body
-  if (req.url === "/api/users" && req.method === "HEAD") {
-    res.writeHead(200, {
-      "Content-Type": "application/json",
-      "Content-Length": Buffer.byteLength(JSON.stringify({ users: [] })),
-    });
-    res.end();
-    return;
-  }
-
-  // OPTIONS: decrire les methodes supportees
-  if (req.url === "/api/users" && req.method === "OPTIONS") {
-    res.writeHead(204, {
-      Allow: "GET, HEAD, POST, OPTIONS",
-    });
-    res.end();
-    return;
-  }
-
-  // Meme ressource, methode inconnue -> 405
-  if (req.url === "/api/users") {
-    res.writeHead(405, {
-      Allow: "GET, HEAD, POST, OPTIONS",
-      "Content-Type": "application/json",
-    });
-    res.end(JSON.stringify({ error: "Method Not Allowed" }));
-    return;
-  }
-});
-```
-
-> **A retenir** : `404` signifie "route inconnue". `405` signifie "route connue, mais methode non autorisee". C'est une distinction importante pour diagnostiquer une API proprement.
-
-### 4.4 Methodes safe et idempotentes
-
-| Methode   | Safe ? | Idempotente ? | Usage typique                        |
-| --------- | ------ | ------------- | ------------------------------------ |
-| `GET`     | Oui    | Oui           | Lire une ressource                   |
-| `HEAD`    | Oui    | Oui           | Lire les headers/metadonnees         |
-| `OPTIONS` | Oui    | Oui           | Decouvrir les methodes supportees    |
-| `POST`    | Non    | Non           | Creer / declencher une action        |
-| `PUT`     | Non    | Oui           | Remplacer completement une ressource |
-| `PATCH`   | Non    | Pas toujours  | Modifier partiellement une ressource |
-| `DELETE`  | Non    | Oui           | Supprimer une ressource              |
-
-> **Nuance utile** : `PATCH` n'est pas garanti idempotent. Il peut l'etre si votre implementation remplace un champ par une valeur donnee, mais pas si elle applique une operation comme `incrementer de 1`.
-
-### 4.5 TRACE et CONNECT — A connaitre, rarement a implementer
-
-Deux autres verbes HTTP existent mais sont beaucoup moins utilises dans les APIs metier classiques :
-
-- `TRACE` : demande au serveur de **renvoyer la requete telle qu'il l'a recu**
-- `CONNECT` : demande l'ouverture d'un **tunnel** vers une destination, surtout pour les proxies HTTP
-
-```typescript
-const server = http.createServer((req, res) => {
-  // TRACE: utile pour diagnostic bas niveau, souvent desactive pour securite
-  if (req.method === "TRACE") {
-    res.writeHead(405, {
-      Allow: "GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS",
-      "Content-Type": "application/json",
-    });
-    res.end(JSON.stringify({ error: "TRACE desactive" }));
-    return;
-  }
-
-  // CONNECT: reserve aux serveurs proxy / tunnels, pas aux APIs applicatives classiques
-  if (req.method === "CONNECT") {
-    res.writeHead(501, {
-      "Content-Type": "application/json",
-    });
-    res.end(JSON.stringify({ error: "CONNECT non implemente" }));
-    return;
-  }
-});
-```
-
-| Methode   | Usage reel            | Dans une API applicative ?         |
-| --------- | --------------------- | ---------------------------------- |
-| `TRACE`   | Debug HTTP bas niveau | En general non, souvent desactive  |
-| `CONNECT` | Proxy / tunnel HTTPS  | Non, sauf serveur proxy specialise |
-
-> **Securite** : `TRACE` est souvent desactive pour eviter certaines fuites d'information. `CONNECT` ne doit pas etre implemente a la legere : ouvrir un tunnel arbitraire transforme votre serveur en proxy potentiel.
-
----
-
-## 5. Servir des fichiers statiques
-
-```typescript
-import http from "http";
-import { createReadStream, existsSync, statSync } from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PUBLIC_DIR = path.join(__dirname, "public");
-
-// Map des types MIME
-const MIME_TYPES = {
-  ".html": "text/html",
-  ".css": "text/css",
-  ".js": "application/javascript",
-  ".json": "application/json",
-  ".png": "image/png",
-  ".jpg": "image/jpeg",
-  ".gif": "image/gif",
-  ".svg": "image/svg+xml",
-  ".ico": "image/x-icon",
-  ".txt": "text/plain",
-  ".pdf": "application/pdf",
-};
-
-const server = http.createServer((req, res) => {
-  // Securite : empecher le path traversal (../../etc/passwd)
-  const safePath = path.normalize(req.url).replace(/^(\.\.[\/\\])+/, "");
-  let filePath = path.join(PUBLIC_DIR, safePath);
-
-  // Si l'URL est '/', servir index.html
-  if (safePath === "/" || safePath === "\\") {
-    filePath = path.join(PUBLIC_DIR, "index.html");
-  }
-
-  // Verifier que le fichier existe
-  if (!existsSync(filePath) || !statSync(filePath).isFile()) {
-    res.writeHead(404, { "Content-Type": "text/plain" });
-    res.end("404 Not Found");
-    return;
-  }
-
-  // Determiner le Content-Type
-  const ext = path.extname(filePath);
-  const contentType = MIME_TYPES[ext] || "application/octet-stream";
-
-  // Streamer le fichier
-  res.writeHead(200, { "Content-Type": contentType });
-  createReadStream(filePath).pipe(res);
-});
-
-server.listen(3000, () => {
-  console.log("Serveur statique sur http://localhost:3000");
-});
-```
-
-> **Piege classique** : Ne sers JAMAIS de fichiers statiques sans vérifier le chemin. Un attaquant pourrait envoyer `GET /../../../etc/passwd` pour lire des fichiers sensibles sur ton serveur. Toujours normaliser le chemin et vérifier qu'il reste dans le dossier public.
-
----
-
-## 6. Construire une API REST complete
-
-### 6.1 Le projet : API de gestion de taches (Todo)
-
-```typescript
-import http from "http";
-import crypto from "crypto";
-
-// === Base de donnees en memoire ===
-let todos = [
-  {
-    id: "1",
-    title: "Apprendre Node.js",
-    completed: false,
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: "2",
-    title: "Construire une API",
-    completed: false,
-    createdAt: new Date().toISOString(),
-  },
-];
-
-// === Utilitaires ===
-function parseJSON(req) {
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    req.on("data", (chunk) => chunks.push(chunk));
-    req.on("end", () => {
-      const raw = Buffer.concat(chunks).toString("utf-8");
-      if (!raw) return resolve({});
-      try {
-        resolve(JSON.parse(raw));
+        resolve(JSON.parse(raw))
       } catch {
-        reject(new Error("JSON invalide"));
+        reject(new Error('Body JSON invalide'))
       }
-    });
-    req.on("error", reject);
-  });
+    })
+
+    req.on('error', reject)
+  })
+}
+```
+
+### Réponse JSON
+
+Pattern standard : `JSON.stringify`, `Content-Type: application/json`, `res.end()`. Centraliser en helper évite de répéter les headers sur chaque route :
+
+```ts
+function sendJSON(
+  res: http.ServerResponse,
+  status: number,
+  data: unknown,
+): void {
+  const body = JSON.stringify(data)
+  res.writeHead(status, { 'Content-Type': 'application/json' })
+  res.end(body)
+  // Toujours via sendJSON — garantit que end() est appelé dans tous les chemins
+}
+```
+
+### Limites du `http` brut
+
+| Besoin | HTTP natif | Express / NestJS |
+|--------|-----------|-----------------|
+| Routing méthode + URL | `if/else` verbose | `app.get('/path', handler)` |
+| Paramètres de route | Regex manuelle | `req.params.id` |
+| Parsing body JSON | `readBody()` à écrire | `express.json()` middleware |
+| Query string | `new URL(...).searchParams` | `req.query` |
+| Middleware chainable | Pas de mécanisme natif | `app.use(fn)` |
+| Gestion d'erreur centralisée | `try/catch` dans chaque handler | Error middleware dédié |
+
+## 3. Worked examples
+
+### Exemple A — `GET` et `POST /api/families` pour TribuZen
+
+```ts
+// server.ts — Node.js 22, aucune dépendance
+import http from 'node:http'
+import crypto from 'node:crypto'
+
+type Family = { id: string; name: string; createdAt: string }
+const families: Family[] = [
+  { id: 'fam-seed', name: 'Dupont', createdAt: new Date().toISOString() },
+]
+
+// Helper : un seul endroit pour écrire Content-Type + end
+function sendJSON(res: http.ServerResponse, status: number, data: unknown): void {
+  const body = JSON.stringify(data)
+  res.writeHead(status, { 'Content-Type': 'application/json' })
+  res.end(body)
 }
 
-function sendJSON(res, statusCode, data) {
-  res.writeHead(statusCode, { "Content-Type": "application/json" });
-  res.end(JSON.stringify(data));
+// Helper : body arrive en stream — assembler avant de parser
+function readBody(req: http.IncomingMessage): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = []
+    req.on('data', (c: Buffer) => chunks.push(c))
+    req.on('end', () => {
+      const raw = Buffer.concat(chunks).toString('utf-8')
+      if (!raw) return resolve({})
+      try { resolve(JSON.parse(raw)) }
+      catch { reject(new Error('Body JSON invalide')) }
+    })
+    req.on('error', reject)
+  })
 }
 
-function parseUrl(req) {
-  return new URL(req.url, `http://${req.headers.host}`);
-}
-
-// === Handlers ===
-function getAllTodos(req, res) {
-  const url = parseUrl(req);
-  const completed = url.searchParams.get("completed");
-
-  let result = [...todos];
-
-  if (completed !== null) {
-    result = result.filter((t) => t.completed === (completed === "true"));
-  }
-
-  sendJSON(res, 200, {
-    data: result,
-    total: result.length,
-  });
-}
-
-function getTodoById(res, id) {
-  const todo = todos.find((t) => t.id === id);
-
-  if (!todo) {
-    sendJSON(res, 404, { error: `Todo ${id} introuvable` });
-    return;
-  }
-
-  sendJSON(res, 200, { data: todo });
-}
-
-async function createTodo(req, res) {
-  try {
-    const body = await parseJSON(req);
-
-    if (
-      !body.title ||
-      typeof body.title !== "string" ||
-      body.title.trim() === ""
-    ) {
-      sendJSON(res, 400, {
-        error: 'Le champ "title" est requis et doit etre une chaine non vide',
-      });
-      return;
-    }
-
-    const newTodo = {
-      id: crypto.randomUUID(),
-      title: body.title.trim(),
-      completed: false,
-      createdAt: new Date().toISOString(),
-    };
-
-    todos.push(newTodo);
-    sendJSON(res, 201, { data: newTodo });
-  } catch (err) {
-    sendJSON(res, 400, { error: err.message });
-  }
-}
-
-async function updateTodo(req, res, id) {
-  const index = todos.findIndex((t) => t.id === id);
-
-  if (index === -1) {
-    sendJSON(res, 404, { error: `Todo ${id} introuvable` });
-    return;
-  }
-
-  try {
-    const body = await parseJSON(req);
-
-    if (body.title !== undefined) {
-      if (typeof body.title !== "string" || body.title.trim() === "") {
-        sendJSON(res, 400, { error: '"title" doit etre une chaine non vide' });
-        return;
-      }
-      todos[index].title = body.title.trim();
-    }
-
-    if (body.completed !== undefined) {
-      if (typeof body.completed !== "boolean") {
-        sendJSON(res, 400, { error: '"completed" doit etre un booleen' });
-        return;
-      }
-      todos[index].completed = body.completed;
-    }
-
-    sendJSON(res, 200, { data: todos[index] });
-  } catch (err) {
-    sendJSON(res, 400, { error: err.message });
-  }
-}
-
-function deleteTodo(res, id) {
-  const index = todos.findIndex((t) => t.id === id);
-
-  if (index === -1) {
-    sendJSON(res, 404, { error: `Todo ${id} introuvable` });
-    return;
-  }
-
-  todos.splice(index, 1);
-  sendJSON(res, 204, null); // 204 No Content
-}
-
-// === Router ===
 const server = http.createServer(async (req, res) => {
-  const { method } = req;
-  const url = parseUrl(req);
-  const pathname = url.pathname;
-
-  // CORS
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader(
-    "Access-Control-Allow-Methods",
-    "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-  );
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-
-  if (method === "OPTIONS") {
-    res.writeHead(204);
-    res.end();
-    return;
-  }
-
-  // Log de la requete
-  const start = Date.now();
+  const { method } = req
+  // Extraire pathname pour ne pas être trompé par la query string
+  const parsed = new URL(req.url!, `http://${req.headers.host}`)
+  const pathname = parsed.pathname
 
   try {
-    // GET /api/todos
-    if (method === "GET" && pathname === "/api/todos") {
-      getAllTodos(req, res);
+    // GET /api/families → lister
+    if (method === 'GET' && pathname === '/api/families') {
+      sendJSON(res, 200, { data: families })
+      return  // return obligatoire : évite de "tomber" dans le if suivant
     }
-    // GET /api/todos/:id
-    else if (method === "GET" && pathname.match(/^\/api\/todos\/[\w-]+$/)) {
-      const id = pathname.split("/").pop();
-      getTodoById(res, id);
+
+    // POST /api/families → créer
+    if (method === 'POST' && pathname === '/api/families') {
+      const body = await readBody(req) as Record<string, unknown>
+
+      if (typeof body.name !== 'string' || !body.name.trim()) {
+        sendJSON(res, 400, { error: 'Le champ "name" est requis' })
+        return
+      }
+
+      const family: Family = {
+        id: crypto.randomUUID(),
+        name: body.name.trim(),
+        createdAt: new Date().toISOString(),
+      }
+      families.push(family)
+      sendJSON(res, 201, { data: family })
+      return
     }
-    // POST /api/todos
-    else if (method === "POST" && pathname === "/api/todos") {
-      await createTodo(req, res);
-    }
-    // PATCH /api/todos/:id
-    else if (method === "PATCH" && pathname.match(/^\/api\/todos\/[\w-]+$/)) {
-      const id = pathname.split("/").pop();
-      await updateTodo(req, res, id);
-    }
-    // DELETE /api/todos/:id
-    else if (method === "DELETE" && pathname.match(/^\/api\/todos\/[\w-]+$/)) {
-      const id = pathname.split("/").pop();
-      deleteTodo(res, id);
-    }
-    // 404
-    else {
-      sendJSON(res, 404, { error: `Route ${method} ${pathname} introuvable` });
-    }
+
+    // Aucune route
+    sendJSON(res, 404, { error: `${method} ${pathname} — route inconnue` })
+
   } catch (err) {
-    console.error("Erreur serveur :", err);
-    sendJSON(res, 500, { error: "Erreur interne du serveur" });
+    // readBody rejette si le JSON est malformé → 400 plutôt que 500
+    const message = err instanceof Error ? err.message : 'Erreur interne'
+    const status = message === 'Body JSON invalide' ? 400 : 500
+    sendJSON(res, status, { error: message })
+  }
+})
+
+server.listen(3000, () => console.log('TribuZen HTTP brut → http://localhost:3000'))
+```
+
+**Pas-à-pas :**
+1. `new URL(req.url!, ...)` — sans ça, `req.url === '/api/families?page=2'` ne matche jamais `'/api/families'`. La base `http://...` est requise par `new URL` pour les URLs relatives.
+2. `readBody` accumule des `Buffer` (pas des strings) — `Buffer.concat` puis `.toString('utf-8')` une seule fois. Concaténer des strings peut corrompre les caractères UTF-8 multi-octets (accents, emoji) si un chunk coupe un caractère en deux.
+3. `sendJSON` centralise `writeHead` + `end` — chaque chemin d'exécution passe par lui. Impossible d'oublier `Content-Type` ou `end()`.
+4. Le handler est `async` — `createServer` supporte les callbacks async. Sans `try/catch`, une erreur dans le handler async fermerait la connexion sans répondre au client.
+5. Chaque branche se termine par `return` après `sendJSON` — sans `return`, l'exécution continuerait vers le `404` en bas.
+
+### Exemple B — Route avec paramètre dynamique
+
+```ts
+// Ajout à l'exemple A : GET /api/families/:id
+const server = http.createServer((req, res) => {
+  const { method } = req
+  const parsed = new URL(req.url!, `http://${req.headers.host}`)
+  const pathname = parsed.pathname
+
+  function send(status: number, data: unknown): void {
+    res.writeHead(status, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify(data))
   }
 
-  const duration = Date.now() - start;
-  console.log(`${method} ${pathname} → ${res.statusCode} (${duration}ms)`);
-});
+  // Regex : capture tout segment non-vide après /api/families/
+  // null si le pathname ne matche pas le pattern
+  const byId = pathname.match(/^\/api\/families\/([^/]+)$/)
 
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`API Todo sur http://localhost:${PORT}`);
-  console.log("Endpoints :");
-  console.log("  GET    /api/todos");
-  console.log("  GET    /api/todos/:id");
-  console.log("  POST   /api/todos");
-  console.log("  PATCH  /api/todos/:id");
-  console.log("  DELETE /api/todos/:id");
-});
-```
+  if (method === 'GET' && byId) {
+    const id = byId[1]                        // premier groupe capturant
+    const found = families.find(f => f.id === id)
 
-### 6.2 Tester l'API avec curl ou Postman
-
-```bash
-# Lister toutes les taches
-curl http://localhost:3000/api/todos
-
-# Recuperer une tache
-curl http://localhost:3000/api/todos/1
-
-# Creer une tache
-curl -X POST http://localhost:3000/api/todos \
-  -H "Content-Type: application/json" \
-  -d '{"title": "Nouvelle tache"}'
-
-# Modifier une tache
-curl -X PATCH http://localhost:3000/api/todos/1 \
-  -H "Content-Type: application/json" \
-  -d '{"completed": true}'
-
-# Supprimer une tache
-curl -X DELETE http://localhost:3000/api/todos/1
-
-# Filtrer les taches completees
-curl "http://localhost:3000/api/todos?completed=true"
-```
-
----
-
-## 7. Gestion des erreurs
-
-### 7.1 Erreurs dans le handler
-
-```typescript
-const server = http.createServer(async (req, res) => {
-  try {
-    // ... routing et logique
-  } catch (err) {
-    // Erreur inattendue — toujours renvoyer une reponse
-    console.error("Erreur non geree :", err);
-
-    if (!res.headersSent) {
-      res.writeHead(500, { "Content-Type": "application/json" });
-      res.end(
-        JSON.stringify({
-          error: "Erreur interne du serveur",
-          // En developpement, inclure le message d'erreur
-          ...(process.env.NODE_ENV !== "production" && {
-            details: err.message,
-          }),
-        }),
-      );
+    if (!found) {
+      // 404 : la route existe (/api/families/:id) mais CET id n'est pas en base
+      send(404, { error: `Famille "${id}" introuvable` })
+      return
     }
+
+    send(200, { data: found })
+    return
   }
-});
+
+  send(404, { error: 'Route inconnue' })
+})
 ```
 
-### 7.2 Erreurs du serveur
+**Pas-à-pas :**
+1. `([^/]+)` capture un ou plusieurs caractères non-`/` — correspond à des UUID, des slugs, des nombres. `pathname.match(...)` retourne `null` si pas de match → la branche `if (method === 'GET' && byId)` ne s'exécute pas.
+2. `byId[1]` est l'id brut — toujours valider ou typer avant d'utiliser dans une requête DB.
+3. La distinction 404 "route inconnue" vs 404 "ressource introuvable" est sémantiquement juste en HTTP. Le message d'erreur doit rester clair pour le client de l'API.
 
-```typescript
-// Erreur au niveau du serveur (pas une requete specifique)
-server.on("error", (err) => {
-  if (err.code === "EADDRINUSE") {
-    console.error(
-      `Le port ${PORT} est deja utilise. Change de port ou arrete le processus existant.`,
-    );
-    process.exit(1);
-  }
-  console.error("Erreur serveur :", err);
-});
+## 4. Pièges & misconceptions
 
-// Erreur de connexion client
-server.on("clientError", (err, socket) => {
-  if (err.code === "ECONNRESET" || !socket.writable) return;
-  socket.end("HTTP/1.1 400 Bad Request\r\n\r\n");
-});
+**`req.body` n'existe pas en HTTP natif.**
+C'est une abstraction d'Express (`express.json()` middleware). En HTTP natif, accéder à `(req as any).body` retourne toujours `undefined`. Le body arrive en stream via les événements `'data'` / `'end'` de l'`IncomingMessage`. *Correct* : `readBody(req)` avec `Buffer.concat`.
+
+**Oublier `res.end()` — le client attend indéfiniment.**
+Si un handler retourne sans appeler `res.end()`, la connexion HTTP reste ouverte. Le navigateur ou le client API affiche un spinner jusqu'au timeout réseau. *Correct* : passer par un helper `sendJSON` qui garantit `end()` dans tous les cas.
+
+**Comparer `req.url === '/api/families'` quand une query string est possible.**
+`req.url` contient la chaîne complète : `'/api/families?page=2'`. La comparaison stricte échoue. *Correct* : `new URL(req.url!, base).pathname` avant de comparer.
+
+**Appeler `res.writeHead()` ou `res.setHeader()` après `res.write()` / `res.end()`.**
+Lève `Error [ERR_HTTP_HEADERS_SENT]`. Se produit typiquement quand on oublie un `return` après `sendJSON()` et que le code continue à écrire. *Correct* : toujours `return` immédiatement après chaque `sendJSON()` ou `res.end()`.
+
+**Concaténer les chunks en string avec `+=`.**
+`body += chunk` fonctionne pour de l'ASCII pur, mais corrompt les caractères UTF-8 multi-octets (emoji, accents) si un chunk coupe un caractère entre deux octets. *Correct* : tableau de `Buffer[]`, puis `Buffer.concat(chunks).toString('utf-8')` une seule fois à la fin du stream.
+
+**`JSON.parse('')` lève une `SyntaxError`.**
+Un POST sans body donne `raw === ''` et `JSON.parse('')` plante. *Correct* : `if (!raw) return resolve({})` avant de parser — voir `readBody` en section 2.
+
+## 5. Ancrage TribuZen
+
+Couche fil-rouge : **serveur HTTP brut d'une route TribuZen avant d'introduire Express/Nest** (`smaurier/tribuzen`).
+
+Ce serveur est la couche zéro — celle qu'Express puis NestJS remplacent. Son rôle pédagogique est de rendre visible ce que les frameworks font en coulisses :
+
+- `express.json()` = exactement `readBody()` de ce module (events `data`/`end`, `Buffer.concat`, `JSON.parse`)
+- `res.json(data)` = exactement `sendJSON(res, 200, data)`
+- `req.params.id` = exactement `pathname.match(/([^/]+)$/)[1]`
+- `app.get('/path', handler)` = un `if (method === 'GET' && pathname === '/path')` plus concis
+
+Fichier cible dans `smaurier/tribuzen` (couche d'apprentissage, pas de production) :
+
+```
+tribuzen/
+  scratch/
+    04-http-brut/
+      server.ts    ← Exemple A de ce module (GET + POST /api/families)
 ```
 
----
+Au module 05 (Express), la même route `GET /api/families` sera réécrite en 4 lignes avec `app.get(...)`. L'écart de code illustre concrètement ce qu'un framework apporte. Au module 07 (NestJS), un `@Controller('families')` + `@Get()` remplacera le tout.
 
-## 8. Ce qu'Express va abstraire
+## 6. Points clés
 
-Maintenant que tu as construit une API complete avec le module HTTP natif, voici ce qu'Express va simplifier :
+1. `http.createServer(callback)` + `server.listen(port)` — deux lignes suffisent pour un serveur HTTP Node.js, zéro dépendance.
+2. `req` est un `IncomingMessage` (Readable) — `method`, `url`, `headers` disponibles directement ; le body doit être collecté via `data`/`end`.
+3. `req.url` inclut la query string — utiliser `new URL(req.url!, base).pathname` avant de comparer des routes.
+4. `res` est un `ServerResponse` (Writable) — `writeHead(status, headers)` puis `end(body)` ; `end()` est obligatoire.
+5. `writeHead()` doit précéder `write()` et `end()` — modifier les headers après envoi lève `ERR_HTTP_HEADERS_SENT`.
+6. Routing manuel = `if/else` sur `method` + `pathname` + regex avec groupe capturant pour les segments dynamiques.
+7. Codes à mémoriser : 200, 201, 204, 400, 404, 405, 500. `404` = route inconnue ; `405` = méthode refusée sur route connue.
+8. `Buffer.concat(chunks).toString('utf-8')` est le pattern correct pour assembler un body stream — ne pas concaténer des strings directement.
+9. Le module `http` brut est la fondation d'Express, Fastify, Koa et NestJS — comprendre ce niveau permet de debugger ce que les abstractions cachent.
 
-| Avec HTTP natif                                 | Avec Express                                       |
-| ----------------------------------------------- | -------------------------------------------------- |
-| `if (method === 'GET' && url === '/api/users')` | `app.get('/api/users', handler)`                   |
-| `parseJSON(req)` (fonction manuelle)            | `express.json()` (middleware)                      |
-| `sendJSON(res, 200, data)`                      | `res.json(data)`                                   |
-| Regex pour les paramètres d'URL                 | `app.get('/api/users/:id', ...)` → `req.params.id` |
-| `new URL(url).searchParams`                     | `req.query`                                        |
-| CORS manuel                                     | `app.use(cors())`                                  |
-| Error handling try/catch partout                | Error-handling middleware                          |
-| Pas de middleware                               | `app.use(middleware)` chainable                    |
+## 7. Seeds Anki
 
-```typescript
-// === HTTP natif : 80+ lignes pour un CRUD basique ===
-if (method === "GET" && pathname === "/api/todos") {
-  res.writeHead(200, { "Content-Type": "application/json" });
-  res.end(JSON.stringify(todos));
-} else if (method === "GET" && pathname.match(/^\/api\/todos\/(\d+)$/)) {
-  const id = pathname.match(/^\/api\/todos\/(\d+)$/)[1];
-  const todo = todos.find((t) => t.id === id);
-  if (!todo) {
-    res.writeHead(404, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Not found" }));
-    return;
-  }
-  res.writeHead(200, { "Content-Type": "application/json" });
-  res.end(JSON.stringify(todo));
-}
-
-// === Express : 10 lignes pour la meme chose ===
-app.get("/api/todos", (req, res) => {
-  res.json(todos);
-});
-
-app.get("/api/todos/:id", (req, res) => {
-  const todo = todos.find((t) => t.id === req.params.id);
-  if (!todo) return res.status(404).json({ error: "Not found" });
-  res.json(todo);
-});
+```
+Pourquoi req.body est-il undefined en HTTP natif Node.js ?|Il n'existe pas — c'est une abstraction d'Express. Le body arrive via les événements data/end de IncomingMessage (Readable). Il faut le collecter avec Buffer.concat(chunks) puis JSON.parse.
+Que se passe-t-il si on oublie res.end() dans un handler HTTP ?|La connexion reste ouverte indéfiniment. Le client attend jusqu'au timeout. res.end() est obligatoire pour terminer la réponse.
+Pourquoi comparer req.url === '/api/families' est souvent faux ?|req.url inclut la query string : '/api/families?page=2'. Il faut extraire le pathname via new URL(req.url, base).pathname avant de comparer.
+Quelle erreur lève-t-on en appelant res.setHeader() après res.end() ?|Error [ERR_HTTP_HEADERS_SENT] — les headers ont déjà été envoyés. Toujours return immédiatement après res.end() ou sendJSON().
+Quelle est la différence entre un 404 et un 405 ?|404 = route inconnue (ni la ressource ni le chemin n'existent). 405 = route connue mais méthode non autorisée (ex DELETE sur /api/families si seul GET/POST sont supportés).
+Comment lire un body JSON en HTTP natif Node.js ?|Collecter les Buffer via req.on('data', c => chunks.push(c)), attendre req.on('end'), puis Buffer.concat(chunks).toString('utf-8') et JSON.parse.
+Pourquoi Buffer.concat(chunks) plutôt que body += chunk ?|Concaténer des strings peut couper un caractère UTF-8 multi-octets entre deux chunks et corrompre le texte. Buffer.concat assemble les octets bruts avant de décoder en UTF-8 une seule fois.
+Dans quel ordre appeler writeHead, write et end sur ServerResponse ?|1. writeHead(status, headers) — optionnel si on utilise setHeader+statusCode. 2. write(chunk) — facultatif, plusieurs fois. 3. end(body) — obligatoire et terminal.
 ```
 
-> **A retenir** : Construire une API avec le module HTTP natif est un excellent exercice pedagogique. Tu comprends exactement ce qui se passe à chaque étape. Mais en production, utilise Express (où NestJS) — le code natif est trop verbeux, fragile et difficile a maintenir pour une vraie application.
+## Pont vers le lab
 
----
-
-## 9. Exercices pratiques
-
-### Exercice 1 — Serveur de fichiers statiques ameliore
-
-Ameliore le serveur de fichiers statiques de la section 5 avec :
-
-- Un cache `Cache-Control` de 1 heure pour les fichiers statiques
-- Le support du header `If-Modified-Since` / `304 Not Modified`
-- Un listing des fichiers si l'URL pointe vers un dossier
-
-### Exercice 2 — API de notes avec persistance fichier
-
-Cree une API REST de notes (`GET`, `POST`, `PUT`, `DELETE`) qui sauvegarde les donnees dans un fichier `notes.json` au lieu de la mémoire.
-
-### Exercice 3 — Proxy HTTP simple
-
-Cree un serveur qui agit comme proxy : il recoit les requêtes du client, les transmet à un autre serveur (ex: `jsonplaceholder.typicode.com`), et renvoie la réponse.
-
-### Exercice 4 — Middleware maison
-
-Implemente un système de middleware basic (tableau de fonctions executees dans l'ordre avant le handler) pour simuler le fonctionnement d'Express.
-
----
-
-## 10. Résumé — Les concepts clés
-
-| Concept                   | Definition                                         |
-| ------------------------- | -------------------------------------------------- |
-| **http.createServer**     | Cree un serveur HTTP qui ecoute les requêtes       |
-| **IncomingMessage (req)** | Objet representant la requête du client            |
-| **ServerResponse (res)**  | Objet pour construire et envoyer la réponse        |
-| **res.writeHead**         | Définir le status code et les headers              |
-| **res.end**               | Terminer la réponse (OBLIGATOIRE)                  |
-| **Routing manuel**        | if/else ou switch/case sur method + URL            |
-| **Parsing du body**       | Collecter les chunks et JSON.parse                 |
-| **URL/URLSearchParams**   | API standard pour parser les URLs                  |
-| **CORS**                  | Headers nécessaires pour les requêtes cross-origin |
-| **Path traversal**        | Attaque securitaire via les chemins (`../../`)     |
-
-> **A retenir** : Le module HTTP natif est la fondation de tout serveur web Node.js. Express, Fastify, Koa, NestJS — tous sont construits par-dessus. Comprendre comment fonctionne le serveur HTTP natif te donne une comprehension profonde de ce que les frameworks abstraient, et te permet de debugger des problèmes que les développeurs qui n'ont jamais vu le code natif ne savent pas résoudre.
-
----
-
-## Navigation
-
-|                  | Lien                                                                         |
-| ---------------- | ---------------------------------------------------------------------------- |
-| Module précédent | [Module 03 — Node.js — Streams & Buffers](./03-nodejs-streams-et-buffers.md) |
-| Module suivant   | [Module 05 — Express — Fondamentaux](./05-express-fondamentaux.md)           |
-| Quiz             | [Quiz Module 04](../quizzes/04-nodejs-serveur-http.quiz.md)                  |
-| Lab              | [Lab 04 — Serveur HTTP natif](../labs/04-nodejs-serveur-http.lab.md)         |
-
----
-
-> **A retenir** : Tu viens de construire une API REST complete avec le module HTTP natif de Node.js. C'est verbeux, c'est manuel, et c'est exactement le point — tu sais maintenant EXACTEMENT ce qui se passe quand un framework recoit une requête. A partir du module suivant, Express va automatiser tout ça. Tu apprecieras d'autant plus sa simplicite que tu as vecu la difficulte du natif.
-
----
-
-<!-- parcours-recommande -->
-
-::: tip Parcours recommandé
-
-1. **Screencast** : [screencast 04 serveur http](../screencasts/screencast-04-serveur-http.md)
-2. **Lab** : [lab-04-serveur-http](../labs/lab-04-serveur-http/README)
-3. **Quiz** : [quiz 04 serveur http](../quizzes/quiz-04-serveur-http.html)
-   :::
+> Lab associé : `09-nestjs/labs/lab-04-serveur-http/README.md`. Tu y construis les routes `GET /api/families` et `POST /api/families` de TribuZen avec le module `http` natif — routing, body parsing, réponse JSON, codes de statut. Starter minimal, corrigé intégral commenté et variante J+30 dans le README.

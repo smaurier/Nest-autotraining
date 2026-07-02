@@ -6,7 +6,7 @@
   "scripts": {
     "docs:copy-assets": "node scripts/copy-assets.js",
     "docs:dev": "npm run docs:copy-assets && vitepress dev",
-    "docs:build": "npm run docs:copy-assets && vitepress build",
+    "docs:build": "vitepress build",
     "docs:preview": "vitepress preview",
     "lab:01": "npx tsx labs/lab-01-event-loop/exercise.ts",
     "lab:02": "npx tsx labs/lab-02-modules-fs/exercise.ts",

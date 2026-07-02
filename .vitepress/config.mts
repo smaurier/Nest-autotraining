@@ -8,6 +8,16 @@ export default defineConfig({
 
   ignoreDeadLinks: true,
 
+  // Docs statiques : neutralise l'interpolation Vue `{{ }}` (délimiteurs improbables) pour que
+  // les moustaches en prose et les expressions `${{ }}` (GitHub Actions) ne cassent pas le SSR.
+  vue: {
+    template: {
+      compilerOptions: {
+        delimiters: ['(%(', ')%)'],
+      },
+    },
+  },
+
   themeConfig: {
     nav: [
       { text: 'Modules', link: '/modules/00-prerequis-et-monde-backend' },

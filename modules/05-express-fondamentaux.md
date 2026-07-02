@@ -1,751 +1,550 @@
-# Module 05 — Express — Fondamentaux
-
-> **Objectif** : Maîtriser les bases d'Express.js — création d'une application, routing, objets req et res, middleware de base, et construire un premier CRUD complet.
->
-> **Difficulte** : ⭐⭐ (intermédiaire)
-
+---
+titre: Express fondamentaux
+cours: 09-nestjs
+notions: [application Express, routing et méthodes HTTP, req params query body, res et réponses, middleware introduction, router modulaire, fichiers statiques, gestion d'un CRUD]
+outcomes: [créer une API Express, définir des routes REST, lire params/query/body, structurer un CRUD avec un router modulaire]
+prerequis: [04-nodejs-serveur-http]
+next: 06-express-middleware
+libs: [{ name: node, version: "22" }, { name: express, version: "^5" }]
+tribuzen: premières routes de l'API TribuZen en Express (CRUD familles) avant NestJS
+last-reviewed: 2026-07
 ---
 
-## 1. Qu'est-ce qu'Express.js
+# Express fondamentaux
 
-### 1.1 Le framework web minimaliste
+> **Outcomes — tu sauras FAIRE :** créer une API Express avec un router modulaire, définir des routes REST complètes, lire params/query/body, structurer un CRUD de bout en bout.
+> **Difficulté :** :star::star:
 
-Express est un **framework web minimaliste** pour Node.js. Il ajoute une couche d'abstraction au-dessus du module `http` natif pour simplifier le développement d'API et d'applications web.
+## 1. Cas concret d'abord
 
-> **Analogie** : Si le module `http` natif est une boite a outils avec des marteaux, des clous et des planches, Express c'est un kit de construction IKEA — les pieces sont pre-decoupees, le manuel est fourni, et tu assembles beaucoup plus vite. Tu peux toujours utiliser les outils bruts si tu veux, mais pour 99% des cas, le kit suffit.
+TribuZen est une app de gestion de familles. Avant de passer sous NestJS (module suivant), on construit le socle API en Express — pour comprendre ce que NestJS abstrait. Voici la première vraie tâche :
 
-### 1.2 Express en chiffres
-
-| Statistique                 | Valeur         |
-| --------------------------- | -------------- |
-| Telechargements npm/semaine | ~30 millions   |
-| Stars GitHub                | ~65 000        |
-| Premiere release            | 2010           |
-| Taille (installe)           | ~200 Ko        |
-| Dependances                 | Très peu (~30) |
-
-### 1.3 Initialiser un projet Express
-
-```bash
-# Creer le dossier et initialiser
-mkdir mon-api && cd mon-api
-npm init -y
-
-# Installer Express
-npm install express
-
-# Installer nodemon pour le rechargement automatique
-npm install -D nodemon
+```
+POST   /familles      → créer une famille
+GET    /familles      → lister toutes les familles (filtre ?nom=)
+GET    /familles/:id  → récupérer une famille par id
+PUT    /familles/:id  → remplacer une famille
+DELETE /familles/:id  → supprimer une famille
 ```
 
-Ajouter les scripts dans `package.json` :
+Tu essaies de l'écrire et tu bloques sur plusieurs points : comment parser le body JSON ? comment extraire l'id de la route ? comment renvoyer 404 si la famille n'existe pas ? comment ne pas tout mettre dans un seul fichier ?
 
-```json
-{
-  "name": "mon-api",
-  "version": "1.0.0",
-  "type": "module",
-  "scripts": {
-    "start": "node src/index.js",
-    "dev": "nodemon src/index.js"
-  },
-  "dependencies": {
-    "express": "^4.18.2"
-  },
-  "devDependencies": {
-    "nodemon": "^3.0.0"
-  }
-}
-```
+Ce module répond exactement à ça.
 
-> **Express 5 (2024)** : Express 5.0 est sorti en octobre 2024. Les différences clés : gestion native des erreurs async (plus besoin de `express-async-errors`), `req.query` retourne un objet pur (`Object.create(null)`), `res.render()` est async, et les chemins regex utilisant des caracteres non-echappes levent une erreur. Pour un nouveau projet, privilegiez Express 5. NestJS 11 l'utilise par defaut.
+## 2. Théorie complète, concise
 
----
+### 2.1 Application Express — créer, configurer, démarrer
 
-## 2. Premier serveur Express
+Express est un framework web minimaliste qui encapsule le module `http` natif. `express()` retourne une application qui orchestre routes et middleware.
 
-### 2.1 Hello World
+```ts
+// src/index.ts
+import express from 'express'
 
-```typescript
-// src/index.js
-import express from "express";
+const app = express()
 
-// Creer l'application Express
-const app = express();
+// Middleware global — parse le body JSON sur chaque requête POST/PUT/PATCH
+// Doit être déclaré AVANT les routes qui lisent req.body
+app.use(express.json())
 
-// Definir une route
-app.get("/", (req, res) => {
-  res.send("Hello World !");
-});
-
-// Demarrer le serveur
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Serveur Express demarre sur http://localhost:${PORT}`);
-});
-```
-
-```bash
-# Lancer en mode developpement (avec rechargement automatique)
-npm run dev
-```
-
-### 2.2 Comprendre express()
-
-```typescript
-import express from "express";
-
-// express() cree une application Express
-// C'est une fonction qui retourne un objet avec des methodes pour :
-// - Definir des routes (app.get, app.post, etc.)
-// - Ajouter des middleware (app.use)
-// - Configurer l'application (app.set)
-// - Ecouter un port (app.listen)
-
-const app = express();
-
-// app.listen est un raccourci pour :
-// const server = http.createServer(app);
-// server.listen(PORT);
-```
-
----
-
-## 3. Le Routing
-
-### 3.1 Les méthodes HTTP
-
-```typescript
-import express from "express";
-const app = express();
-
-// GET — Recuperer des donnees
-app.get("/api/users", (req, res) => {
-  res.json({ users: [] });
-});
-
-// POST — Creer une ressource
-app.post("/api/users", (req, res) => {
-  res.status(201).json({ message: "Utilisateur cree" });
-});
-
-// PUT — Remplacer une ressource completement
-app.put("/api/users/:id", (req, res) => {
-  res.json({ message: `Utilisateur ${req.params.id} remplace` });
-});
-
-// PATCH — Modifier partiellement une ressource
-app.patch("/api/users/:id", (req, res) => {
-  res.json({ message: `Utilisateur ${req.params.id} modifie` });
-});
-
-// HEAD — Verifier qu'une ressource existe sans recuperer le body
-app.head("/api/users/:id", (req, res) => {
-  res.status(200).end();
-});
-
-// OPTIONS — Decrire les methodes autorisees sur une ressource
-app.options("/api/users", (req, res) => {
-  res.set("Allow", "GET, HEAD, POST, OPTIONS");
-  res.status(204).end();
-});
-
-// DELETE — Supprimer une ressource
-app.delete("/api/users/:id", (req, res) => {
-  res.status(204).end(); // 204 No Content — pas de body
-});
-
-// ALL — Toutes les methodes HTTP
-app.all("/api/health", (req, res) => {
-  res.json({ status: "OK", method: req.method });
-});
-```
-
-### 3.2 PUT vs PATCH, HEAD et OPTIONS
-
-| Methode   | Quand l'utiliser ?                                              |
-| --------- | --------------------------------------------------------------- |
-| `PUT`     | Remplacement complet d'une ressource                            |
-| `PATCH`   | Modification partielle d'une ressource                          |
-| `HEAD`    | Recuperer uniquement le statut et les headers                   |
-| `OPTIONS` | Decouvrir les methodes supportees et repondre au preflight CORS |
-
-```typescript
-// PUT: le client envoie l'etat complet souhaite
-app.put("/api/profile/:id", (req, res) => {
-  // Exemple: { name, email, role, active }
-  res.json({ replaced: true });
-});
-
-// PATCH: le client n'envoie que les champs a changer
-app.patch("/api/profile/:id", (req, res) => {
-  // Exemple: { email } seulement
-  res.json({ patched: true });
-});
-```
-
-> **Bonne pratique** : Si une ressource existe mais que la methode n'est pas supportee, renvoyez `405 Method Not Allowed` avec un header `Allow` plutot qu'un `404`.
-
-```typescript
-app.all("/api/reports", (req, res, next) => {
-  if (["GET", "HEAD", "OPTIONS"].includes(req.method)) {
-    return next();
-  }
-
-  res
-    .set("Allow", "GET, HEAD, OPTIONS")
-    .status(405)
-    .json({ error: "Method Not Allowed" });
-});
-```
-
-### 3.3 TRACE et CONNECT en pratique avec Express
-
-Dans une application Express classique, on ne manipule presque jamais `TRACE` et `CONNECT` pour la logique metier.
-
-- `TRACE` : en general **desactive**
-- `CONNECT` : concerne surtout les **proxies HTTP**, pas une API CRUD/BFF classique
-
-```typescript
-app.all("*", (req, res, next) => {
-  if (req.method === "TRACE") {
-    return res
-      .set("Allow", "GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS")
-      .status(405)
-      .json({ error: "TRACE desactive" });
-  }
-
-  if (req.method === "CONNECT") {
-    return res.status(501).json({ error: "CONNECT non implemente" });
-  }
-
-  next();
-});
-```
-
-> **A retenir** : connaitre `TRACE` et `CONNECT` est utile pour la culture HTTP, pour le debug infra, et pour comprendre certains comportements de proxy. En revanche, ce ne sont pas des verbes que l'on expose normalement dans une API applicative Express/Nest.
-
-### 3.4 Parametres de route
-
-```typescript
-// :id est un parametre de route → disponible dans req.params
-app.get("/api/users/:id", (req, res) => {
-  console.log(req.params.id); // '42'
-  res.json({ userId: req.params.id });
-});
-
-// Plusieurs parametres
-app.get("/api/users/:userId/posts/:postId", (req, res) => {
-  console.log(req.params.userId); // '42'
-  console.log(req.params.postId); // '7'
-  res.json(req.params);
-});
-
-// Parametres optionnels (avec ?)
-app.get("/api/files/:name.:ext?", (req, res) => {
-  console.log(req.params.name); // 'photo'
-  console.log(req.params.ext); // 'jpg' ou undefined
-  res.json(req.params);
-});
-
-// Wildcards
-app.get("/api/docs/*", (req, res) => {
-  // Capture tout apres /api/docs/
-  console.log(req.params[0]); // 'section/subsection/page'
-  res.send(`Document : ${req.params[0]}`);
-});
-```
-
-> **Bonne pratique** : Les paramètres de route sont toujours des **strings**. Si tu attends un nombre (comme un ID), pense a le convertir : `const id = parseInt(req.params.id, 10)`. Ou mieux, valide-le avec une librairie comme Zod (voir module 07).
-
----
-
-## 4. L'objet req (Request)
-
-L'objet `req` est une version enrichie de `http.IncomingMessage` :
-
-```typescript
-app.post("/api/users", (req, res) => {
-  // === Parametres de route ===
-  // Definis par la route : '/api/users/:id'
-  console.log(req.params); // { id: '42' }
-
-  // === Query parameters ===
-  // URL: /api/users?page=2&limit=10
-  console.log(req.query); // { page: '2', limit: '10' }
-  console.log(req.query.page); // '2' (toujours une string !)
-
-  // === Body de la requete ===
-  // Necessite express.json() middleware
-  console.log(req.body); // { nom: 'Alice', email: 'alice@...' }
-
-  // === Headers ===
-  console.log(req.headers); // { 'content-type': 'application/json', ... }
-  console.log(req.get("Content-Type")); // 'application/json'
-  console.log(req.get("Authorization")); // 'Bearer eyJhb...'
-
-  // === Methode et URL ===
-  console.log(req.method); // 'POST'
-  console.log(req.path); // '/api/users'
-  console.log(req.originalUrl); // '/api/users?page=2'
-  console.log(req.baseUrl); // '' (ou '/api' si utilise un Router)
-  console.log(req.hostname); // 'localhost'
-  console.log(req.ip); // '127.0.0.1'
-  console.log(req.protocol); // 'http' ou 'https'
-  console.log(req.secure); // false (true si HTTPS)
-
-  // === Cookies (avec cookie-parser) ===
-  // console.log(req.cookies);      // { session: 'abc123' }
-
-  res.json({ received: true });
-});
-```
-
----
-
-## 5. L'objet res (Response)
-
-L'objet `res` est une version enrichie de `http.ServerResponse` :
-
-```typescript
-app.get("/api/demo", (req, res) => {
-  // === Envoyer du JSON ===
-  res.json({ message: "Hello" });
-  // Equivalent de : res.setHeader('Content-Type', 'application/json');
-  //                 res.end(JSON.stringify({ message: 'Hello' }));
-
-  // === Envoyer du texte ===
-  res.send("Hello World");
-  // Detecte automatiquement le Content-Type
-
-  // === Definir le status code ===
-  res.status(201).json({ id: 1 });
-  res.status(404).json({ error: "Not found" });
-  res.status(204).end(); // No Content, pas de body
-
-  // === Redirection ===
-  res.redirect("/nouvelle-url"); // 302 par defaut
-  res.redirect(301, "/nouvelle-url"); // 301 Moved Permanently
-
-  // === Definir des headers ===
-  res.set("X-Custom-Header", "valeur");
-  res.set({
-    "X-Header-1": "valeur1",
-    "X-Header-2": "valeur2",
-  });
-
-  // === Envoyer un fichier ===
-  res.sendFile("/chemin/absolu/vers/fichier.pdf");
-
-  // === Telecharger un fichier ===
-  res.download("/chemin/vers/rapport.pdf", "rapport-2024.pdf");
-  // Declenche un telechargement dans le navigateur
-
-  // === Cookies ===
-  res.cookie("session", "abc123", {
-    httpOnly: true,
-    secure: true,
-    maxAge: 3600000, // 1 heure en ms
-  });
-  res.clearCookie("session");
-
-  // === Chainer les methodes ===
-  res.status(201).set("X-Request-Id", "uuid").json({ id: 1, name: "Alice" });
-});
-```
-
-> **Piege classique** : Tu ne peux envoyer qu'UNE SEULE réponse par requête. Si tu appelles `res.json()` ou `res.send()` deux fois, Express leve une erreur `Error: Cannot set headers after they are sent`. Utilise `return` pour arreter la fonction après avoir envoye la réponse.
-
-```typescript
-app.get("/api/users/:id", (req, res) => {
-  const user = findUser(req.params.id);
-
-  if (!user) {
-    return res.status(404).json({ error: "Not found" });
-    // SANS le return, le code continue et appelle res.json() une deuxieme fois !
-  }
-
-  res.json(user);
-});
-```
-
----
-
-## 6. Les middleware de base
-
-### 6.1 express.json() — Parser le body JSON
-
-```typescript
-import express from "express";
-const app = express();
-
-// OBLIGATOIRE pour lire req.body sur les requetes POST/PUT/PATCH
-app.use(express.json());
-
-app.post("/api/users", (req, res) => {
-  console.log(req.body); // { nom: 'Alice', email: 'alice@...' }
-  // Sans express.json(), req.body serait undefined !
-  res.status(201).json(req.body);
-});
-```
-
-> **Piege classique** : Si `req.body` est `undefined`, tu as probablement oublie `app.use(express.json())`. C'est l'erreur la plus frequente chez les débutants Express. Mets-le toujours au debut de ta configuration middleware.
-
-### 6.2 express.urlencoded() — Parser les formulaires HTML
-
-```typescript
-// Pour les formulaires HTML classiques (Content-Type: application/x-www-form-urlencoded)
-app.use(express.urlencoded({ extended: true }));
-
-app.post("/login", (req, res) => {
-  console.log(req.body.username); // Valeur du champ <input name="username">
-  console.log(req.body.password); // Valeur du champ <input name="password">
-});
-```
-
-### 6.3 express.static() — Servir des fichiers statiques
-
-```typescript
-import path from "path";
-import { fileURLToPath } from "url";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-// Servir les fichiers du dossier 'public'
-app.use(express.static(path.join(__dirname, "public")));
-// GET /style.css → public/style.css
-// GET /images/logo.png → public/images/logo.png
-
-// Avec un prefixe
-app.use("/static", express.static(path.join(__dirname, "public")));
-// GET /static/style.css → public/style.css
-```
-
----
-
-## 7. Nodemon pour le développement
-
-**Nodemon** surveille les fichiers et redemarre automatiquement le serveur à chaque modification :
-
-```bash
-npm install -D nodemon
-```
-
-Configuration dans `package.json` :
-
-```json
-{
-  "scripts": {
-    "dev": "nodemon src/index.js"
-  }
-}
-```
-
-Ou avec un fichier `nodemon.json` pour plus d'options :
-
-```json
-{
-  "watch": ["src"],
-  "ext": "js,json",
-  "ignore": ["node_modules", "tests"],
-  "delay": "500"
-}
-```
-
-> **Bonne pratique** : Utilise TOUJOURS nodemon (où `--watch` de Node.js 18+) en développement. Redemarrer manuellement le serveur à chaque modification est une perte de temps enorme. En production, utilise `node` directement (pas nodemon).
-
----
-
-## 8. Variables d'environnement
-
-```typescript
-// src/index.js
-import "dotenv/config"; // Charge les variables depuis .env
-import express from "express";
-
-const app = express();
-const PORT = parseInt(process.env.PORT, 10) || 3000;
-const NODE_ENV = process.env.NODE_ENV || "development";
-
-app.get("/api/health", (req, res) => {
-  res.json({
-    status: "OK",
-    environment: NODE_ENV,
-    uptime: process.uptime(),
-  });
-});
+const PORT = Number(process.env.PORT) || 3000
 
 app.listen(PORT, () => {
-  console.log(`[${NODE_ENV}] Serveur sur http://localhost:${PORT}`);
-});
+  console.log(`API TribuZen sur http://localhost:${PORT}`)
+})
 ```
 
-```bash
-# .env (a la racine du projet)
-PORT=3000
-NODE_ENV=development
+Installation avec Node 22 et Express 5 :
 
-# .gitignore
-node_modules/
-.env
+```ts
+// npm install express@^5
+// npm install -D @types/express@^5 tsx
+// "type": "module" dans package.json
+// script dev : "npx tsx --watch src/index.ts"
 ```
 
----
+**Express 4 vs Express 5 — différence clé :** Express 5 (sorti octobre 2024, utilisé par défaut dans NestJS 11) gère nativement les erreurs des handlers async. En Express 4, un handler `async` dont la Promise rejette ne déclenchait pas le middleware d'erreur — il fallait un `try/catch` explicite ou le package `express-async-errors`. En Express 5, un handler `async` qui throw ou rejette appelle automatiquement `next(err)`.
 
-## 9. Premier CRUD complet
+### 2.2 Routing et méthodes HTTP
 
-### 9.1 API de gestion de livres
+`app.METHOD(chemin, handler)` enregistre une route. Chaque `handler` reçoit `(req, res, next)`.
 
-```typescript
-// src/index.js
-import express from "express";
-import crypto from "crypto";
+```ts
+// Les verbes REST courants dans une API CRUD
+app.get('/familles', (req, res) => { /* lister */ })
+app.post('/familles', (req, res) => { /* créer → 201 */ })
+app.put('/familles/:id', (req, res) => { /* remplacer complet */ })
+app.patch('/familles/:id', (req, res) => { /* modifier partiel */ })
+app.delete('/familles/:id', (req, res) => { /* supprimer → 204 */ })
 
-const app = express();
-app.use(express.json());
+// app.all — répond à toutes les méthodes HTTP sur un chemin
+app.all('/health', (req, res) => { res.json({ status: 'ok', method: req.method }) })
+```
 
-// === Base de donnees en memoire ===
-let books = [
-  {
-    id: "1",
-    title: "Clean Code",
-    author: "Robert C. Martin",
-    year: 2008,
-    isbn: "978-0132350884",
-  },
-  {
-    id: "2",
-    title: "The Pragmatic Programmer",
-    author: "David Thomas & Andrew Hunt",
-    year: 2019,
-    isbn: "978-0135957059",
-  },
-  {
-    id: "3",
-    title: "Design Patterns",
-    author: "Gang of Four",
-    year: 1994,
-    isbn: "978-0201633610",
-  },
-];
+**`PUT` vs `PATCH` :** `PUT` remplace la ressource entière (tous les champs requis côté client) ; `PATCH` ne modifie que les champs envoyés (les champs absents restent inchangés).
 
-// === GET /api/books — Lister tous les livres ===
-app.get("/api/books", (req, res) => {
-  const { author, year, search } = req.query;
-  let result = [...books];
+### 2.3 req — params, query, body
 
-  // Filtrer par auteur
-  if (author) {
-    result = result.filter((b) =>
-      b.author.toLowerCase().includes(author.toLowerCase()),
-    );
+```ts
+app.get('/familles/:id', (req, res) => {
+  // Paramètre de route — toujours une string
+  console.log(req.params.id)             // '3a7f...' (string, jamais number)
+
+  // Query string — toujours des strings (ou tableaux de strings)
+  // GET /familles?page=2&limit=10
+  console.log(req.query.page)            // '2' (string)
+  console.log(req.query.limit)           // '10' (string)
+
+  // Body JSON — objet parsé (nécessite express.json() déclaré en amont)
+  // POST /familles { "nom": "Famille Martin" }
+  console.log(req.body.nom)              // 'Famille Martin'
+
+  // Autres propriétés utiles
+  console.log(req.method)                // 'GET'
+  console.log(req.path)                  // '/familles/3a7f...'
+  console.log(req.get('Authorization'))  // header Authorization
+})
+```
+
+**Express 5 — `req.query` :** retourne un objet `Object.create(null)` sans prototype. En Express 4, il héritait de `Object.prototype`. Pour l'usage courant, pas de changement — mais `req.query.constructor` vaut `undefined` en Express 5.
+
+### 2.4 res — répondre à une requête
+
+```ts
+app.get('/demo', (req, res) => {
+  // JSON — définit Content-Type: application/json automatiquement
+  res.json({ id: 1, nom: 'Martin' })
+
+  // Status + JSON (chaînable)
+  res.status(201).json({ id: 2 })
+  res.status(404).json({ error: 'Famille introuvable' })
+  res.status(204).end()       // No Content — pas de body (DELETE réussi)
+
+  // Texte — Express détecte automatiquement le Content-Type
+  res.send('Hello')
+
+  // Redirection
+  res.redirect('/familles')        // 302 Found (défaut)
+  res.redirect(301, '/familles')   // 301 Moved Permanently
+
+  // Headers personnalisés
+  res.set('X-Total-Count', '42')
+  res.set({ 'Cache-Control': 'no-store', 'X-Request-Id': 'uuid' })
+})
+```
+
+### 2.5 Middleware — introduction
+
+Un middleware est une fonction `(req, res, next) => void` qui intercepte chaque requête. `next()` passe la main au middleware ou au handler suivant dans la chaîne.
+
+```ts
+// Middleware global — exécuté sur chaque requête
+app.use(express.json())                             // parse body JSON
+app.use(express.urlencoded({ extended: true }))     // parse formulaires HTML
+
+// Middleware de logging maison
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`)
+  next()  // obligatoire — sans next(), la requête est bloquée ici
+})
+
+// Middleware d'erreur — 4 paramètres (signature spéciale, reconnue par Express)
+// Doit être déclaré APRÈS toutes les routes
+app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error(err.message)
+  res.status(500).json({ error: err.message })
+})
+```
+
+L'ordre des `app.use()` est crucial : les middleware s'exécutent dans l'ordre de déclaration.
+
+### 2.6 Router modulaire
+
+`express.Router()` crée un mini-routeur autonome. On le monte sur l'app principale avec `app.use(préfixe, router)`. C'est le précurseur direct des modules NestJS.
+
+```ts
+// src/routes/familles.ts
+import { Router, Request, Response } from 'express'
+
+const router = Router()
+
+// Les routes sont relatives au préfixe de montage
+router.get('/', (req: Request, res: Response) => { /* GET /familles */ })
+router.post('/', (req: Request, res: Response) => { /* POST /familles */ })
+router.get('/:id', (req: Request, res: Response) => { /* GET /familles/:id */ })
+router.put('/:id', (req: Request, res: Response) => { /* PUT /familles/:id */ })
+router.delete('/:id', (req: Request, res: Response) => { /* DELETE /familles/:id */ })
+
+export default router
+```
+
+```ts
+// src/index.ts — montage du router
+import express from 'express'
+import famillesRouter from './routes/familles.js'  // .js obligatoire avec "type": "module"
+
+const app = express()
+app.use(express.json())
+app.use('/familles', famillesRouter)  // toutes les routes /familles/* sont dans le router
+
+app.listen(3000)
+```
+
+### 2.7 Fichiers statiques
+
+```ts
+import express from 'express'
+import { fileURLToPath } from 'node:url'
+import path from 'node:path'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+
+// Sert les fichiers du dossier public/ à la racine de l'URL
+app.use(express.static(path.join(__dirname, '../public')))
+// GET /logo.png → public/logo.png
+
+// Avec préfixe URL — les fichiers statiques sont accessibles sous /assets/
+app.use('/assets', express.static(path.join(__dirname, '../public')))
+// GET /assets/logo.png → public/logo.png
+```
+
+Si `express.static()` est déclaré avant les routes dynamiques, les fichiers statiques sont servis en priorité.
+
+### 2.8 CRUD complet — patterns de base
+
+```ts
+// Pattern store mémoire (avant base de données)
+let items: Item[] = []
+
+// Identifiant unique — crypto.randomUUID() disponible nativement dans Node 18+
+const newId = () => crypto.randomUUID()
+
+// Pattern GET :id avec 404
+router.get('/:id', (req, res) => {
+  const item = items.find(i => i.id === req.params.id)
+  if (!item) return res.status(404).json({ error: 'Introuvable' })
+  res.json(item)
+})
+
+// Pattern POST avec validation
+router.post('/', (req, res) => {
+  const { nom } = req.body
+  if (!nom || typeof nom !== 'string') {
+    return res.status(400).json({ error: 'nom requis (string)' })
+  }
+  const created = { id: newId(), nom: nom.trim() }
+  items.push(created)
+  res.status(201).json(created)
+})
+
+// Pattern DELETE avec 204
+router.delete('/:id', (req, res) => {
+  const index = items.findIndex(i => i.id === req.params.id)
+  if (index === -1) return res.status(404).json({ error: 'Introuvable' })
+  items.splice(index, 1)
+  res.status(204).end()
+})
+```
+
+## 3. Worked examples
+
+### Exemple A — CRUD familles TribuZen (un seul fichier, avant extraction)
+
+```ts
+// src/index.ts — version plate
+import express from 'express'
+import crypto from 'node:crypto'
+
+interface Famille {
+  id: string
+  nom: string
+  description: string
+  createdAt: string
+}
+
+const app = express()
+
+// express.json() AVANT toutes les routes — sinon req.body est undefined sur POST/PUT/PATCH
+app.use(express.json())
+
+// Store en mémoire (Prisma + PostgreSQL au module 10)
+let familles: Famille[] = [
+  { id: crypto.randomUUID(), nom: 'Famille Martin', description: 'Tribu du Nord', createdAt: new Date().toISOString() },
+  { id: crypto.randomUUID(), nom: 'Famille Dupont', description: 'Tribu du Sud', createdAt: new Date().toISOString() },
+]
+
+// ─── GET /familles ─────────────────────────────────────────────────────────────
+app.get('/familles', (req, res) => {
+  const { nom } = req.query
+
+  // req.query.nom est string | string[] | ParsedQs — vérifier le type avant usage
+  const filtre = typeof nom === 'string' ? nom.toLowerCase() : null
+
+  const résultat = filtre
+    ? familles.filter(f => f.nom.toLowerCase().includes(filtre))
+    : familles
+
+  res.json({ data: résultat, total: résultat.length })
+})
+
+// ─── GET /familles/:id ─────────────────────────────────────────────────────────
+app.get('/familles/:id', (req, res) => {
+  // req.params.id est TOUJOURS une string — UUID comparé à UUID, pas de parseInt nécessaire
+  const famille = familles.find(f => f.id === req.params.id)
+
+  if (!famille) {
+    // return arrête l'exécution — sans lui, la fonction continue et envoie une 2e réponse
+    return res.status(404).json({ error: 'Famille introuvable', id: req.params.id })
   }
 
-  // Filtrer par annee
-  if (year) {
-    result = result.filter((b) => b.year === parseInt(year, 10));
+  res.json(famille)
+})
+
+// ─── POST /familles ────────────────────────────────────────────────────────────
+app.post('/familles', (req, res) => {
+  const { nom, description } = req.body
+
+  if (!nom || typeof nom !== 'string') {
+    return res.status(400).json({ error: 'nom requis (string)' })
   }
 
-  // Recherche textuelle
-  if (search) {
-    const searchLower = search.toLowerCase();
-    result = result.filter(
-      (b) =>
-        b.title.toLowerCase().includes(searchLower) ||
-        b.author.toLowerCase().includes(searchLower),
-    );
-  }
-
-  res.json({
-    data: result,
-    total: result.length,
-  });
-});
-
-// === GET /api/books/:id — Recuperer un livre ===
-app.get("/api/books/:id", (req, res) => {
-  const book = books.find((b) => b.id === req.params.id);
-
-  if (!book) {
-    return res.status(404).json({
-      error: "Livre introuvable",
-      id: req.params.id,
-    });
-  }
-
-  res.json({ data: book });
-});
-
-// === POST /api/books — Creer un livre ===
-app.post("/api/books", (req, res) => {
-  const { title, author, year, isbn } = req.body;
-
-  // Validation basique
-  const errors = [];
-  if (!title || typeof title !== "string")
-    errors.push("title est requis (string)");
-  if (!author || typeof author !== "string")
-    errors.push("author est requis (string)");
-  if (!year || typeof year !== "number")
-    errors.push("year est requis (number)");
-
-  if (errors.length > 0) {
-    return res.status(400).json({ errors });
-  }
-
-  // Verifier l'unicite de l'ISBN
-  if (isbn && books.some((b) => b.isbn === isbn)) {
-    return res.status(409).json({
-      error: "Un livre avec cet ISBN existe deja",
-    });
-  }
-
-  const newBook = {
+  const nouvelle: Famille = {
     id: crypto.randomUUID(),
-    title: title.trim(),
-    author: author.trim(),
-    year,
-    isbn: isbn || null,
-  };
-
-  books.push(newBook);
-
-  res.status(201).json({ data: newBook });
-});
-
-// === PUT /api/books/:id — Remplacer un livre ===
-app.put("/api/books/:id", (req, res) => {
-  const index = books.findIndex((b) => b.id === req.params.id);
-
-  if (index === -1) {
-    return res.status(404).json({ error: "Livre introuvable" });
+    nom: nom.trim(),
+    description: typeof description === 'string' ? description.trim() : '',
+    createdAt: new Date().toISOString(),
   }
 
-  const { title, author, year, isbn } = req.body;
+  familles.push(nouvelle)
+  res.status(201).json(nouvelle)   // 201 Created
+})
 
-  // PUT = remplacement total, tous les champs sont requis
-  const errors = [];
-  if (!title) errors.push("title est requis");
-  if (!author) errors.push("author est requis");
-  if (!year) errors.push("year est requis");
+// ─── PUT /familles/:id — remplacement TOTAL ───────────────────────────────────
+app.put('/familles/:id', (req, res) => {
+  const index = familles.findIndex(f => f.id === req.params.id)
+  if (index === -1) return res.status(404).json({ error: 'Famille introuvable' })
 
-  if (errors.length > 0) {
-    return res.status(400).json({ errors });
+  const { nom, description } = req.body
+
+  // PUT = tous les champs requis — si un champ manque, c'est une erreur 400
+  if (!nom || typeof nom !== 'string') {
+    return res.status(400).json({ error: 'nom requis pour un remplacement complet (PUT)' })
   }
 
-  books[index] = {
-    id: req.params.id, // L'ID ne change pas
-    title: title.trim(),
-    author: author.trim(),
-    year,
-    isbn: isbn || null,
-  };
-
-  res.json({ data: books[index] });
-});
-
-// === PATCH /api/books/:id — Modifier partiellement ===
-app.patch("/api/books/:id", (req, res) => {
-  const book = books.find((b) => b.id === req.params.id);
-
-  if (!book) {
-    return res.status(404).json({ error: "Livre introuvable" });
+  // id et createdAt sont préservés — seuls les champs éditables sont remplacés
+  familles[index] = {
+    id: req.params.id,
+    nom: nom.trim(),
+    description: typeof description === 'string' ? description.trim() : '',
+    createdAt: familles[index].createdAt,
   }
 
-  // PATCH = modification partielle, seuls les champs presents sont modifies
-  const { title, author, year, isbn } = req.body;
+  res.json(familles[index])
+})
 
-  if (title !== undefined) book.title = title.trim();
-  if (author !== undefined) book.author = author.trim();
-  if (year !== undefined) book.year = year;
-  if (isbn !== undefined) book.isbn = isbn;
+// ─── PATCH /familles/:id — modification PARTIELLE ─────────────────────────────
+app.patch('/familles/:id', (req, res) => {
+  const famille = familles.find(f => f.id === req.params.id)
+  if (!famille) return res.status(404).json({ error: 'Famille introuvable' })
 
-  res.json({ data: book });
-});
+  const { nom, description } = req.body
 
-// === DELETE /api/books/:id — Supprimer un livre ===
-app.delete("/api/books/:id", (req, res) => {
-  const index = books.findIndex((b) => b.id === req.params.id);
+  // PATCH — seuls les champs présents dans le body sont mis à jour
+  if (nom !== undefined) famille.nom = String(nom).trim()
+  if (description !== undefined) famille.description = String(description).trim()
 
-  if (index === -1) {
-    return res.status(404).json({ error: "Livre introuvable" });
-  }
+  res.json(famille)
+})
 
-  books.splice(index, 1);
-  res.status(204).end();
-});
+// ─── DELETE /familles/:id ──────────────────────────────────────────────────────
+app.delete('/familles/:id', (req, res) => {
+  const index = familles.findIndex(f => f.id === req.params.id)
+  if (index === -1) return res.status(404).json({ error: 'Famille introuvable' })
 
-// === Demarrage ===
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`API Livres sur http://localhost:${PORT}`);
-});
+  familles.splice(index, 1)
+  res.status(204).end()   // 204 No Content — pas de body possible après un DELETE réussi
+})
+
+app.listen(3000, () => console.log('API TribuZen sur http://localhost:3000'))
 ```
 
----
+**Pas-à-pas :** (1) `app.use(express.json())` en premier — sans lui `req.body` est `undefined` sur toutes les routes POST/PUT/PATCH ; (2) `return res.status(404).json(...)` — le `return` est obligatoire, sinon la fonction continue et Express lève `Cannot set headers after they are sent` ; (3) `req.params.id` est une string — comparée à un UUID string, pas besoin de parseInt ; (4) `res.status(204).end()` — DELETE réussi renvoie 204 sans body, on ne peut pas chaîner `.json()` après ; (5) Express 5 — si un handler était `async` et rejetait, `next(err)` serait appelé automatiquement sans try/catch.
 
-## 10. Comparaison HTTP natif vs Express
+### Exemple B — Extraction du router modulaire
 
-| Fonctionnalite      | HTTP natif                                          | Express                       |
-| ------------------- | --------------------------------------------------- | ----------------------------- |
-| Créer un serveur    | `http.createServer(handler)`                        | `const app = express()`       |
-| Routing GET         | `if (method === 'GET' && url === '/path')`          | `app.get('/path', handler)`   |
-| Parametres de route | Regex manuelle                                      | `req.params.id`               |
-| Query params        | `new URL(url).searchParams`                         | `req.query`                   |
-| Lire le body JSON   | Collecter les chunks + JSON.parse                   | `express.json()` + `req.body` |
-| Envoyer du JSON     | `res.writeHead(200); res.end(JSON.stringify(data))` | `res.json(data)`              |
-| Status code         | `res.statusCode = 404`                              | `res.status(404)`             |
-| Fichiers statiques  | Stream manuel + MIME types                          | `express.static()`            |
-| Middleware          | Implementation manuelle                             | `app.use(fn)`                 |
-| Gestion d'erreurs   | try/catch partout                                   | Error middleware              |
+```ts
+// src/routes/familles.ts — router autonome
+import { Router, Request, Response } from 'express'
+import crypto from 'node:crypto'
 
-> **A retenir** : Express ne fait rien de magique — il simplifie les patterns que tu as implementes manuellement au module 04. Connaître le HTTP natif te permet de comprendre ce qu'Express fait "sous le capot" et de debugger quand quelque chose ne fonctionne pas.
+interface Famille {
+  id: string
+  nom: string
+  description: string
+  createdAt: string
+}
 
----
+let familles: Famille[] = []
 
-## 11. Exercices pratiques
+const router = Router()
 
-### Exercice 1 — API de contacts
+router.get('/', (req: Request, res: Response) => {
+  const { nom } = req.query
+  const filtre = typeof nom === 'string' ? nom.toLowerCase() : null
+  const résultat = filtre
+    ? familles.filter(f => f.nom.toLowerCase().includes(filtre))
+    : familles
+  res.json({ data: résultat, total: résultat.length })
+})
 
-Cree une API CRUD pour gérer des contacts (nom, email, telephone, entreprise) avec :
+router.post('/', (req: Request, res: Response) => {
+  const { nom, description } = req.body
+  if (!nom || typeof nom !== 'string') {
+    return res.status(400).json({ error: 'nom requis (string)' })
+  }
+  const nouvelle: Famille = {
+    id: crypto.randomUUID(),
+    nom: nom.trim(),
+    description: typeof description === 'string' ? description.trim() : '',
+    createdAt: new Date().toISOString(),
+  }
+  familles.push(nouvelle)
+  res.status(201).json(nouvelle)
+})
 
-- Recherche par nom ou entreprise via query params
-- Pagination (`?page=1&limit=10`)
-- Tri (`?sort=nom&order=asc`)
+router.get('/:id', (req: Request, res: Response) => {
+  const famille = familles.find(f => f.id === req.params.id)
+  if (!famille) return res.status(404).json({ error: 'Famille introuvable' })
+  res.json(famille)
+})
 
-### Exercice 2 — Convertir l'API native
+router.put('/:id', (req: Request, res: Response) => {
+  const index = familles.findIndex(f => f.id === req.params.id)
+  if (index === -1) return res.status(404).json({ error: 'Famille introuvable' })
+  const { nom, description } = req.body
+  if (!nom || typeof nom !== 'string') {
+    return res.status(400).json({ error: 'nom requis (PUT)' })
+  }
+  familles[index] = {
+    id: req.params.id,
+    nom: nom.trim(),
+    description: typeof description === 'string' ? description.trim() : '',
+    createdAt: familles[index].createdAt,
+  }
+  res.json(familles[index])
+})
 
-Reprends l'API Todo du module 04 et convertis-la en Express. Compare le nombre de lignes et la lisibilite.
+router.patch('/:id', (req: Request, res: Response) => {
+  const famille = familles.find(f => f.id === req.params.id)
+  if (!famille) return res.status(404).json({ error: 'Famille introuvable' })
+  const { nom, description } = req.body
+  if (nom !== undefined) famille.nom = String(nom).trim()
+  if (description !== undefined) famille.description = String(description).trim()
+  res.json(famille)
+})
 
-### Exercice 3 — API avec sous-ressources
+router.delete('/:id', (req: Request, res: Response) => {
+  const index = familles.findIndex(f => f.id === req.params.id)
+  if (index === -1) return res.status(404).json({ error: 'Famille introuvable' })
+  familles.splice(index, 1)
+  res.status(204).end()
+})
 
-Cree une API avec des sous-ressources :
+export default router
+```
 
-- `GET /api/authors/:authorId/books` — Livres d'un auteur
-- `POST /api/authors/:authorId/books` — Ajouter un livre à un auteur
+```ts
+// src/index.ts — point d'entrée après extraction
+import express from 'express'
+import famillesRouter from './routes/familles.js'
 
----
+const app = express()
 
-## Navigation
+app.use(express.json())
 
-|                  | Lien                                                                          |
-| ---------------- | ----------------------------------------------------------------------------- |
-| Module précédent | [Module 04 — Node.js — Serveur HTTP natif](./04-nodejs-serveur-http.md)       |
-| Module suivant   | [Module 06 — Express — Middleware & Architecture](./06-express-middleware.md) |
-| Quiz             | [Quiz Module 05](../quizzes/05-express-fondamentaux.quiz.md)                  |
-| Lab              | [Lab 05 — Express CRUD](../labs/05-express-fondamentaux.lab.md)               |
+app.get('/health', (_req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() })
+})
 
----
+// Monte le router sur le préfixe /familles
+// router.get('/') → répond à GET /familles
+// router.get('/:id') → répond à GET /familles/:id
+app.use('/familles', famillesRouter)
 
-> **A retenir** : Express est le framework web Node.js le plus utilise au monde. Il simplifie enormement le routing, la gestion des requêtes/réponses et l'ajout de middleware. Maîtriser les bases d'Express (app.get/post/..., req.params/query/body, res.json/status) est une compétence indispensable pour tout développeur backend Node.js. Le module suivant approfondira le concept central d'Express : les middleware.
+// Middleware d'erreur — déclaré APRÈS les routers pour être atteignable
+app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error(err.stack)
+  res.status(500).json({ error: err.message ?? 'Erreur interne' })
+})
 
----
+app.listen(3000, () => console.log('API TribuZen sur http://localhost:3000'))
+```
 
-<!-- parcours-recommande -->
+**Pas-à-pas :** (1) `Router()` crée un mini-app autonome — ses routes sont relatives au préfixe de montage, donc `router.get('/')` répond à `GET /familles` ; (2) le store `familles` est local au module router — en production ce sera un service injectable (NestJS au module suivant) ; (3) le middleware d'erreur à 4 paramètres est déclaré après `app.use('/familles', famillesRouter)` pour intercepter les erreurs levées dans le router ; (4) `import ... from './routes/familles.js'` — l'extension `.js` est obligatoire avec `"type": "module"` dans `package.json`.
 
-::: tip Parcours recommandé
+## 4. Pièges & misconceptions
 
-1. **Screencast** : [screencast 05 express fondamentaux](../screencasts/screencast-05-express-fondamentaux.md)
-2. **Lab** : [lab-05-express-crud](../labs/lab-05-express-crud/README)
-3. **Quiz** : [quiz 05 express fondamentaux](../quizzes/quiz-05-express-fondamentaux.html)
-   :::
+- **`req.body` est `undefined`.** Tu as oublié `app.use(express.json())` — ou tu l'as déclaré après la route. Sans ce middleware, Express ne parse pas le body. Correction : déclarer `express.json()` en tête de la configuration, avant toute route qui lit `req.body`.
+
+- **Double réponse sans `return`.** Appeler `res.json()` ou `res.send()` deux fois sur la même requête lève `Error: Cannot set headers after they are sent to the client`. Pattern correct : `if (!item) return res.status(404).json(...)` — le `return` arrête immédiatement l'exécution du handler.
+
+- **`req.params.id` est une string.** `app.get('/familles/:id')` → `req.params.id` vaut `'3a7f...'` (string), jamais un nombre. Comparer un UUID string à un UUID string ne pose pas de problème. Si tu utilises des IDs numériques en DB, convertis : `parseInt(req.params.id, 10)`.
+
+- **`req.query` — tout est string.** `GET /familles?page=2` → `req.query.page === '2'` (string). Convertis avant usage numérique : `const page = Number(req.query.page) || 1`. En Express 5, `req.query` est `Object.create(null)` sans prototype.
+
+- **Express 4 vs 5 — async silencieux.** En Express 4, un handler `async` dont la Promise rejette ne déclenche pas le middleware d'erreur — l'exception disparaît silencieusement. En Express 5, la rejection est automatiquement propagée à `next(err)`. Sur un projet Express 4, toujours wraper : `try { await ... } catch (err) { next(err) }`.
+
+- **Middleware d'erreur non atteignable.** Un middleware `(err, req, res, next)` déclaré avant les routes ne sera jamais atteint par les erreurs des routes. Il doit être le dernier `app.use()` de la chaîne.
+
+## 5. Ancrage TribuZen
+
+Couche fil-rouge : **premières routes de l'API TribuZen en Express (CRUD familles) avant NestJS** (`smaurier/tribuzen`).
+
+- `GET /familles` avec filtre `?nom=` — la liste des familles accessibles à l'utilisateur connecté. La pagination (`?page=&limit=`) sera ajoutée au module 10 (PostgreSQL).
+- `POST /familles` — un owner crée une nouvelle famille. La validation du `nom` ici est inline ; elle sera extraite dans un DTO NestJS avec `class-validator` au module 09.
+- `GET /familles/:id` — chargement d'une famille par UUID.
+- `PUT /familles/:id` / `PATCH /familles/:id` — mise à jour de la fiche famille.
+- `DELETE /familles/:id` — suppression physique (soft delete avec champ `deletedAt` en DB réelle).
+
+Ce code Express est provisoire et pédagogique : le module 06 (middleware) ajoute auth et logging, le module 09 (NestJS) remplace le router par des modules/controllers/services injectables, le module 10 (PostgreSQL) remplace le store mémoire par Prisma.
+
+Structure cible dans `smaurier/tribuzen` :
+
+```
+tribuzen/
+  apps/
+    api/
+      src/
+        routes/
+          familles.ts    ← Exemple B de ce module
+        index.ts         ← app Express + montage routers + middleware erreur
+```
+
+## 6. Points clés
+
+1. `express()` + `app.listen(PORT, cb)` — création et démarrage du serveur Express.
+2. `app.use(express.json())` en premier — sans lui, `req.body` est toujours `undefined`.
+3. `app.get/post/put/patch/delete(chemin, handler)` — chaque verbe HTTP a sa méthode Express.
+4. `req.params.id` = string (route), `req.query.page` = string (URL), `req.body.nom` = valeur parsée (JSON).
+5. `return res.status(404).json(...)` — le `return` est obligatoire pour stopper l'exécution après avoir envoyé une réponse.
+6. `res.status(201).json(data)` pour créer, `res.status(204).end()` pour supprimer sans body.
+7. `express.Router()` — extrait les routes dans un module autonome, monté avec `app.use('/prefix', router)`.
+8. Middleware d'erreur `(err, req, res, next)` — 4 paramètres, déclaré après toutes les routes.
+9. Express 5 — les handlers `async` propagent automatiquement les rejections vers `next(err)`, sans try/catch manuel.
+
+## 7. Seeds Anki
+
+```
+Pourquoi req.body est-il undefined dans une route POST Express ?|express.json() n'a pas été déclaré avec app.use() avant la route — ce middleware parse le body JSON et le place dans req.body
+Quel est le type de req.params.id dans app.get('/familles/:id') ?|string — les paramètres de route sont toujours des strings, même si la valeur ressemble à un nombre
+Différence PUT vs PATCH dans un CRUD REST Express ?|PUT remplace la ressource entière (tous les champs requis), PATCH modifie uniquement les champs présents dans le body
+Comment arrêter l'exécution du handler après avoir envoyé une réponse 404 ?|Préfixer l'appel avec return : `return res.status(404).json(...)` — sans return le code continue et tente une deuxième réponse
+Quel status code pour un DELETE réussi sans body de retour ?|204 No Content — res.status(204).end() — ne pas appeler res.json() après un 204
+Comment Express 5 améliore-t-il la gestion des handlers async par rapport à Express 4 ?|Express 5 propage automatiquement les rejections de Promise vers next(err) — plus besoin de try/catch ou du package express-async-errors
+Comment monter un Router Express sur le préfixe /familles ?|app.use('/familles', famillesRouter) — les routes dans le router sont alors relatives : router.get('/') répond à GET /familles
+Quel est le 4e paramètre qui distingue un middleware d'erreur d'un middleware normal ?|err — signature (err, req, res, next) à 4 paramètres ; Express identifie les middleware d'erreur uniquement par ce nombre de paramètres
+```
+
+## Pont vers le lab
+
+> Lab associé : `09-nestjs/labs/lab-05-express-crud/README.md`. Tu construis le CRUD familles TribuZen en Express 5 avec router modulaire — pas de gap-fill, code de A à Z, corrigé complet commenté inline.

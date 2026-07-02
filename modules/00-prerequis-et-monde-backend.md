@@ -1,697 +1,397 @@
-# Module 00 — Prérequis & Le monde du backend
+---
+titre: Prérequis et monde backend
+cours: 09-nestjs
+notions: [rôle du backend, modèle client-serveur, HTTP et JSON, runtime Node.js, npm et package.json, TypeScript côté serveur, objectif et parcours du cours]
+outcomes: [situer le rôle d'un backend et le modèle client-serveur, comprendre ce que Node.js exécute, préparer un projet Node TypeScript, savoir où va le cours]
+prerequis: [TypeScript labs 01-10]
+next: 01-nodejs-event-loop
+libs: [{ name: node, version: "22" }, { name: typescript, version: "^5" }]
+tribuzen: poser les fondations de l'API backend TribuZen (familles, invitations, posts)
+last-reviewed: 2026-07
+---
 
-<!-- nav-cours-précédent -->
-> **Cours précédent** : [Testing](../../04-testing/modules/18-projet-final.md). Si tu arrives ici sans avoir fait les cours précédents, consulte le [guide de démarrage](../../GUIDE-DEMARRAGE.md).
+# Prérequis et monde backend
 
-
-> **Objectif** : Comprendre ce qu'est le backend, le modèle client-serveur, le protocole HTTP en detail, installer un environnement de travail complet (Node.js, npm, VS Code, Postman) et exécuter son premier script Node.js.
+> **Outcomes — tu sauras FAIRE :** situer le rôle d'un backend dans une architecture web, comprendre ce que Node.js exécute et en quoi il diffère du navigateur, initialiser un projet Node.js avec TypeScript, savoir où va ce cours.
+> **Difficulté :** :star:
 >
-> **Difficulte** : ⭐ (débutant)
+> **Portée :** ce module pose le vocabulaire et l'environnement. Pas de lab. Le module 01 démarre l'implémentation avec l'event loop et les I/O asynchrones.
 
----
-
-## 1. Ce que ce cours va t'apprendre
-
-Ce cours est un parcours complet qui t'emmene de zero connaissance backend jusqu'à la maîtrise de NestJS, le framework Node.js le plus structure et le plus utilise en entreprise. Voici la progression :
-
-| Bloc | Modules | Compétences |
-|---|---|---|
-| **Node.js fondamental** | 00 – 04 | Event loop, modules, streams, serveur HTTP natif |
-| **Express.js** | 05 – 08 | Routing, middleware, validation, authentification |
-| **NestJS** | 09 – 12 | Controllers, providers, DI, modules, architecture |
-
-> **Analogie** : Imagine que tu veux construire un immeuble. D'abord tu apprends a manipuler les materiaux bruts (Node.js), ensuite tu utilises des outils pour aller plus vite (Express), et enfin tu adoptes un plan d'architecture complet avec des normes de construction (NestJS). Chaque étape enrichit la précédente.
-
-> **Chevauchement intentionnel** : les modules 01-04 (Node.js fondamental) recouvrent le cours 02-JS Runtime (event loop, modules, streams). Si tu as déjà fait le cours 02, ces modules seront une révision rapide en contexte backend. Si tu n'as pas fait le cours 02, tu découvres ces concepts ici — le cours 02 approfondira ensuite avec V8, GC et JIT.
-
-### Ce que ce cours n'est PAS
-
-- Ce n'est pas un cours de frontend : on suppose que tu connais HTML, CSS, JavaScript et idealement TypeScript.
-- Ce n'est pas un cours de base de donnees : on travaillera avec des donnees en mémoire ou des fichiers. Pour les bases de donnees, consulte le cours PostgreSQL.
-- Ce n'est pas un cours théorique : chaque module contient du code executable et des exercices pratiques.
-
----
-
-## 2. Qu'est-ce que le backend
-
-### 2.1 Definition
-
-Le **backend** (où cote serveur) est la partie d'une application qui s'exécuté sur un serveur distant. C'est le cerveau invisible derriere l'interface que voit l'utilisateur. Il géré :
-
-1. **La logique metier** : regles de calcul, workflows, decisions
-2. **Le stockage des donnees** : bases de donnees, fichiers, caches
-3. **L'authentification et l'autorisation** : qui peut faire quoi
-4. **Les integrations** : API tierces, envoi d'emails, paiements
-5. **La sécurité** : validation, chiffrement, protection contre les attaques
-
-> **Analogie** : Quand tu vas au restaurant, le **frontend** c'est la salle — la decoration, le menu, le serveur qui prend ta commande. Le **backend** c'est la cuisine — la ou le plat est prepare, ou les ingredients sont stockes, ou les recettes sont appliquees. Le client ne voit jamais la cuisine, mais c'est elle qui fait tout le travail.
-
-### 2.2 Frontend vs Backend
-
-| Aspect | Frontend | Backend |
-|---|---|---|
-| **Ou ça tourne** | Navigateur du client | Serveur distant |
-| **Langages** | HTML, CSS, JavaScript | Node.js, Python, Java, Go, C#... |
-| **Responsabilite** | Interface utilisateur, interactions | Logique metier, donnees, sécurité |
-| **Acces aux donnees** | Via des requêtes HTTP (API) | Directement (base de donnees) |
-| **Sécurité** | Le code est visible par l'utilisateur | Le code est invisible |
-| **Exemples de frameworks** | Angular, React, Vue | Express, NestJS, Django, Spring |
-
-> **Piege classique** : Ne mets JAMAIS de logique sensible dans le frontend. Un utilisateur peut inspecter et modifier tout le code JavaScript qui tourne dans son navigateur. La validation, l'authentification et les regles metier doivent TOUJOURS etre verifiees cote backend.
-
-### 2.3 Le modèle client-serveur
-
-Le web fonctionne sur un modèle **client-serveur** :
-
-```
-  ┌──────────┐                          ┌──────────┐
-  │          │   1. Requete HTTP         │          │
-  │  CLIENT  │ ─────────────────────────▶│ SERVEUR  │
-  │(navigateur│                          │ (Node.js)│
-  │ ou app)  │◀───────────────────────── │          │
-  │          │   2. Reponse HTTP         │          │
-  └──────────┘                          └──────────┘
-```
-
-1. Le **client** (navigateur, application mobile, Postman...) envoie une **requête HTTP**
-2. Le **serveur** recoit la requête, la traite, et renvoie une **réponse HTTP**
-3. Le client interprete la réponse (affiche du HTML, lit du JSON, etc.)
-
-> **A retenir** : Le serveur ne contacte jamais le client de lui-même (dans le modèle HTTP classique). C'est toujours le client qui initie la communication. Pour du temps réel (notifications, chat), on utilise des WebSockets — mais ce n'est pas du HTTP standard.
-
-### 2.4 API — Application Programming Interface
-
-Une **API** est un contrat entre le client et le serveur. Elle définit :
-
-- Quelles **URL** (endpoints) sont disponibles
-- Quelles **méthodes HTTP** utiliser
-- Quel **format de donnees** envoyer et recevoir
-- Quels **codes de réponse** attendre
-
-```
-  Application Frontend (Angular, React...)
-        │
-        │  Appel API : GET /api/users
-        ▼
-  ┌──────────────────────┐
-  │      API REST         │  ← Contrat : "Voici les endpoints disponibles"
-  │  (serveur Node.js)    │
-  └──────────────────────┘
-        │
-        │  Requete SQL : SELECT * FROM users
-        ▼
-  ┌──────────────────────┐
-  │   Base de donnees     │
-  └──────────────────────┘
-```
-
----
-
-## 3. Le protocole HTTP en detail
-
-### 3.1 Qu'est-ce que HTTP
-
-**HTTP** (HyperText Transfer Protocol) est le protocole de communication du web. C'est un protocole **sans état** (stateless) : chaque requête est independante, le serveur ne "se souvient" pas des requêtes precedentes.
-
-> **Analogie** : HTTP, c'est comme envoyer des lettres à une entreprise. Chaque lettre (requête) contient toutes les informations nécessaires : qui tu es, ce que tu veux, les documents joints. L'entreprise (serveur) repond avec une lettre (réponse) contenant le résultat. Elle ne se souvient pas de tes lettres precedentes — tu dois tout rappeler à chaque fois.
-
-### 3.2 Anatomie d'une requête HTTP
-
-```
-┌─────────────────────────────────────────────────┐
-│  POST /api/users HTTP/1.1                       │  ← Ligne de requete
-│                                                 │     (methode + URL + version)
-│  Host: api.example.com                          │
-│  Content-Type: application/json                 │  ← En-tetes (headers)
-│  Authorization: Bearer eyJhbGciOiJIUzI1NiJ9... │
-│  Accept: application/json                       │
-│                                                 │
-│  {                                              │
-│    "nom": "Alice Dupont",                       │  ← Corps (body)
-│    "email": "alice@example.com"                 │
-│  }                                              │
-└─────────────────────────────────────────────────┘
-```
-
-### 3.3 Les méthodes HTTP
-
-| Méthode | Role | Idempotent | Corps | Exemple |
-|---|---|---|---|---|
-| **GET** | Recuperer une ressource | Oui | Non | `GET /api/users/42` |
-| **POST** | Créer une ressource | Non | Oui | `POST /api/users` |
-| **PUT** | Remplacer une ressource complètement | Oui | Oui | `PUT /api/users/42` |
-| **PATCH** | Modifier partiellement une ressource | Non* | Oui | `PATCH /api/users/42` |
-| **DELETE** | Supprimer une ressource | Oui | Non** | `DELETE /api/users/42` |
-| **HEAD** | Comme GET mais sans le body | Oui | Non | `HEAD /api/users/42` |
-| **OPTIONS** | Decouvrir les méthodes autorisees | Oui | Non | `OPTIONS /api/users` |
-
-> **A retenir** : **Idempotent** signifie que repeter la même requête produit le même résultat. `DELETE /users/42` exécuté 10 fois donne le même résultat : l'utilisateur 42 est supprime (les 9 fois suivantes, il est déjà supprime). `POST /users` exécuté 10 fois créé 10 utilisateurs — ce n'est PAS idempotent.
-
-### 3.4 Les status codes HTTP
-
-Les codes de réponse HTTP sont regroupes en 5 familles :
-
-#### 1xx — Informations
-
-| Code | Nom | Signification |
-|---|---|---|
-| 100 | Continue | Le serveur a recu les headers, le client peut envoyer le body |
-| 101 | Switching Protocols | Changement de protocole (ex: upgrade vers WebSocket) |
-
-#### 2xx — Succes
-
-| Code | Nom | Utilisation |
-|---|---|---|
-| **200** | OK | Requête reussie (GET, PUT, PATCH) |
-| **201** | Created | Ressource créée avec succes (POST) |
-| **204** | No Content | Succes sans contenu (DELETE) |
-
-#### 3xx — Redirections
-
-| Code | Nom | Utilisation |
-|---|---|---|
-| 301 | Moved Permanently | Redirection permanente (SEO) |
-| 302 | Found | Redirection temporaire |
-| 304 | Not Modified | Ressource non modifiee (cache) |
-
-#### 4xx — Erreurs client
-
-| Code | Nom | Cause |
-|---|---|---|
-| **400** | Bad Request | Donnees invalides envoyees par le client |
-| **401** | Unauthorized | Authentification requise ou invalide |
-| **403** | Forbidden | Authentifie mais pas les droits |
-| **404** | Not Found | Ressource inexistante |
-| **405** | Method Not Allowed | Méthode HTTP non supportee sur cet endpoint |
-| **409** | Conflict | Conflit (ex: email déjà pris) |
-| **422** | Unprocessable Entity | Donnees bien formees mais semantiquement invalides |
-| **429** | Too Many Requests | Rate limiting dépasse |
-
-#### 5xx — Erreurs serveur
-
-| Code | Nom | Cause |
-|---|---|---|
-| **500** | Internal Server Error | Bug dans le code du serveur |
-| **502** | Bad Gateway | Le serveur proxy a recu une réponse invalide |
-| **503** | Service Unavailable | Serveur en surcharge ou en maintenance |
-| **504** | Gateway Timeout | Le serveur proxy n'a pas recu de réponse a temps |
-
-> **Bonne pratique** : Utilise toujours le status code le plus précis possible. Ne renvoie pas `200` pour tout — si tu crees une ressource, renvoie `201`. Si tu supprimes, renvoie `204`. Un bon usage des status codes rend ton API previsible et facile a deboguer.
-
-### 3.5 Les headers HTTP importants
-
-| Header | Direction | Role | Exemple |
-|---|---|---|---|
-| `Content-Type` | Requête/Reponse | Format du body | `application/json` |
-| `Accept` | Requête | Formats acceptes par le client | `application/json` |
-| `Authorization` | Requête | Jeton d'authentification | `Bearer eyJhb...` |
-| `Set-Cookie` | Reponse | Définir un cookie | `session=abc; HttpOnly` |
-| `Access-Control-Allow-Origin` | Reponse | Autoriser le CORS | `http://localhost:4200` |
-| `Cache-Control` | Reponse | Politique de cache | `max-age=3600` |
-| `Content-Length` | Reponse | Taille du body en octets | `1234` |
-| `X-Request-Id` | Les deux | Identifiant unique de requête | `uuid-v4` |
-
-### 3.6 Le CORS (Cross-Origin Resource Sharing)
-
-```
-  Navigateur                           Serveur API
-  (localhost:4200)                     (localhost:3000)
-       │                                    │
-       │  1. Preflight OPTIONS /api/users   │
-       │───────────────────────────────────▶│
-       │                                    │
-       │  2. 200 OK                         │
-       │  Access-Control-Allow-Origin: *    │
-       │◀───────────────────────────────────│
-       │                                    │
-       │  3. GET /api/users                 │
-       │───────────────────────────────────▶│
-       │                                    │
-       │  4. 200 OK (data)                  │
-       │◀───────────────────────────────────│
-```
-
-Le CORS est un mécanisme de sécurité du **navigateur** (pas du serveur). Il empeche un site web de faire des requêtes vers un domaine différent sans autorisation explicite.
-
-> **Piege classique** : "Mon API fonctionne avec Postman mais pas depuis mon app Angular !" — C'est du CORS. Postman ne passe pas par un navigateur, donc il ignore le CORS. En développement, configure ton serveur pour autoriser `localhost:4200` (où `*` mais jamais en production).
-
-### 3.7 Le body : JSON et form-data
-
-```typescript
-// Format JSON (le plus courant pour les API)
-{
-  "nom": "Alice Dupont",
-  "email": "alice@example.com",
-  "age": 28
-}
-
-// Content-Type: application/json
-```
-
-```
-# Format form-data (pour l'upload de fichiers)
-------boundary123
-Content-Disposition: form-data; name="nom"
-
-Alice Dupont
-------boundary123
-Content-Disposition: form-data; name="avatar"; filename="photo.jpg"
-Content-Type: image/jpeg
-
-(contenu binaire du fichier)
-------boundary123--
-
-# Content-Type: multipart/form-data; boundary=----boundary123
-```
-
----
-
-## 4. REST — Representational State Transfer
-
-### 4.1 Principes REST
-
-REST est un style d'architecture pour les API. Il repose sur des conventions :
-
-| Principe | Description |
+| ← Précédent | Suivant → |
 |---|---|
-| **Ressources** | Chaque entite est une ressource identifiee par une URL |
-| **Méthodes HTTP** | Chaque action correspond à une méthode HTTP |
-| **Stateless** | Chaque requête contient toutes les informations nécessaires |
-| **Representations** | Les ressources sont representees en JSON (où XML, etc.) |
+| *(début du cours)* | [01 — Node.js event loop](./01-nodejs-event-loop.md) |
 
-### 4.2 Conventions de nommage des endpoints
+## 1. Cas concret d'abord
 
-| Action | Méthode | Endpoint | Description |
+Tu veux construire TribuZen — une app de gestion de familles. Le front affiche les familles, les invitations en attente, les posts de la communauté. Dans un composant Vue, tu écris :
+
+```ts
+// front/src/composables/useFamilies.ts
+const res = await fetch('/api/families')
+const families = await res.json()
+```
+
+La requête part... vers où ? Qui répond ? Qui vérifie que tu es authentifié ? Qui persiste les invitations en base ? Qui empêche un `guest` d'inviter un nouveau membre ? Le composant ne peut pas faire ça — il tourne dans le navigateur de l'utilisateur, son code est visible, il n'a pas accès à la base de données.
+
+C'est le rôle du **backend** : le processus serveur qui reçoit `GET /api/families`, vérifie le token JWT, interroge la base, et retourne du JSON.
+
+Ce module répond exactement à ça : qu'est-ce qui tourne côté serveur, comment le client lui parle via HTTP, quel runtime (Node.js) et quelle configuration TypeScript on va utiliser, et où ce cours nous emmène.
+
+## 2. Théorie complète, concise
+
+### 2.1 Rôle du backend
+
+Le **backend** est le code qui s'exécute sur un serveur distant, invisible au navigateur. Il prend en charge :
+
+| Responsabilité | Exemple TribuZen |
+|---|---|
+| Logique métier | seul un `owner` ou `admin` peut inviter |
+| Stockage des données | familles, membres, posts en base |
+| Authentification et autorisation | JWT, RBAC par rôle |
+| Intégrations externes | envoi d'email d'invitation |
+| Sécurité | validation des entrées, chiffrement |
+
+**Piège fondamental :** ne jamais mettre de logique sensible dans le frontend. Le code JavaScript du navigateur est lisible et modifiable par n'importe quel utilisateur. La validation, les règles RBAC, et les accès base doivent toujours être vérifiés côté serveur.
+
+### 2.2 Modèle client-serveur
+
+Le web fonctionne sur le modèle **client-serveur** : c'est toujours le client qui initie la communication.
+
+```
+  Client (navigateur, app mobile)
+      │
+      │  1. Requête HTTP  →  GET /api/families
+      ▼
+  Serveur (Node.js / NestJS)
+      │
+      │  2. Traitement (auth, base de données, logique)
+      │
+      └─ 3. Réponse HTTP  →  200 OK  +  [{ id, name, ... }]
+```
+
+Le serveur ne contacte jamais le client de lui-même en HTTP classique. Pour du temps réel (chat, notifications), on utilise des WebSockets — un protocole différent, vu plus loin dans le cours.
+
+Chaque requête HTTP est **stateless** : le serveur ne se souvient pas de la précédente. L'état (session, identité) est porté par le client dans chaque requête, typiquement via un header `Authorization: Bearer <jwt>`.
+
+### 2.3 HTTP et JSON
+
+**HTTP** (HyperText Transfer Protocol) est le protocole de communication entre client et serveur. Une requête HTTP se compose de :
+
+```
+POST /api/families HTTP/1.1
+Host: api.tribuzen.app
+Content-Type: application/json
+Authorization: Bearer eyJhbGci...
+
+{
+  "name": "Les Dupont",
+  "ownerId": "usr-42"
+}
+```
+
+- **Ligne de requête** : méthode + chemin + version du protocole
+- **Headers** : métadonnées (format du body, authentification, cache)
+- **Body** : données envoyées (présent pour POST/PUT/PATCH)
+
+#### Méthodes HTTP
+
+| Méthode | Rôle | Idempotent | Body |
 |---|---|---|---|
-| Lister | GET | `/api/users` | Recuperer tous les utilisateurs |
-| Lire | GET | `/api/users/:id` | Recuperer un utilisateur par ID |
-| Créer | POST | `/api/users` | Créer un nouvel utilisateur |
-| Remplacer | PUT | `/api/users/:id` | Remplacer complètement un utilisateur |
-| Modifier | PATCH | `/api/users/:id` | Modifier partiellement un utilisateur |
-| Supprimer | DELETE | `/api/users/:id` | Supprimer un utilisateur |
+| GET | Lire une ressource | Oui | Non |
+| POST | Créer une ressource | Non | Oui |
+| PUT | Remplacer complètement | Oui | Oui |
+| PATCH | Modifier partiellement | Non* | Oui |
+| DELETE | Supprimer | Oui | Non |
 
-```typescript
-// Exemple de reponse pour GET /api/users
-{
-  "data": [
-    { "id": 1, "nom": "Alice", "email": "alice@example.com" },
-    { "id": 2, "nom": "Bob", "email": "bob@example.com" }
-  ],
-  "total": 2,
-  "page": 1,
-  "limit": 10
-}
+**Idempotent** = répéter la même requête donne le même résultat. `DELETE /families/42` exécuté 5 fois donne toujours le même état final. `POST /families` exécuté 5 fois crée 5 familles — pas idempotent.
 
-// Exemple de reponse pour GET /api/users/1
-{
-  "id": 1,
-  "nom": "Alice",
-  "email": "alice@example.com",
-  "createdAt": "2024-01-15T10:30:00Z"
-}
+#### Codes de statut HTTP essentiels
 
-// Exemple de body pour POST /api/users
-{
-  "nom": "Charlie",
-  "email": "charlie@example.com"
-}
+| Famille | Codes clés | Sens |
+|---|---|---|
+| 2xx — Succès | 200 OK, 201 Created, 204 No Content | Tout s'est bien passé |
+| 4xx — Erreur client | 400 Bad Request, 401 Unauthorized, 403 Forbidden, 404 Not Found, 409 Conflict | Le client a fait une erreur |
+| 5xx — Erreur serveur | 500 Internal Server Error | Bug dans le code du serveur |
 
-// Reponse : 201 Created
+Règle : utiliser le code le plus précis. `201` pour une création (POST réussi), `204` pour une suppression (pas de body à retourner), `401` quand le token manque, `403` quand le token est valide mais le rôle insuffisant.
+
+#### JSON comme format d'échange
+
+JSON (JavaScript Object Notation) est le format standard des API REST. Le header `Content-Type: application/json` l'annonce dans les deux sens.
+
+```ts
+// Réponse de GET /api/families/fam-1
 {
-  "id": 3,
-  "nom": "Charlie",
-  "email": "charlie@example.com",
-  "createdAt": "2024-06-20T14:00:00Z"
+  "id": "fam-1",
+  "name": "Les Dupont",
+  "memberCount": 4,
+  "createdAt": "2026-01-15T10:30:00Z"
 }
 ```
 
-> **Bonne pratique** : Utilise des **noms pluriels** pour les ressources (`/users`, pas `/user`). Utilise des **tirets** pour les mots composes (`/order-items`, pas `/orderItems`). N'inclus pas de verbes dans les URLs (`/users`, pas `/getUsers`) — la méthode HTTP porte déjà le verbe.
+Tout ce qui transite en JSON doit être sérialisable : pas de `Date`, `Map`, ou `Set` natifs — on les convertit en `string` (ISO 8601 pour les dates) ou en tableaux.
 
----
+### 2.4 Runtime Node.js
 
-## 5. Setup complet de l'environnement
+**Node.js** est un runtime JavaScript côté serveur, basé sur le moteur **V8** de Chrome. Il exécute du JavaScript (ou TypeScript) en dehors du navigateur, avec accès au système de fichiers, réseau, et processus — ce que le navigateur interdit par sécurité.
 
-### 5.1 Installation de Node.js
+Node.js **22 LTS** (Long Term Support depuis octobre 2024) est la version recommandée. Elle apporte :
 
-Node.js est un **runtime JavaScript** qui permet d'exécuter du JavaScript en dehors du navigateur. Il est base sur le moteur **V8** de Chrome.
-
-**Installation (Windows)** :
-
-1. Va sur https://nodejs.org
-2. Telecharge la version **LTS** (Long Term Support) — actuellement Node.js 22 LTS (recommande) ou 24
-3. Execute l'installateur, coche toutes les options par defaut
-4. Verifie l'installation :
+- Support natif de TypeScript stable (type stripping sans `tsc` ni `ts-node` pour des scripts simples)
+- `fetch` et `WebSocket` globaux sans polyfill
+- Performances V8 améliorées
 
 ```bash
-# Verifier les versions installees
-node --version
-# v20.11.0 (ou superieur)
-
-npm --version
-# 10.2.4 (ou superieur)
+node --version   # v22.x.x
+npm --version    # 10.x.x  (bundlé avec Node 22)
 ```
 
-> **A retenir** : Utilise toujours la version **LTS** de Node.js, pas la version "Current". La LTS est plus stable et supportee plus longtemps. En entreprise, c'est toujours la LTS qui est utilisee.
+**Ce que Node.js expose que le navigateur n'a pas :**
 
-### 5.2 npm — Node Package Manager
+| API | Module Node | Navigateur |
+|---|---|---|
+| Lecture de fichiers | `fs` | Non |
+| Informations système | `os` | Non |
+| Créer un serveur HTTP | `http` / `https` | Non |
+| Variables d'environnement | `process.env` | Non |
+| `document`, `window`, `DOM` | Non | Oui |
+| `fetch` | Oui (Node 18+) | Oui |
+| `console`, `setTimeout`, `JSON` | Oui | Oui |
 
-**npm** est le gestionnaire de paquets de Node.js. Il te permet d'installer des librairies tierces.
+Node.js est **single-threaded** avec un event loop non-bloquant — c'est le sujet du module 01. Ce point est critique pour comprendre pourquoi les I/O (fichiers, réseau, base de données) doivent être asynchrones.
+
+### 2.5 npm et package.json
+
+**npm** (Node Package Manager) est le gestionnaire de paquets livré avec Node.js. Initialiser un projet :
 
 ```bash
-# Creer un nouveau projet
-mkdir mon-projet
-cd mon-projet
-npm init -y
-
-# Installer un paquet (dependance de production)
-npm install express
-
-# Installer un paquet de developpement
-npm install --save-dev nodemon
-
-# Installer un paquet globalement
-npm install -g typescript
-
-# Desinstaller un paquet
-npm uninstall express
+mkdir tribuzen-api
+cd tribuzen-api
+npm init -y          # crée package.json avec des valeurs par défaut
 ```
 
-### 5.3 Anatomie du package.json
+Anatomie du `package.json` :
 
 ```json
 {
-  "name": "mon-api",
+  "name": "tribuzen-api",
   "version": "1.0.0",
-  "description": "Mon premier projet backend",
-  "main": "index.js",
   "scripts": {
-    "start": "node index.js",
-    "dev": "nodemon index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node dist/main.js",
+    "dev": "tsx watch src/main.ts",
+    "build": "tsc --noEmit && tsc",
+    "test": "vitest run"
   },
   "dependencies": {
-    "express": "^4.18.2"
+    "express": "^5.0.0"
   },
   "devDependencies": {
-    "nodemon": "^3.0.0"
-  },
-  "keywords": [],
-  "author": "Ton nom",
-  "license": "ISC"
+    "typescript": "^5.0.0",
+    "tsx": "^4.0.0",
+    "@types/node": "^22.0.0"
+  }
 }
 ```
 
-| Champ | Role |
+| Champ | Rôle |
 |---|---|
-| `name` | Nom du projet (minuscules, pas d'espaces) |
-| `version` | Version semantique (major.minor.patch) |
-| `scripts` | Commandes raccourcies (`npm run dev`) |
+| `scripts` | Raccourcis `npm run dev`, `npm run build` |
 | `dependencies` | Paquets nécessaires en production |
-| `devDependencies` | Paquets nécessaires uniquement en développement |
+| `devDependencies` | Paquets uniquement pour le développement (compilateur, types) |
+| `version` | Versionnement sémantique `major.minor.patch` |
 
-### 5.4 Extensions VS Code recommandees
+Le fichier `package-lock.json` verrouille les versions exactes de toutes les dépendances transitives. Ne pas l'éditer manuellement — le committer pour garantir des installations reproductibles.
 
-| Extension | Role |
-|---|---|
-| **REST Client** ou **Thunder Client** | Tester des requêtes HTTP directement dans VS Code |
-| **ESLint** | Linting du code JavaScript/TypeScript |
-| **Prettier** | Formatage automatique du code |
-| **Error Lens** | Affiche les erreurs directement dans le code |
-| **GitLens** | Historique Git enrichi |
-| **dotenv** | Coloration syntaxique des fichiers `.env` |
+### 2.6 TypeScript côté serveur
 
-### 5.5 Postman ou Thunder Client
+TypeScript apporte la vérification de types au code Node.js — indispensable pour une API : une propriété manquante dans un DTO ou un type de retour erroné est détecté à la compilation, pas en production.
 
-Pour tester tes API, tu auras besoin d'un outil pour envoyer des requêtes HTTP :
-
-- **Postman** (application desktop) : le plus complet, avec collections, variables d'environnement, tests automatises
-- **Thunder Client** (extension VS Code) : leger, intégré a VS Code, parfait pour debuter
-
-> **Bonne pratique** : Ne teste pas tes API uniquement depuis le navigateur. Le navigateur ne peut envoyer que des requêtes GET facilement. Pour POST, PUT, DELETE, tu as besoin de Postman ou Thunder Client.
-
----
-
-## 6. Premier script Node.js
-
-### 6.1 Hello World
-
-Cree un fichier `hello.js` :
-
-```typescript
-// hello.js
-console.log('Hello, World !');
-console.log('Bienvenue dans le monde du backend.');
-console.log(`Node.js version : ${process.version}`);
-console.log(`Systeme d'exploitation : ${process.platform}`);
-console.log(`Repertoire courant : ${process.cwd()}`);
-```
-
-Execute-le :
+**Configuration minimale pour Node.js 22 :**
 
 ```bash
-node hello.js
-# Hello, World !
-# Bienvenue dans le monde du backend.
-# Node.js version : v20.11.0
-# Systeme d'exploitation : win32
-# Repertoire courant : C:\Users\toi\mon-projet
+npm install --save-dev typescript @types/node
+npx tsc --init
 ```
 
-### 6.2 Un script plus interessant
-
-```typescript
-// info.js
-const os = require('os');
-
-console.log('=== Informations systeme ===');
-console.log(`Hostname    : ${os.hostname()}`);
-console.log(`OS          : ${os.type()} ${os.release()}`);
-console.log(`Architecture: ${os.arch()}`);
-console.log(`CPUs        : ${os.cpus().length} coeurs`);
-console.log(`RAM totale  : ${(os.totalmem() / 1024 / 1024 / 1024).toFixed(2)} Go`);
-console.log(`RAM libre   : ${(os.freemem() / 1024 / 1024 / 1024).toFixed(2)} Go`);
-console.log(`Uptime      : ${(os.uptime() / 3600).toFixed(1)} heures`);
-```
-
-### 6.3 Comprendre la différence avec le navigateur
-
-```typescript
-// Ceci fonctionne dans le navigateur mais PAS dans Node.js :
-// document.getElementById('app');  // Erreur : document n'existe pas
-// window.alert('test');            // Erreur : window n'existe pas
-
-// Ceci fonctionne dans Node.js mais PAS dans le navigateur :
-const fs = require('fs');           // Acces au systeme de fichiers
-const os = require('os');           // Informations systeme
-const http = require('http');       // Creer un serveur HTTP
-
-// Ceci fonctionne dans les DEUX :
-console.log('Hello');
-setTimeout(() => {}, 1000);
-JSON.parse('{}');
-Math.random();
-```
-
-| Disponible dans | Node.js | Navigateur |
-|---|---|---|
-| `console` | Oui | Oui |
-| `setTimeout/setInterval` | Oui | Oui |
-| `JSON`, `Math`, `Date` | Oui | Oui |
-| `require` / `import` | Oui (modules) | Oui (ESM) |
-| `document`, `window`, `DOM` | Non | Oui |
-| `fs`, `path`, `os`, `http` | Oui | Non |
-| `process` | Oui | Non |
-| `fetch` | Oui (Node 18+) | Oui |
-
----
-
-## 7. Le REPL Node.js interactif
-
-Le **REPL** (Read-Eval-Print Loop) est un terminal interactif Node.js :
-
-```bash
-# Lancer le REPL
-node
-
-# Tu peux maintenant taper du JavaScript directement :
-> 2 + 3
-5
-
-> const message = 'Bonjour'
-undefined
-
-> message.toUpperCase()
-'BONJOUR'
-
-> Array.from({ length: 5 }, (_, i) => i * 2)
-[ 0, 2, 4, 6, 8 ]
-
-> const http = require('http')
-undefined
-
-> .exit
-# ou Ctrl+C deux fois
-```
-
-Commandes speciales du REPL :
-
-| Commande | Role |
-|---|---|
-| `.help` | Affiche l'aide |
-| `.clear` | Remet a zero le contexte |
-| `.exit` | Quitte le REPL |
-| `.save fichier.js` | Sauvegarde la session dans un fichier |
-| `.load fichier.js` | Charge et exécuté un fichier |
-
-> **Bonne pratique** : Le REPL est parfait pour tester rapidement un bout de code, vérifier le comportement d'une méthode ou explorer un module. Mais pour du vrai code, utilise toujours des fichiers `.js` ou `.ts`.
-
----
-
-## 8. Structure du cours et comment l'aborder
-
-### 8.1 Parcours recommande
-
-```
-  ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-  │  Node.js     │     │  Express     │     │  NestJS      │
-  │  Modules     │────▶│  Modules     │────▶│  Modules     │
-  │  00 – 04     │     │  05 – 08     │     │  09 – 12     │
-  └─────────────┘     └─────────────┘     └─────────────┘
-    Fondations          Framework            Architecture
-    bas niveau          minimaliste          entreprise
-```
-
-### 8.2 Pour chaque module
-
-1. **Lis le cours** en entier, même si tu crois connaître le sujet
-2. **Tape le code** toi-même (ne copie-colle pas)
-3. **Fais les exercices** à la fin de chaque module
-4. **Fais le lab** associe pour mettre en pratique
-5. **Passe le quiz** pour valider tes connaissances
-
-### 8.3 Prérequis techniques
-
-| Prérequis | Niveau attendu | Ou l'apprendre |
-|---|---|---|
-| **JavaScript** | Bon (ES6+, async/await, destructuring, spread) | MDN, javascript.info |
-| **TypeScript** | Bases (types, interfaces, generics) | Nécessaire à partir du module 09 (NestJS) |
-| **Terminal** | Bases (cd, mkdir, ls, npm) | Pratique quotidienne |
-| **Git** | Bases (init, add, commit, push) | Indispensable en entreprise |
-| **JSON** | Lecture et écriture | Utilise partout dans les API |
-
----
-
-## 9. Exercice pratique — Premier contact
-
-### Exercice 1 : Installation et vérification
-
-```bash
-# 1. Verifie que Node.js est installe
-node --version
-
-# 2. Verifie que npm est installe
-npm --version
-
-# 3. Cree un dossier de travail
-mkdir nest-course-exercices
-cd nest-course-exercices
-
-# 4. Initialise un projet npm
-npm init -y
-
-# 5. Cree ton premier fichier
-```
-
-### Exercice 2 : Exploration du protocole HTTP
-
-Avec Postman ou Thunder Client, envoie les requêtes suivantes vers `https://jsonplaceholder.typicode.com` :
-
-```
-1. GET    /posts          → Liste tous les posts (combien y en a-t-il ?)
-2. GET    /posts/1        → Recupere le post avec l'ID 1
-3. POST   /posts          → Cree un nouveau post (body JSON)
-4. PUT    /posts/1        → Remplace le post 1
-5. PATCH  /posts/1        → Modifie partiellement le post 1
-6. DELETE /posts/1        → Supprime le post 1
-```
-
-Pour le POST, utilise ce body :
+`tsconfig.json` cible pour Node 22 :
 
 ```json
 {
-  "title": "Mon premier post",
-  "body": "Ceci est un test depuis Postman",
-  "userId": 1
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "outDir": "dist",
+    "rootDir": "src",
+    "strict": true,
+    "noEmit": false,
+    "erasableSyntaxOnly": true
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
 }
 ```
 
-**Questions** :
-- Quel status code recois-tu pour chaque requête ?
-- Quel header `Content-Type` est present dans les réponses ?
-- Que se passe-t-il si tu fais `GET /posts/9999` ?
+**Deux approches pour le dev :**
 
-### Exercice 3 : Premier script avec arguments
+| Outil | Commande | Quand l'utiliser |
+|---|---|---|
+| `tsx` (recommandé) | `tsx watch src/main.ts` | Dev rapide, pas de transpilation explicite |
+| `tsc + node` | `tsc && node dist/main.js` | Build de production |
+| Node 22 natif | `node src/main.ts` | Scripts simples sans `enum`, `namespace`, décorateurs |
 
-```typescript
-// exercice3.js
-// Ecris un script qui :
-// 1. Lit les arguments de la ligne de commande (process.argv)
-// 2. Affiche un message de bienvenue personnalise
-// 3. Affiche la date et l'heure actuelles
+**Note Node 22 :** le type stripping natif (`node file.ts`) est stable mais limité — il ne supporte pas les décorateurs TypeScript expérimentaux utilisés par NestJS. Pour NestJS, on utilisera la chaîne NestJS CLI + `@swc/core` qui gère ça correctement (module 09).
 
-const args = process.argv.slice(2);
-const prenom = args[0] || 'Inconnu';
+### 2.7 Objectif et parcours du cours
 
-console.log(`Bonjour ${prenom} !`);
-console.log(`Il est ${new Date().toLocaleTimeString('fr-FR')}`);
-console.log(`Nous sommes le ${new Date().toLocaleDateString('fr-FR')}`);
+Ce cours suit une progression en trois blocs, avec TribuZen comme fil rouge à chaque étape :
+
+| Bloc | Modules | Compétences | Couche TribuZen |
+|---|---|---|---|
+| Node.js fondamental | 00-04 | Event loop, modules ESM, streams, serveur HTTP natif | Comprendre le runtime sous NestJS |
+| Express.js | 05-08 | Routing, middleware, validation, authentification JWT | API minimale TribuZen (familles) |
+| NestJS | 09-12 | Controllers, providers, injection de dépendances, modules | API complète TribuZen (invitations, RBAC, posts) |
+
+Les modules 01-04 recouvrent intentionnellement le cours `01-js-runtime` (event loop, V8, GC). Si tu l'as déjà fait, c'est une révision en contexte backend. Si non, tu découvres ici — `01-js-runtime` approfondira ensuite avec JIT et garbage collection.
+
+## 3. Worked examples
+
+### Exemple A — Premier projet Node.js TypeScript
+
+Partir de zéro jusqu'à un script TypeScript qui s'exécute.
+
+```bash
+mkdir tribuzen-scratch
+cd tribuzen-scratch
+npm init -y
+npm install --save-dev typescript @types/node tsx
+```
+
+```json
+{
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js"
+  }
+}
+```
+
+```ts
+// src/index.ts
+import { createServer, IncomingMessage, ServerResponse } from 'node:http'
+
+const PORT = 3000
+
+const server = createServer((req: IncomingMessage, res: ServerResponse) => {
+  // Seule route : GET /api/status
+  if (req.method === 'GET' && req.url === '/api/status') {
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ status: 'ok', service: 'tribuzen-api' }))
+    return
+  }
+
+  // Toute autre route : 404
+  res.writeHead(404, { 'Content-Type': 'application/json' })
+  res.end(JSON.stringify({ error: 'Not found' }))
+})
+
+server.listen(PORT, () => {
+  console.log(`TribuZen API démarrée sur http://localhost:${PORT}`)
+})
 ```
 
 ```bash
-node exercice3.js Alice
-# Bonjour Alice !
-# Il est 14:30:00
-# Nous sommes le 07/03/2026
+npm run dev
+# TribuZen API démarrée sur http://localhost:3000
+
+curl http://localhost:3000/api/status
+# {"status":"ok","service":"tribuzen-api"}
+
+curl http://localhost:3000/unknown
+# {"error":"Not found"}
 ```
 
----
+Pas-à-pas : (1) `node:http` est le module natif — préfixe `node:` recommandé depuis Node 22 pour distinguer les modules core des paquets npm ; (2) `tsx` exécute le TypeScript directement sans `tsc` — idéal pour le dev ; (3) `writeHead(200, { 'Content-Type': 'application/json' })` envoie la ligne de statut et les headers avant le body ; (4) `res.end(JSON.stringify(...))` sérialise l'objet en JSON et ferme la réponse.
 
-## 10. Résumé — Les concepts clés
+### Exemple B — Lire une réponse HTTP à la main
 
-| Concept | Definition |
-|---|---|
-| **Backend** | Code qui s'exécuté cote serveur |
-| **HTTP** | Protocole de communication client-serveur |
-| **REST** | Style d'architecture pour les API |
-| **Status code** | Code numérique indiquant le résultat d'une requête |
-| **Header** | Metadonnees d'une requête ou réponse HTTP |
-| **JSON** | Format d'echange de donnees standard |
-| **Node.js** | Runtime JavaScript cote serveur |
-| **npm** | Gestionnaire de paquets pour Node.js |
-| **CORS** | Mécanisme de sécurité du navigateur |
-| **Idempotent** | Operation qui produit le même résultat si repetee |
+Comprendre ce que le client reçoit réellement (pas juste ce que le navigateur affiche).
 
-> **A retenir** : Le backend est le cerveau de toute application web. HTTP est le langage de communication entre client et serveur. REST est la convention qui structure cette communication. Node.js est l'outil qui te permet d'écrire du backend en JavaScript — le même langage que tu utilises déjà en frontend.
+```bash
+# curl -i affiche les headers + le body brut
+curl -i http://localhost:3000/api/status
+```
 
----
+Sortie typique :
 
-## Navigation
+```
+HTTP/1.1 200 OK
+Content-Type: application/json
+Date: Wed, 02 Jul 2026 14:00:00 GMT
+Connection: keep-alive
+Transfer-Encoding: chunked
 
-| | Lien |
-|---|---|
-| Module suivant | [Module 01 — Node.js — Event Loop & Asynchrone](./01-nodejs-event-loop.md) |
-| Quiz | [Quiz Module 00](../quizzes/00-prerequis-et-monde-backend.quiz.md) |
-| Lab | Pas de lab pour ce module d'introduction |
+{"status":"ok","service":"tribuzen-api"}
+```
 
----
+Lecture ligne par ligne : (1) `HTTP/1.1 200 OK` — protocole + code de statut + texte ; (2) `Content-Type: application/json` — le body est du JSON ; (3) ligne vide — séparation entre headers et body ; (4) body JSON.
 
-> **A retenir** : Avant de plonger dans le code, assure-toi d'avoir bien compris le modèle client-serveur, les méthodes HTTP et les status codes. Ce vocabulaire te suivra tout au long du cours et de ta carriere backend. Installe Node.js, ouvre VS Code, lance ton premier `node hello.js` — le voyage commence maintenant.
+C'est exactement ce que `fetch()` côté client reçoit. `res.json()` parse le body après avoir lu le header `Content-Type`.
 
----
+## 4. Pièges & misconceptions
 
-<!-- parcours-recommande -->
+**"Validation côté client suffit."** Non. Tout ce qui s'exécute dans le navigateur peut être contourné (DevTools, Postman, scripts). Si seul le frontend valide qu'un champ `email` est requis, un attaquant peut envoyer une requête sans ce champ directement au serveur. La validation doit toujours exister côté backend — le frontend valide pour l'expérience utilisateur, pas pour la sécurité.
 
-::: tip Parcours recommandé
-1. **Screencast** : [screencast 00 prérequis](../screencasts/screencast-00-prerequis.md)
-2. **Quiz** : [quiz 00 prérequis](../quizzes/quiz-00-prerequis.html)
-:::
+**"Node.js est multi-threadé comme Java."** Node.js est single-threaded. Un seul thread JavaScript exécute tout le code applicatif. C'est l'event loop qui donne l'illusion de parallélisme pour les I/O — mais bloquer ce thread avec un calcul CPU lourd (`while` infini, parsing d'un gros fichier en synchrone) bloque **toutes** les requêtes en cours. Conséquence directe : toujours utiliser les API asynchrones (`fs.promises.readFile`, `await db.query(...)`) jamais les variantes synchrones en production.
+
+**"`401 Unauthorized` et `403 Forbidden` sont pareils."** Non. `401` signifie "je ne sais pas qui tu es" — le token est absent ou invalide, il faut s'authentifier. `403` signifie "je sais qui tu es, mais tu n'as pas le droit" — l'utilisateur est authentifié (token valide) mais son rôle (`member`) ne permet pas l'action. Confondre les deux produit des messages d'erreur trompeurs et des clients qui essaient de se reconnecter alors que le problème est d'autorisation.
+
+**"Le `package-lock.json` est inutile."** Il verrouille les versions exactes de toutes les dépendances transitives. Sans lui, `npm install` peut installer des versions différentes selon la date d'exécution, introduisant des bugs impossibles à reproduire en CI. Il doit être commité dans le dépôt et jamais édité manuellement.
+
+**"Node 22 exécute tout TypeScript nativement."** Le type stripping natif de Node 22 (`node file.ts`) fonctionne pour la syntaxe TypeScript "effaçable" (annotations, interfaces). Il ne supporte pas les décorateurs expérimentaux (`@Controller()`, `@Injectable()`) utilisés par NestJS, ni `enum` dans certains modes. Pour NestJS, la chaîne NestJS CLI + `@swc/core` reste indispensable.
+
+## 5. Ancrage TribuZen
+
+Couche fil rouge : **fondations de l'API backend TribuZen — familles, invitations, posts**.
+
+- La requête `fetch('/api/families')` du front TribuZen (Vue/React) est le point de départ de ce cours. Tout ce qu'on construit ici est ce qui répond à cette requête.
+- Le modèle client-serveur est la structure architecturale de TribuZen : le front (02-vue, déployé sur Vercel) appelle l'API (09-nestjs, déployée sur Railway/Fly) via HTTPS. Jamais l'inverse.
+- Les codes de statut 401/403 sont au cœur du RBAC TribuZen : `owner` et `admin` peuvent inviter (route protégée → 403 pour `member`), tout utilisateur non authentifié → 401.
+- Le `package.json` du projet TribuZen aura des scripts `dev` (tsx watch), `build` (NestJS CLI), `test` (Vitest) — la structure posée ici est exactement celle du vrai repo.
+- Node.js 22 LTS est la version cible de déploiement TribuZen — les features utilisées (`fetch` natif, ESM, async/await) sont toutes disponibles sur cette version.
+
+```
+tribuzen-api/           ← racine du projet backend (créé dans ce cours)
+  src/
+    main.ts             ← point d'entrée (HTTP natif module 01, NestJS module 09)
+    families/           ← resource REST (module 10)
+    invitations/        ← resource REST + RBAC (module 11)
+    posts/              ← resource REST (module 12)
+  package.json          ← posé dans ce module
+  tsconfig.json         ← posé dans ce module
+```
+
+## 6. Points clés
+
+1. Le backend exécute la logique métier, le stockage, l'auth et les intégrations — tout ce que le navigateur ne peut pas faire de façon sécurisée.
+2. Le modèle client-serveur est asymétrique : le client initie toujours, le serveur répond. Stateless — chaque requête est indépendante.
+3. HTTP = méthode + URL + headers + body optionnel. Codes de statut : 2xx succès, 4xx erreur client (401 non authentifié, 403 non autorisé, 404 introuvable), 5xx erreur serveur.
+4. JSON est le format d'échange universel des API REST. Les dates s'envoient en string ISO 8601.
+5. Node.js 22 LTS est le runtime — single-threaded, basé sur V8, avec event loop non-bloquant. Les I/O doivent toujours être asynchrones.
+6. `npm init -y` + `package.json` organise les dépendances (`dependencies` vs `devDependencies`) et les scripts (`dev`, `build`, `test`).
+7. TypeScript côté serveur se configure avec `strict: true`, `target: ES2022`, `module: NodeNext`. `tsx` pour le dev, `tsc` pour le build.
+8. Node 22 supporte le type stripping natif pour les scripts simples, mais NestJS (décorateurs) nécessite la chaîne CLI + `@swc/core`.
+
+## 7. Seeds Anki
+
+```
+Quelle est la différence de rôle entre frontend et backend ?|Frontend = interface dans le navigateur (HTML/CSS/JS, code visible) ; Backend = logique, stockage, auth sur un serveur distant (code invisible, accès direct à la base)
+Pourquoi HTTP est-il dit "stateless" ?|Chaque requête est indépendante — le serveur ne se souvient pas des précédentes. L'état est porté par le client (ex. token JWT dans le header Authorization) à chaque requête
+Différence entre 401 et 403 ?|401 Unauthorized = non authentifié (token absent ou invalide, il faut se connecter) ; 403 Forbidden = authentifié mais rôle insuffisant pour cette action
+Qu'est-ce que Node.js et sur quel moteur tourne-t-il ?|Runtime JavaScript côté serveur basé sur le moteur V8 de Chrome — permet d'exécuter du JS/TS hors navigateur avec accès à fs, http, os, process
+Différence dependencies vs devDependencies dans package.json ?|dependencies = paquets nécessaires en production (express, nestjs) ; devDependencies = paquets uniquement pour le développement et le build (typescript, tsx, types)
+Pourquoi le type stripping natif de Node 22 ne suffit pas pour NestJS ?|NestJS utilise des décorateurs TypeScript expérimentaux (@Controller, @Injectable) que le type stripping natif ne supporte pas — la chaîne NestJS CLI + @swc/core est indispensable
+Quelle tsconfig target recommande-t-on pour Node 22 ?|target ES2022 avec module NodeNext et moduleResolution NodeNext — couvre toutes les features ES2022 disponibles nativement sur Node 22
+Quel code HTTP retourner quand un POST crée une ressource avec succès ?|201 Created — pas 200 OK. 200 est pour GET/PUT/PATCH réussi, 204 No Content pour DELETE réussi sans body
+```

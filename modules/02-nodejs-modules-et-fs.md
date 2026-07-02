@@ -1,136 +1,138 @@
-# Module 02 — Node.js — Modules, FS & Process
-
-> **Objectif** : Maîtriser le système de modules de Node.js (CommonJS et ESM), manipuler le système de fichiers (fs), comprendre l'objet process et gérer les dépendances avec npm.
->
-> **Difficulte** : ⭐ (débutant)
-
+---
+titre: Node.js modules et fs
+cours: 09-nestjs
+notions: [CommonJS vs ESM, require et import, résolution de modules, module.exports et export, fs sync async et promises, module path, __dirname et import.meta.url]
+outcomes: [choisir entre CommonJS et ESM, importer/exporter proprement, lire et écrire des fichiers avec fs (promises), manipuler des chemins avec path]
+prerequis: [01-nodejs-event-loop]
+next: 03-nodejs-streams-et-buffers
+libs: [{ name: node, version: "22" }]
+tribuzen: gérer les fichiers côté serveur TribuZen (lecture de config, écriture de logs)
+last-reviewed: 2026-07
 ---
 
-## 1. Les systèmes de modules en Node.js
+# Node.js modules et fs
 
-### 1.1 Pourquoi les modules existent
+> **Outcomes — tu sauras FAIRE :** choisir entre CommonJS et ESM, importer/exporter proprement, lire et écrire des fichiers avec `fs/promises`, manipuler des chemins avec `path`.
+> **Difficulté :** :star::star:
 
-En JavaScript navigateur, tout code charge partage un scope global unique. Cela cause des collisions de noms, des dépendances implicites et une maintenance cauchemardesque. Les modules resolvent ce problème en isolant chaque fichier dans son propre scope.
+## 1. Cas concret d'abord
 
-> **Analogie** : Sans modules, ton code c'est comme un open space ou tout le monde crie en même temps — impossible de savoir qui parle a qui. Avec les modules, chaque fichier est un bureau ferme avec une porte (les exports) et une sonnette (les imports). Chacun travaille tranquillement et communique via des interfaces claires.
+Le service backend TribuZen doit, à chaque démarrage :
 
-### 1.2 CommonJS (CJS) — Le système originel
+1. Lire `config/app.json` pour récupérer le port et l'URL de la base de données.
+2. Écrire une ligne horodatée dans `logs/app.log`.
 
-CommonJS est le système de modules historique de Node.js. Il utilise `require()` et `module.exports` :
+Un collègue a laissé ce code :
 
-```typescript
-// math.js — Exporter des fonctions
-function additionner(a, b) {
-  return a + b;
-}
+```ts
+// bootstrap.js — AVANT correction
+const fs = require('fs')
+const config = JSON.parse(fs.readFileSync('config/app.json'))
 
-function multiplier(a, b) {
-  return a * b;
-}
-
-// Export nomme (objet avec plusieurs valeurs)
-module.exports = { additionner, multiplier };
-
-// Alternative : exports raccourci
-// exports.additionner = additionner;
-// exports.multiplier = multiplier;
+// ... puis dans un handler :
+fs.appendFileSync('logs/app.log', `[${Date.now()}] started\n`)
 ```
 
-```typescript
-// main.js — Importer des fonctions
-const { additionner, multiplier } = require('./math');
+**Trois problèmes :**
 
-console.log(additionner(2, 3));  // 5
-console.log(multiplier(4, 5));   // 20
+1. `require()` est CommonJS — NestJS compile en ESM via TypeScript avec `import`/`export`.
+2. `readFileSync` et `appendFileSync` bloquent le thread Node.js pendant l'I/O — aucune requête ne peut être traitée en attendant.
+3. `'config/app.json'` est relatif au **répertoire de travail** (`process.cwd()`), pas au fichier source — le chemin change selon d'où `node` est lancé.
 
-// Ou importer tout le module
-const math = require('./math');
-console.log(math.additionner(2, 3));
-```
+Ce module te donne les outils pour corriger ces trois points.
 
-### 1.3 ESM (ECMAScript Modules) — Le standard moderne
+## 2. Théorie complète, concise
 
-ESM est le système de modules standard du langage JavaScript. Il utilise `import` et `export` :
+### 2.1 CommonJS vs ESM
 
-```typescript
-// math.mjs (ou .js avec "type": "module" dans package.json)
-
-// Export nomme
-export function additionner(a, b) {
-  return a + b;
-}
-
-export function multiplier(a, b) {
-  return a * b;
-}
-
-// Export par defaut (un seul par fichier)
-export default class Calculator {
-  add(a, b) { return a + b; }
-  mul(a, b) { return a * b; }
-}
-```
-
-```typescript
-// main.mjs
-import Calculator, { additionner, multiplier } from './math.mjs';
-
-console.log(additionner(2, 3));  // 5
-console.log(multiplier(4, 5));   // 20
-
-const calc = new Calculator();
-console.log(calc.add(2, 3));     // 5
-```
-
-### 1.4 Activer ESM dans un projet
-
-Il y a deux facons d'utiliser ESM en Node.js :
-
-**Option 1** : Extension `.mjs` pour les fichiers ESM
-
-```bash
-node mon-fichier.mjs
-```
-
-**Option 2** : Ajouter `"type": "module"` dans `package.json` (recommande)
-
-```json
-{
-  "name": "mon-projet",
-  "type": "module",
-  "version": "1.0.0"
-}
-```
-
-Avec cette option, tous les fichiers `.js` du projet sont traites comme ESM. Si tu as besoin d'un fichier CommonJS, utilise l'extension `.cjs`.
-
-### 1.5 Comparaison CJS vs ESM
+Node.js supporte deux systèmes de modules. Ils coexistent dans des codebases réelles.
 
 | Aspect | CommonJS (CJS) | ESM |
 |---|---|---|
-| **Syntaxe import** | `require('./module')` | `import { x } from './module.js'` |
-| **Syntaxe export** | `module.exports = { x }` | `export { x }` ou `export default x` |
-| **Chargement** | Synchrone | Asynchrone (statiquement analysable) |
-| **Top-level await** | Non | Oui |
-| **Extension** | `.js` (defaut) ou `.cjs` | `.mjs` ou `.js` avec `"type": "module"` |
-| **`__dirname`** | Disponible | Non disponible (voir section 4) |
-| **Interoperabilite** | Peut require() du CJS uniquement | Peut importer CJS et ESM |
-| **Tree-shaking** | Non (imports dynamiques) | Oui (imports statiques) |
-| **Utilisation** | Projets legacy, scripts simples | Projets modernes, recommande |
+| Syntaxe import | `require('./module')` | `import { x } from './module.js'` |
+| Syntaxe export | `module.exports = { x }` | `export { x }` ou `export default x` |
+| Chargement | Synchrone | Statique, analysable à la compilation |
+| Top-level await | Non | Oui |
+| `__dirname` natif | Oui | Non (voir §2.7) |
+| Tree-shaking | Non | Oui |
+| Extension fichier | `.js` (défaut) ou `.cjs` | `.mjs` ou `.js` avec `"type": "module"` |
 
-> **Bonne pratique** : Pour un nouveau projet, utilise ESM (`"type": "module"` dans package.json). C'est le standard JavaScript et c'est l'avenir. NestJS utilise aussi ESM (via TypeScript). Cependant, tu rencontreras encore beaucoup de code CommonJS dans des projets existants.
+**Pour activer ESM :** ajouter `"type": "module"` dans `package.json`. Tous les fichiers `.js` du projet deviennent ESM. Un fichier CJS isolé doit alors prendre l'extension `.cjs`.
 
-### 1.6 L'algorithme de résolution des modules
+```json
+{
+  "name": "tribuzen-api",
+  "type": "module"
+}
+```
 
-Quand tu fais `require('express')` ou `import express from 'express'`, Node.js cherche le module dans cet ordre :
+> **NestJS et TypeScript :** le code source utilise la syntaxe ESM (`import`/`export`). TypeScript compile selon le champ `module` de `tsconfig.json` — `"module": "NodeNext"` produit du vrai ESM, `"module": "CommonJS"` produit du CJS malgré la syntaxe source ESM.
+
+### 2.2 require et import — syntaxe complète
+
+**CJS — exporter :**
+
+```ts
+// config-loader.js (CJS)
+function loadConfig(path) { /* ... */ }
+const VERSION = '1.0'
+
+// Export objet (plusieurs valeurs)
+module.exports = { loadConfig, VERSION }
+
+// Raccourci — équivalent ligne par ligne
+// exports.loadConfig = loadConfig
+// exports.VERSION = VERSION
+```
+
+**CJS — importer :**
+
+```ts
+const { loadConfig } = require('./config-loader')
+
+// Importer tout le module
+const configLoader = require('./config-loader')
+configLoader.loadConfig('./app.json')
+
+// Module natif
+const fs = require('node:fs/promises')
+```
+
+**ESM — exporter :**
+
+```ts
+// config-loader.ts (ESM)
+export function loadConfig(path: string): Config { /* ... */ }
+export const VERSION = '1.0'
+
+// Export par défaut — un seul par fichier
+export default class ConfigLoader { /* ... */ }
+```
+
+**ESM — importer :**
+
+```ts
+// Extension obligatoire en ESM pur (.js même pour .ts compilé)
+import ConfigLoader, { loadConfig, VERSION } from './config-loader.js'
+
+// Import de type — effacé à la compilation TypeScript
+import type { Config } from './types.js'
+
+// Module natif — préfixe node: recommandé en Node.js 22
+import { readFile } from 'node:fs/promises'
+import path from 'node:path'
+```
+
+### 2.3 Résolution de modules
+
+Quand Node.js rencontre `require('express')` ou `import express from 'express'`, il suit cet ordre :
 
 ```
-1. Modules natifs (built-in)
-   require('fs')      → Module natif, chargement immediat
-   require('http')    → Module natif, chargement immediat
+1. Modules natifs intégrés
+   require('node:fs')  → chargé immédiatement, priorité absolue
 
-2. Chemin relatif/absolu (fichier local)
-   require('./math')  → Cherche :
+2. Chemin relatif ou absolu (commence par ./ ../ /)
+   require('./math')   → cherche, dans l'ordre :
      a) ./math.js
      b) ./math.json
      c) ./math.node
@@ -138,867 +140,391 @@ Quand tu fais `require('express')` ou `import express from 'express'`, Node.js c
      e) ./math/package.json → champ "main"
 
 3. Module tiers (node_modules)
-   require('express') → Cherche dans :
-     a) ./node_modules/express/
-     b) ../node_modules/express/
-     c) ../../node_modules/express/
-     d) ... remonte jusqu'a la racine
+   require('express')  → remonte les dossiers depuis le fichier courant :
+     ./node_modules/express/
+     ../node_modules/express/
+     ../../node_modules/express/
+     ... jusqu'à la racine
 ```
 
-> **Piege classique** : En ESM, tu DOIS inclure l'extension du fichier : `import { x } from './math.js'` (pas `'./math'`). En CJS, l'extension est optionnelle. C'est une source frequente d'erreurs quand tu migres de CJS vers ESM.
+**Différence critique CJS vs ESM pour les chemins locaux :**
 
----
+- CJS : `require('./math')` — l'extension est optionnelle, Node cherche `.js`, `.json`, etc.
+- ESM : `import x from './math.js'` — l'**extension est obligatoire** (sauf si un bundler ou TypeScript résout à ta place).
 
-## 2. Le module path
+### 2.4 module.exports vs export — live bindings
 
-Le module `path` permet de manipuler les chemins de fichiers de manière cross-platform (Windows utilise `\`, Linux/Mac utilise `/`).
+CJS exporte une **copie de la valeur** au moment du `require()` :
 
-```typescript
-import path from 'path';
-// ou en CJS : const path = require('path');
-
-// path.join — Concatener des segments de chemin
-path.join('dossier', 'sous-dossier', 'fichier.txt');
-// Linux : 'dossier/sous-dossier/fichier.txt'
-// Windows : 'dossier\\sous-dossier\\fichier.txt'
-
-// path.resolve — Obtenir un chemin absolu
-path.resolve('dossier', 'fichier.txt');
-// '/home/user/projet/dossier/fichier.txt' (chemin absolu complet)
-
-// path.dirname — Obtenir le repertoire parent
-path.dirname('/home/user/projet/fichier.txt');
-// '/home/user/projet'
-
-// path.basename — Obtenir le nom du fichier
-path.basename('/home/user/projet/fichier.txt');
-// 'fichier.txt'
-
-path.basename('/home/user/projet/fichier.txt', '.txt');
-// 'fichier' (sans l'extension)
-
-// path.extname — Obtenir l'extension
-path.extname('photo.jpg');
-// '.jpg'
-
-path.extname('archive.tar.gz');
-// '.gz' (seulement la derniere extension)
-
-// path.parse — Decomposer un chemin
-path.parse('/home/user/fichier.txt');
-// {
-//   root: '/',
-//   dir: '/home/user',
-//   base: 'fichier.txt',
-//   ext: '.txt',
-//   name: 'fichier'
-// }
-
-// path.format — Reconstruire un chemin a partir d'un objet
-path.format({ dir: '/home/user', base: 'fichier.txt' });
-// '/home/user/fichier.txt'
-
-// path.isAbsolute — Verifier si un chemin est absolu
-path.isAbsolute('/home/user');  // true
-path.isAbsolute('./fichier');   // false
-
-// path.relative — Chemin relatif entre deux chemins
-path.relative('/home/user/projet', '/home/user/autre');
-// '../autre'
-
-// path.sep — Separateur de chemin (specifique a l'OS)
-path.sep; // '/' sur Linux/Mac, '\\' sur Windows
-
-// path.normalize — Nettoyer un chemin
-path.normalize('/home//user/../user/./projet');
-// '/home/user/projet'
+```ts
+// counter.js (CJS)
+let count = 0
+exports.increment = () => count++
+exports.getCount = () => count
+// module.exports est un objet ordinaire — snapshot à l'import
 ```
 
-> **Bonne pratique** : Utilise TOUJOURS `path.join()` ou `path.resolve()` pour construire des chemins. Ne concatene JAMAIS des chemins avec `+` ou des template literals — ça ne marchera pas sur tous les OS.
+ESM exporte des **live bindings** — les modules importateurs voient la valeur actuelle :
 
-```typescript
-// MAUVAIS — ne fonctionne pas sur Windows
-const filePath = __dirname + '/data/' + filename;
-
-// BON — fonctionne partout
-const filePath = path.join(__dirname, 'data', filename);
+```ts
+// counter.ts (ESM)
+export let count = 0
+export function increment() { count++ }
+// l'importateur lit la valeur en temps réel via la liaison
 ```
 
----
+**Piège CJS fréquent — réassigner `exports` rompt le lien :**
 
-## 3. Le module fs (File System)
+```ts
+// ❌ exports n'est plus lié à module.exports
+exports = { foo: 'bar' }
 
-### 3.1 Les trois API de fs
-
-Node.js fournit **trois API** différentes pour manipuler les fichiers :
-
-| API | Syntaxe | Quand l'utiliser |
-|---|---|---|
-| **Synchrone** | `fs.readFileSync()` | Scripts, initialisation, configuration |
-| **Callback** | `fs.readFile(path, callback)` | Code legacy, compatibilite |
-| **Promises** | `fs.promises.readFile()` ou `import { readFile } from 'fs/promises'` | **Recommande** — code moderne async/await |
-
-```typescript
-import fs from 'fs';
-import { readFile, writeFile } from 'fs/promises';
-
-// === API Synchrone ===
-// Bloque le thread — a eviter dans un serveur
-const data1 = fs.readFileSync('fichier.txt', 'utf-8');
-console.log(data1);
-
-// === API Callback ===
-// Non-bloquant mais syntaxe verbeuse
-fs.readFile('fichier.txt', 'utf-8', (err, data2) => {
-  if (err) throw err;
-  console.log(data2);
-});
-
-// === API Promises (recommande) ===
-// Non-bloquant, syntaxe propre avec async/await
-async function lire() {
-  const data3 = await readFile('fichier.txt', 'utf-8');
-  console.log(data3);
-}
-lire();
+// ✅ toujours modifier module.exports directement
+module.exports = { foo: 'bar' }
+// ou ajouter des propriétés sur exports sans le réassigner
+exports.foo = 'bar'
 ```
 
-> **Piege classique** : N'utilise JAMAIS les méthodes synchrones (`readFileSync`, `writeFileSync`, etc.) dans un serveur HTTP. Elles bloquent le thread unique de Node.js — pendant la lecture, AUCUNE autre requête ne peut etre traitee. Les API sync ne sont acceptables que dans des scripts de démarrage ou des outils CLI.
+### 2.5 fs — synchrone, callback et promises
 
-### 3.2 Lire des fichiers
+Node.js propose **trois API** pour le même module `fs`. Seule `fs/promises` est recommandée dans un serveur.
 
-```typescript
-import { readFile, readdir, stat } from 'fs/promises';
-import path from 'path';
+```ts
+import fs from 'node:fs'
+import { readFile } from 'node:fs/promises'
 
-// Lire un fichier texte
-async function lireFichier() {
-  try {
-    const contenu = await readFile('data.txt', 'utf-8');
-    console.log(contenu);
-  } catch (err) {
-    if (err.code === 'ENOENT') {
-      console.error('Fichier introuvable');
-    } else {
-      throw err;
-    }
-  }
-}
+// === Synchrone — bloque le thread ===
+// Acceptable dans un script CLI ou une phase d'initialisation avant le démarrage du serveur
+const raw = fs.readFileSync('config.json', 'utf-8')
+
+// === Callback — non-bloquant mais syntaxe lourde ===
+// Code legacy — éviter dans tout nouveau code
+fs.readFile('config.json', 'utf-8', (err, data) => {
+  if (err) throw err
+  console.log(data)
+})
+
+// === fs/promises — non-bloquant, async/await ===
+// Recommandé pour tout code moderne
+const data = await readFile('config.json', 'utf-8')
+```
+
+**Opérations courantes avec `node:fs/promises` :**
+
+```ts
+import {
+  readFile,
+  writeFile,
+  appendFile,
+  mkdir,
+  readdir,
+  access,
+  constants,
+} from 'node:fs/promises'
+
+// Lire un fichier texte (encoding → string)
+const text = await readFile('data.txt', 'utf-8')
 
 // Lire un fichier JSON
-async function lireConfig() {
-  const raw = await readFile('config.json', 'utf-8');
-  const config = JSON.parse(raw);
-  console.log(config.database.host);
-}
+const config = JSON.parse(await readFile('config.json', 'utf-8'))
 
-// Lire un fichier binaire (image, PDF...)
-async function lireImage() {
-  const buffer = await readFile('photo.jpg'); // Pas de 'utf-8' → retourne un Buffer
-  console.log(`Taille : ${buffer.length} octets`);
-}
+// Écrire (crée ou écrase)
+await writeFile('out.txt', 'contenu', 'utf-8')
 
-// Lister le contenu d'un dossier
-async function listerDossier(dirPath) {
-  const entries = await readdir(dirPath, { withFileTypes: true });
+// Écrire du JSON formaté
+await writeFile('config.json', JSON.stringify(config, null, 2), 'utf-8')
 
-  for (const entry of entries) {
-    const fullPath = path.join(dirPath, entry.name);
-    if (entry.isDirectory()) {
-      console.log(`[DOSSIER] ${entry.name}`);
-    } else if (entry.isFile()) {
-      const stats = await stat(fullPath);
-      console.log(`[FICHIER] ${entry.name} (${stats.size} octets)`);
-    }
-  }
-}
+// Ajouter à la fin sans écraser
+await appendFile('app.log', `[${new Date().toISOString()}] démarrage\n`, 'utf-8')
 
-listerDossier('.');
-```
+// Créer des dossiers imbriqués (sans error si existant)
+await mkdir('logs/2026/07', { recursive: true })
 
-### 3.3 Écrire des fichiers
+// Lister un dossier — withFileTypes donne accès à entry.isFile() / isDirectory()
+const entries = await readdir('.', { withFileTypes: true })
+const fichiers = entries.filter(e => e.isFile()).map(e => e.name)
 
-```typescript
-import { writeFile, appendFile, copyFile, rename } from 'fs/promises';
-
-// Ecrire un fichier (cree ou ecrase)
-async function ecrire() {
-  await writeFile('sortie.txt', 'Bonjour le monde !\n', 'utf-8');
-  console.log('Fichier ecrit');
-}
-
-// Ajouter du contenu a la fin (append)
-async function ajouter() {
-  await appendFile('log.txt', `[${new Date().toISOString()}] Evenement\n`, 'utf-8');
-  console.log('Ligne ajoutee');
-}
-
-// Ecrire du JSON
-async function ecrireJSON() {
-  const data = {
-    users: [
-      { id: 1, name: 'Alice' },
-      { id: 2, name: 'Bob' },
-    ],
-  };
-  await writeFile('users.json', JSON.stringify(data, null, 2), 'utf-8');
-  console.log('JSON ecrit');
-}
-
-// Copier un fichier
-async function copier() {
-  await copyFile('original.txt', 'copie.txt');
-  console.log('Fichier copie');
-}
-
-// Renommer / deplacer un fichier
-async function deplacer() {
-  await rename('ancien-nom.txt', 'nouveau-nom.txt');
-  console.log('Fichier renomme');
+// Vérifier l'existence sans try/catch
+try {
+  await access('config.json', constants.F_OK)
+  // fichier accessible
+} catch {
+  // fichier absent ou non accessible
 }
 ```
 
-### 3.4 Créer et supprimer des dossiers
+**Codes d'erreur fs fréquents :**
 
-```typescript
-import { mkdir, rmdir, rm, access, constants } from 'fs/promises';
-
-// Creer un dossier
-async function creerDossier() {
-  await mkdir('nouveau-dossier');
-  console.log('Dossier cree');
-}
-
-// Creer des dossiers imbriques (recursive)
-async function creerArborescence() {
-  await mkdir('a/b/c/d', { recursive: true });
-  console.log('Arborescence creee');
-}
-
-// Supprimer un dossier vide
-async function supprimerDossierVide() {
-  await rmdir('dossier-vide');
-}
-
-// Supprimer un dossier et tout son contenu (recursive)
-async function supprimerTout() {
-  await rm('dossier-a-supprimer', { recursive: true, force: true });
-  console.log('Dossier supprime');
-}
-
-// Verifier si un fichier/dossier existe
-async function existe(chemin) {
-  try {
-    await access(chemin, constants.F_OK);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-// Utilisation
-if (await existe('config.json')) {
-  console.log('Le fichier config.json existe');
-} else {
-  console.log('Le fichier config.json n\'existe pas');
-}
-```
-
-### 3.5 Codes d'erreur fs courants
-
-| Code | Signification | Cause typique |
+| Code | Signification | Cause |
 |---|---|---|
 | `ENOENT` | No such file or directory | Fichier ou dossier introuvable |
-| `EACCES` | Permission denied | Pas les droits de lecture/écriture |
-| `EEXIST` | File already exists | Le fichier/dossier existe déjà |
-| `EISDIR` | Is a directory | Tu essaies de lire un dossier comme un fichier |
-| `ENOTDIR` | Not a directory | Tu essaies de lister un fichier comme un dossier |
-| `EMFILE` | Too many open files | Trop de fichiers ouverts simultanement |
-| `ENOSPC` | No space left on device | Disque plein |
+| `EACCES` | Permission denied | Droits insuffisants |
+| `EEXIST` | File already exists | `mkdir` sans `{ recursive: true }` sur un dossier existant |
+| `EISDIR` | Is a directory | Tentative de `readFile` sur un dossier |
 
-```typescript
-import { readFile } from 'fs/promises';
+### 2.6 module path
 
-try {
-  await readFile('inexistant.txt', 'utf-8');
-} catch (err) {
-  switch (err.code) {
-    case 'ENOENT':
-      console.error('Fichier introuvable');
-      break;
-    case 'EACCES':
-      console.error('Permission refusee');
-      break;
-    default:
-      console.error('Erreur inconnue :', err.message);
-  }
-}
+`node:path` manipule les chemins de fichiers de façon **cross-platform** — Windows utilise `\`, Linux/Mac utilisent `/`. Ne jamais concaténer des chemins avec `+` ou des template strings.
+
+```ts
+import path from 'node:path'
+
+// join — concatène des segments, normalise les séparateurs
+path.join('config', 'app.json')           // 'config/app.json'
+path.join('/srv', 'app', '../data')       // '/srv/data' (normalise ..)
+
+// resolve — construit un chemin ABSOLU
+// Si un segment est absolu, il repart de là. Sinon, part du CWD.
+path.resolve('config', 'app.json')        // '/chemin/cwd/config/app.json'
+path.resolve('/srv', 'config', 'app.json')// '/srv/config/app.json'
+
+// dirname / basename / extname
+path.dirname('/srv/app/config.json')      // '/srv/app'
+path.basename('/srv/app/config.json')     // 'config.json'
+path.basename('/srv/app/config.json', '.json') // 'config'
+path.extname('app.config.ts')             // '.ts'
+
+// parse — décompose un chemin en objet
+path.parse('/srv/app/config.json')
+// { root: '/', dir: '/srv/app', base: 'config.json', ext: '.json', name: 'config' }
+
+// isAbsolute
+path.isAbsolute('/srv/app')               // true
+path.isAbsolute('./config')               // false
+
+// sep — séparateur OS
+path.sep                                  // '/' sur Linux/Mac, '\\' sur Windows
 ```
 
----
+**`join` vs `resolve` — la règle :**
 
-## 4. __dirname et import.meta.url
+- `path.join('a', 'b', 'c')` → concatène des segments, résultat **relatif** si aucun segment absolu.
+- `path.resolve('a', 'b')` → résultat toujours **absolu** (part du CWD si aucun segment absolu).
 
-### 4.1 En CommonJS
+```ts
+// ❌ concaténation manuelle — ne marche pas sur Windows
+const p = __dirname + '/config/' + filename
 
-```typescript
-// En CJS, __dirname et __filename sont disponibles directement
-console.log(__dirname);   // '/home/user/projet'
-console.log(__filename);  // '/home/user/projet/main.js'
-
-const path = require('path');
-const configPath = path.join(__dirname, 'config.json');
+// ✅ path.join — cross-platform
+const p = path.join(__dirname, 'config', filename)
 ```
 
-### 4.2 En ESM — Le remplacement
+### 2.7 \_\_dirname et import.meta.url
 
-En ESM, `__dirname` et `__filename` n'existent pas. Il faut utiliser `import.meta.url` :
+**En CommonJS** — `__dirname` et `__filename` sont injectés par Node dans chaque module :
 
-```typescript
-import { fileURLToPath } from 'url';
-import path from 'path';
+```ts
+// bootstrap.js (CJS)
+console.log(__dirname)   // '/srv/app/src'
+console.log(__filename)  // '/srv/app/src/bootstrap.js'
 
-// Equivalent de __filename
-const __filename = fileURLToPath(import.meta.url);
-
-// Equivalent de __dirname
-const __dirname = path.dirname(__filename);
-
-console.log(__dirname);   // '/home/user/projet'
-console.log(__filename);  // '/home/user/projet/main.js'
-
-// Utilisation pour lire un fichier relatif
-import { readFile } from 'fs/promises';
-const configPath = path.join(__dirname, 'config.json');
-const config = JSON.parse(await readFile(configPath, 'utf-8'));
+const configPath = path.join(__dirname, '..', 'config', 'app.json')
 ```
 
-> **Bonne pratique** : Ce pattern `fileURLToPath(import.meta.url)` est tellement courant en ESM que tu devrais le mettre dans un snippet de ton editeur. Tu le retrouveras dans presque tous les fichiers qui ont besoin de charger des ressources relatives.
+**En ESM** — ces variables n'existent pas. On les reconstruit via `import.meta.url` :
 
----
+```ts
+// bootstrap.ts (ESM)
+import { fileURLToPath } from 'node:url'
+import path from 'node:path'
 
-## 5. L'objet process
+const __filename = fileURLToPath(import.meta.url)
+// import.meta.url = 'file:///srv/app/src/bootstrap.ts'
+// __filename      = '/srv/app/src/bootstrap.ts'
 
-### 5.1 Qu'est-ce que process
+const __dirname = path.dirname(__filename)
+// __dirname = '/srv/app/src'
 
-`process` est un objet global de Node.js qui represente le processus en cours d'exécution. Il donne acces a l'environnement système, aux arguments, aux flux standard et au cycle de vie du processus.
-
-### 5.2 process.env — Variables d'environnement
-
-```typescript
-// Lire les variables d'environnement
-console.log(process.env.NODE_ENV);  // 'development' ou 'production'
-console.log(process.env.PORT);      // '3000' (toujours une string !)
-console.log(process.env.HOME);      // '/home/user'
-console.log(process.env.PATH);      // Chemin systeme
-
-// Definir des variables d'environnement
-// Option 1 : en ligne de commande
-// PORT=3000 NODE_ENV=production node server.js
-
-// Option 2 : dans le code (deconseille)
-process.env.MY_VAR = 'valeur';
-
-// Option 3 : fichier .env avec la librairie dotenv (recommande)
-// npm install dotenv
+const configPath = path.join(__dirname, '..', 'config', 'app.json')
 ```
 
-```typescript
-// Fichier .env (a la racine du projet)
-// PORT=3000
-// DATABASE_URL=postgres://user:pass@localhost:5432/mydb
-// JWT_SECRET=mon-secret-ultra-long
+**Node.js 21.2+ — propriétés natives (Node 22 recommandé) :**
 
-// Dans ton code (en haut du fichier principal)
-import 'dotenv/config';
-// ou : import dotenv from 'dotenv'; dotenv.config();
+Depuis Node.js 21.2, `import.meta.dirname` et `import.meta.filename` sont disponibles nativement — plus besoin du polyfill `fileURLToPath` :
 
-const port = parseInt(process.env.PORT, 10) || 3000;
-const dbUrl = process.env.DATABASE_URL;
+```ts
+// Node.js 22 — natif, préférer cette forme
+const dir  = import.meta.dirname   // '/srv/app/src'
+const file = import.meta.filename  // '/srv/app/src/bootstrap.ts'
+
+const configPath = path.join(import.meta.dirname, '..', 'config', 'app.json')
 ```
 
-> **Piege classique** : Les valeurs de `process.env` sont TOUJOURS des **strings**. `process.env.PORT` vaut `'3000'` (string), pas `3000` (number). Pense a convertir avec `parseInt()` ou `Number()`. Et n'oublie pas de mettre `.env` dans ton `.gitignore` !
+## 3. Worked examples
 
-### 5.3 process.argv — Arguments de la ligne de commande
+### Exemple A — Lire une config JSON avec un chemin absolu (ESM, Node.js 22)
 
-```typescript
-// node script.js hello world --verbose
-console.log(process.argv);
-// [
-//   '/usr/local/bin/node',        // argv[0] : chemin vers node
-//   '/home/user/script.js',       // argv[1] : chemin vers le script
-//   'hello',                       // argv[2] : premier argument
-//   'world',                       // argv[3] : deuxieme argument
-//   '--verbose'                    // argv[4] : flag
-// ]
+```ts
+// src/config/load-config.ts
+import { readFile } from 'node:fs/promises'
+import path from 'node:path'
 
-// Recuperer les arguments utiles (on ignore les 2 premiers)
-const args = process.argv.slice(2);
-console.log(args); // ['hello', 'world', '--verbose']
-```
-
-```typescript
-// Exemple : script CLI simple
-const args = process.argv.slice(2);
-const command = args[0];
-
-switch (command) {
-  case 'greet':
-    const name = args[1] || 'World';
-    console.log(`Hello, ${name}!`);
-    break;
-  case 'add':
-    const a = parseFloat(args[1]);
-    const b = parseFloat(args[2]);
-    console.log(`${a} + ${b} = ${a + b}`);
-    break;
-  default:
-    console.log('Commandes disponibles : greet, add');
+interface AppConfig {
+  port: number
+  databaseUrl: string
+  logLevel: 'debug' | 'info' | 'warn' | 'error'
 }
 
-// Utilisation :
-// node script.js greet Alice     → Hello, Alice!
-// node script.js add 2 3         → 2 + 3 = 5
-```
+export async function loadConfig(): Promise<AppConfig> {
+  // import.meta.dirname = répertoire absolu de CE fichier, quelle que soit
+  // la commande utilisée pour lancer Node.js
+  const configPath = path.join(import.meta.dirname, '..', '..', 'config', 'app.json')
 
-### 5.4 process.exit — Arreter le processus
-
-```typescript
-// Quitter avec succes (code 0)
-process.exit(0);
-
-// Quitter avec erreur (code non-zero)
-process.exit(1);
-
-// Ecouter l'evenement exit (pour du nettoyage)
-process.on('exit', (code) => {
-  console.log(`Processus termine avec le code ${code}`);
-  // ATTENTION : seules des operations SYNCHRONES fonctionnent ici
-  // pas d'async, pas de setTimeout, pas de I/O
-});
-
-// Ecouter le signal SIGINT (Ctrl+C)
-process.on('SIGINT', () => {
-  console.log('Ctrl+C detecte, arret propre...');
-  // Nettoyage (fermer les connexions DB, sauvegarder l'etat, etc.)
-  process.exit(0);
-});
-
-// Ecouter le signal SIGTERM (arret demande par le systeme/Docker)
-process.on('SIGTERM', () => {
-  console.log('SIGTERM recu, arret propre...');
-  process.exit(0);
-});
-```
-
-### 5.5 process.cwd() et process.chdir()
-
-```typescript
-// Repertoire de travail courant
-console.log(process.cwd()); // '/home/user/projet'
-
-// Changer le repertoire de travail (rarement necessaire)
-process.chdir('/tmp');
-console.log(process.cwd()); // '/tmp'
-```
-
-> **A retenir** : `process.cwd()` retourne le répertoire depuis lequel tu as lance `node`. `__dirname` retourne le répertoire du fichier source. Ce n'est pas la même chose si tu lances `node src/main.js` depuis le dossier parent.
-
-### 5.6 process.stdin et process.stdout
-
-```typescript
-// Ecrire sur la sortie standard
-process.stdout.write('Pas de saut de ligne a la fin');
-// Equivalent de console.log mais sans le \n automatique
-
-// Lire depuis l'entree standard
-process.stdin.setEncoding('utf-8');
-process.stdin.on('data', (input) => {
-  const text = input.trim();
-  console.log(`Tu as tape : ${text}`);
-  if (text === 'quit') process.exit(0);
-});
-
-console.log('Tape quelque chose (ou "quit" pour quitter) :');
-```
-
-### 5.7 Informations utiles de process
-
-```typescript
-// Version de Node.js
-console.log(process.version);    // 'v20.11.0'
-console.log(process.versions);   // { v8: '...', uv: '...', ... }
-
-// Plateforme et architecture
-console.log(process.platform);   // 'linux', 'darwin', 'win32'
-console.log(process.arch);       // 'x64', 'arm64'
-
-// PID du processus
-console.log(process.pid);        // 12345
-
-// Memoire utilisee
-console.log(process.memoryUsage());
-// {
-//   rss: 40960000,        // Resident Set Size (total)
-//   heapTotal: 10485760,  // Heap V8 total
-//   heapUsed: 5242880,    // Heap V8 utilise
-//   external: 1048576,    // Memoire C++ liee aux objets JS
-//   arrayBuffers: 524288  // ArrayBuffers
-// }
-
-// Temps de fonctionnement du processus (en secondes)
-console.log(process.uptime());   // 12.345
-```
-
----
-
-## 6. Le module os
-
-```typescript
-import os from 'os';
-
-// Informations systeme
-console.log(os.hostname());      // 'mon-pc'
-console.log(os.type());          // 'Linux', 'Darwin', 'Windows_NT'
-console.log(os.release());       // '5.15.0-91-generic'
-console.log(os.platform());      // 'linux', 'darwin', 'win32'
-console.log(os.arch());          // 'x64', 'arm64'
-
-// CPU
-console.log(os.cpus().length);   // 8 (nombre de coeurs)
-console.log(os.cpus()[0].model); // 'Intel(R) Core(TM) i7-...'
-
-// Memoire
-console.log(os.totalmem());      // 17179869184 (en octets)
-console.log(os.freemem());       // 8589934592 (en octets)
-
-// Repertoire utilisateur
-console.log(os.homedir());       // '/home/user' ou 'C:\\Users\\user'
-console.log(os.tmpdir());        // '/tmp' ou 'C:\\Users\\user\\AppData\\Local\\Temp'
-
-// Fin de ligne (EOL) specifique a l'OS
-console.log(os.EOL);             // '\n' sur Linux/Mac, '\r\n' sur Windows
-
-// Interfaces reseau
-const nets = os.networkInterfaces();
-for (const [name, interfaces] of Object.entries(nets)) {
-  for (const iface of interfaces) {
-    if (iface.family === 'IPv4' && !iface.internal) {
-      console.log(`${name}: ${iface.address}`);
+  let raw: string
+  try {
+    raw = await readFile(configPath, 'utf-8')
+  } catch (err) {
+    // Typer l'erreur pour accéder à .code
+    const fsErr = err as NodeJS.ErrnoException
+    if (fsErr.code === 'ENOENT') {
+      throw new Error(`Config manquante : ${configPath}`)
     }
+    throw err
   }
-}
-```
 
----
+  // JSON.parse lève SyntaxError si le fichier est malformé
+  const config = JSON.parse(raw) as AppConfig
 
-## 7. npm en profondeur
-
-### 7.1 Anatomie complete du package.json
-
-```json
-{
-  "name": "mon-api",
-  "version": "1.2.3",
-  "description": "API REST de gestion d'utilisateurs",
-  "main": "dist/index.js",
-  "type": "module",
-  "scripts": {
-    "start": "node dist/index.js",
-    "dev": "nodemon src/index.js",
-    "build": "tsc",
-    "test": "jest",
-    "lint": "eslint src/",
-    "format": "prettier --write src/"
-  },
-  "dependencies": {
-    "express": "^4.18.2",
-    "dotenv": "^16.3.0",
-    "zod": "^3.22.0"
-  },
-  "devDependencies": {
-    "nodemon": "^3.0.0",
-    "jest": "^29.7.0",
-    "eslint": "^8.56.0",
-    "prettier": "^3.2.0",
-    "@types/express": "^4.17.21",
-    "typescript": "^5.3.0"
-  },
-  "engines": {
-    "node": ">=20.0.0"
-  },
-  "keywords": ["api", "rest", "express"],
-  "author": "Ton Nom <ton@email.com>",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/user/mon-api"
+  // Validation minimale
+  if (!config.databaseUrl) {
+    throw new Error('Config invalide : databaseUrl manquant')
   }
+
+  return config
 }
 ```
 
-### 7.2 Versioning semantique (semver)
+**Pas-à-pas :**
 
-Le format est `MAJOR.MINOR.PATCH` :
+1. `import.meta.dirname` donne le chemin absolu du fichier source — indépendant du CWD.
+2. `path.join` remonte de deux niveaux (`src/config` → racine) puis descend dans `config/`.
+3. Le `try/catch` discrimine `ENOENT` (fichier absent) des autres erreurs I/O.
+4. `as NodeJS.ErrnoException` permet d'accéder à `.code` sans `any` — type fourni par `@types/node`.
 
-| Partie | Quand incrementer | Exemple |
-|---|---|---|
-| **MAJOR** | Changement incompatible (breaking change) | `1.0.0` → `2.0.0` |
-| **MINOR** | Nouvelle fonctionnalite retro-compatible | `1.0.0` → `1.1.0` |
-| **PATCH** | Correction de bug retro-compatible | `1.0.0` → `1.0.1` |
+### Exemple B — Écrire des logs avec appendFile + rotation simple
 
-Les prefixes dans package.json :
+```ts
+// src/logger/file-logger.ts
+import { appendFile, mkdir, access, constants } from 'node:fs/promises'
+import path from 'node:path'
 
-| Prefixe | Signification | Exemple | Versions acceptees |
-|---|---|---|---|
-| `^` (caret) | Compatible MINOR | `^4.18.2` | `>= 4.18.2` et `< 5.0.0` |
-| `~` (tilde) | Compatible PATCH | `~4.18.2` | `>= 4.18.2` et `< 4.19.0` |
-| Aucun | Version exacte | `4.18.2` | Exactement `4.18.2` |
-| `*` | N'importe quelle version | `*` | Toutes |
+const LOG_DIR = path.join(import.meta.dirname, '..', '..', 'logs')
 
-> **Bonne pratique** : Le prefixe `^` (defaut de npm) est généralement un bon choix. Il permet les mises a jour mineures et de patch tout en protegeant contre les breaking changes. Utilise le `package-lock.json` pour verrouiller les versions exactes et avoir des builds reproductibles.
-
-### 7.3 Le fichier package-lock.json
-
-Le `package-lock.json` **verrouille** les versions exactes de toutes les dépendances (directes et transitives) :
-
-```
-package.json      → "express": "^4.18.2" (range)
-package-lock.json → "express": "4.18.2"  (version exacte)
-```
-
-| Commande | Comportement |
-|---|---|
-| `npm install` | Installe selon le lock file (si present) |
-| `npm update` | Met a jour dans les ranges du package.json |
-| `npm install express@latest` | Installe la dernière version et met a jour le lock |
-
-> **Piege classique** : NE SUPPRIME JAMAIS `package-lock.json` pour "résoudre un problème". Le lock file garantit que tous les développeurs et le CI ont les memes versions. Commite-le TOUJOURS dans Git.
-
-### 7.4 Le dossier node_modules
-
-```
-mon-projet/
-├── node_modules/           ← Toutes les dependances installees
-│   ├── express/
-│   ├── body-parser/        ← Dependance transitive d'express
-│   ├── cookie/             ← Dependance transitive
-│   └── ... (des centaines de dossiers)
-├── package.json
-└── package-lock.json
-```
-
-> **A retenir** : Ne commite JAMAIS `node_modules` dans Git. Ajoute-le a ton `.gitignore`. Le dossier peut contenir des dizaines de milliers de fichiers et peser des centaines de Mo. Chaque développeur fait `npm install` pour regenerer son `node_modules` à partir du `package-lock.json`.
-
-### 7.5 Commandes npm utiles
-
-```bash
-# Initialiser un projet
-npm init -y                     # Cree un package.json avec les valeurs par defaut
-
-# Installer des dependances
-npm install express             # Dependance de production
-npm install -D nodemon          # Dependance de developpement (-D = --save-dev)
-npm install -g typescript       # Installation globale
-
-# Gerer les dependances
-npm update                      # Met a jour selon les ranges du package.json
-npm outdated                    # Liste les paquets obsoletes
-npm uninstall express           # Desinstalle un paquet
-
-# Executer des scripts
-npm start                       # Lance le script "start"
-npm run dev                     # Lance le script "dev"
-npm test                        # Lance le script "test"
-
-# Informations
-npm list                        # Arbre des dependances installees
-npm list --depth=0              # Seulement les dependances directes
-npm info express                # Informations sur un paquet
-npm audit                       # Verifier les vulnerabilites de securite
-npm audit fix                   # Corriger automatiquement les vulnerabilites
-
-# npx — Executer un paquet sans l'installer
-npx create-react-app my-app
-npx ts-node script.ts
-```
-
----
-
-## 8. Créer et structurer un module
-
-### 8.1 Un module utilitaire
-
-```typescript
-// utils/string-utils.js
-
-/**
- * Met en majuscule la premiere lettre d'une chaine
- * @param {string} str
- * @returns {string}
- */
-export function capitalize(str) {
-  if (!str) return '';
-  return str.charAt(0).toUpperCase() + str.slice(1);
+// Assure que le dossier logs/ existe avant le premier appel
+async function ensureLogDir(): Promise<void> {
+  // mkdir avec recursive: true — idempotent, ne lève pas EEXIST
+  await mkdir(LOG_DIR, { recursive: true })
 }
 
-/**
- * Genere un slug a partir d'une chaine
- * @param {string} str
- * @returns {string}
- */
-export function slugify(str) {
-  return str
-    .toLowerCase()
-    .trim()
-    .replace(/[^\w\s-]/g, '')
-    .replace(/[\s_]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
+let dirReady = false
 
-/**
- * Tronque une chaine a une longueur donnee
- * @param {string} str
- * @param {number} maxLength
- * @returns {string}
- */
-export function truncate(str, maxLength = 100) {
-  if (str.length <= maxLength) return str;
-  return str.slice(0, maxLength - 3) + '...';
-}
-```
-
-```typescript
-// main.js — Utilisation
-import { capitalize, slugify, truncate } from './utils/string-utils.js';
-
-console.log(capitalize('bonjour'));          // 'Bonjour'
-console.log(slugify('Mon Article de Blog')); // 'mon-article-de-blog'
-console.log(truncate('Un texte tres long...', 10)); // 'Un text...'
-```
-
-### 8.2 Structure de projet recommandee
-
-```
-mon-projet/
-├── src/
-│   ├── index.js              ← Point d'entree
-│   ├── config/
-│   │   └── index.js          ← Configuration (env vars)
-│   ├── utils/
-│   │   ├── string-utils.js
-│   │   └── date-utils.js
-│   ├── services/
-│   │   └── user-service.js
-│   └── models/
-│       └── user.js
-├── tests/
-│   └── string-utils.test.js
-├── .env                       ← Variables d'environnement (PAS dans Git)
-├── .env.example               ← Modele du .env (dans Git)
-├── .gitignore
-├── package.json
-└── package-lock.json
-```
-
----
-
-## 9. Exercices pratiques
-
-### Exercice 1 — Explorateur de fichiers
-
-Ecris un script qui liste recursivement le contenu d'un dossier avec l'arborescence :
-
-```typescript
-// tree.js
-import { readdir, stat } from 'fs/promises';
-import path from 'path';
-
-async function tree(dirPath, prefix = '') {
-  const entries = await readdir(dirPath, { withFileTypes: true });
-
-  for (let i = 0; i < entries.length; i++) {
-    const entry = entries[i];
-    const isLast = i === entries.length - 1;
-    const connector = isLast ? '└── ' : '├── ';
-    const fullPath = path.join(dirPath, entry.name);
-
-    if (entry.name === 'node_modules' || entry.name === '.git') continue;
-
-    const stats = await stat(fullPath);
-    const size = entry.isFile() ? ` (${stats.size} o)` : '';
-    console.log(`${prefix}${connector}${entry.name}${size}`);
-
-    if (entry.isDirectory()) {
-      const newPrefix = prefix + (isLast ? '    ' : '│   ');
-      await tree(fullPath, newPrefix);
-    }
+export async function writeLog(
+  level: 'info' | 'warn' | 'error',
+  message: string,
+): Promise<void> {
+  if (!dirReady) {
+    await ensureLogDir()
+    dirReady = true
   }
+
+  const logFile = path.join(LOG_DIR, 'app.log')
+  const timestamp = new Date().toISOString()
+  // Format JSON lines (ndjson) — facilite le parsing par des outils comme jq
+  const line = JSON.stringify({ timestamp, level, message }) + '\n'
+
+  await appendFile(logFile, line, 'utf-8')
 }
-
-const targetDir = process.argv[2] || '.';
-console.log(targetDir);
-tree(targetDir);
 ```
 
-### Exercice 2 — Gestionnaire de notes
+**Utilisation :**
 
-Ecris un script CLI qui géré des notes stockees dans un fichier JSON :
+```ts
+// src/main.ts
+import { loadConfig } from './config/load-config.js'
+import { writeLog } from './logger/file-logger.js'
 
-```bash
-node notes.js add "Ma premiere note"
-node notes.js list
-node notes.js delete 1
+const config = await loadConfig()
+await writeLog('info', `TribuZen démarré sur le port ${config.port}`)
 ```
 
-### Exercice 3 — Convertisseur de CSV en JSON
+**Pas-à-pas :**
 
-Ecris un script qui lit un fichier CSV et produit un fichier JSON :
+1. `LOG_DIR` est absolu via `import.meta.dirname` — le dossier est toujours au même endroit quel que soit le CWD.
+2. `mkdir({ recursive: true })` est idempotent — pas d'erreur si `logs/` existe déjà.
+3. Le flag `dirReady` évite d'appeler `ensureLogDir` à chaque log (optimisation minimale).
+4. Format ndjson — chaque ligne est un JSON valide, facilement parseable en pipeline.
 
-```bash
-node csv-to-json.js data.csv output.json
+## 4. Pièges & misconceptions
+
+**`require()` dans un fichier ESM → SyntaxError.**
+`require` n'existe pas dans le scope d'un module ESM. Si le projet a `"type": "module"` dans `package.json` ou utilise `.mjs`, utiliser `import`. Si un fichier doit rester CJS, le renommer en `.cjs`.
+
+**`readFileSync()` dans un gestionnaire HTTP → latence de toutes les requêtes.**
+`readFileSync` bloque l'event loop pendant la lecture. Si le fichier met 50 ms à être lu, aucune autre requête n'est traitée pendant ces 50 ms. Seule exception acceptable : des scripts CLI ou la phase de démarrage *avant* que le serveur n'ouvre son port. Dans un NestJS `AppModule`, utiliser `fs/promises`.
+
+**Extension omise en ESM → `ERR_MODULE_NOT_FOUND`.**
+`import { foo } from './utils'` lève une erreur en ESM pur. Node.js ne tente pas `utils.js`. La correction : `'./utils.js'`. Avec TypeScript, le code source peut omettre `.ts` mais la sortie compilée doit référencer `.js` — utiliser `"moduleResolution": "NodeNext"` dans tsconfig pour que TypeScript le vérifie.
+
+**`exports = { foo }` rompt le lien avec `module.exports`.**
+Dans un module CJS, `exports` est un alias vers `module.exports`. Réassigner `exports` brise l'alias : l'importateur ne voit plus rien. Toujours modifier `module.exports` directement ou ajouter des propriétés sur `exports` sans le réassigner.
+
+**Chemin relatif dans `readFile` = relatif au CWD, pas au fichier.**
+`readFile('./config/app.json')` résout depuis `process.cwd()`, le dossier depuis lequel `node` a été lancé. Si le serveur est lancé depuis `/` au lieu de `/srv/app`, le chemin est invalide. Toujours construire un chemin absolu avec `import.meta.dirname` (ESM) ou `__dirname` (CJS) + `path.join`.
+
+**`path.join` vs `path.resolve` — ne pas les confondre.**
+`path.join('a', 'b')` retourne `'a/b'` (relatif si aucun segment absolu). `path.resolve('a', 'b')` retourne `/cwd/a/b` (toujours absolu). Pour construire un chemin depuis `__dirname`, les deux fonctionnent — `path.join(__dirname, 'config')` est idiomatique et suffisant.
+
+## 5. Ancrage TribuZen
+
+Couche fil-rouge : **gérer les fichiers côté serveur TribuZen (lecture de config, écriture de logs)**.
+
+**`src/config/load-config.ts`** — lu au démarrage du service NestJS via `ConfigService`. Utilise `readFile` + `JSON.parse` avec un chemin absolu via `import.meta.dirname`. Permet de charger l'URL de la base PostgreSQL et les clés JWT sans dépendre de variables d'environnement codées en dur.
+
+**`src/logger/file-logger.ts`** — horodate et appende chaque événement métier (invitation acceptée, famille créée, erreur webhook) dans `logs/app.log` en format ndjson. Le dossier `logs/` est créé au premier appel via `mkdir({ recursive: true })`.
+
+**`src/scripts/export-users.ts`** — script CLI (lancé hors serveur) qui lit `users.json`, filtre, et écrit un CSV de rapport. Ici `readFileSync` est acceptable : c'est un script isolé, pas un serveur.
+
+```
+tribuzen/
+  config/
+    app.json          ← lu par load-config.ts (readFile)
+  logs/
+    app.log           ← écrit par file-logger.ts (appendFile)
+  src/
+    config/
+      load-config.ts  ← Exemple A de ce module
+    logger/
+      file-logger.ts  ← Exemple B de ce module
+    scripts/
+      export-users.ts ← readFileSync acceptable (CLI)
 ```
 
----
+## 6. Points clés
 
-## 10. Résumé — Les concepts clés
+1. CJS = `require`/`module.exports`, chargement synchrone, `__dirname` natif — ESM = `import`/`export`, statique, tree-shakable, `import.meta.dirname` (Node 22).
+2. Activer ESM : `"type": "module"` dans `package.json` ; un fichier CJS isolé prend l'extension `.cjs`.
+3. En ESM, l'extension est **obligatoire** dans les imports locaux (`'./math.js'`).
+4. `require()` dans un ESM → `SyntaxError` ; `import()` dynamique fonctionne des deux côtés.
+5. `exports = { foo }` brise le lien avec `module.exports` — ne jamais réassigner `exports`.
+6. `fs/promises` (ou `node:fs/promises`) : `readFile`, `writeFile`, `appendFile`, `mkdir`, `readdir` — toutes retournent des Promises.
+7. `readFileSync` bloque l'event loop — acceptable uniquement dans des scripts CLI ou l'initialisation pré-serveur.
+8. Toujours construire des chemins absolus avec `import.meta.dirname` (ESM, Node 22) ou `__dirname` (CJS) + `path.join` — jamais de chemin relatif dans `readFile`.
+9. `path.join` = concaténation cross-platform ; `path.resolve` = résultat toujours absolu depuis CWD.
+10. Préfixe `node:` sur les modules natifs (`'node:fs/promises'`) — recommandé en Node.js 22 pour éviter les collisions avec des packages npm.
 
-| Concept | Definition |
-|---|---|
-| **CommonJS** | Système de modules avec `require`/`module.exports` |
-| **ESM** | Système de modules standard avec `import`/`export` |
-| **path** | Module pour manipuler les chemins de fichiers cross-platform |
-| **fs/promises** | API asynchrone pour le système de fichiers |
-| **process.env** | Variables d'environnement (toujours des strings) |
-| **process.argv** | Arguments de la ligne de commande |
-| **process.exit** | Arreter le processus avec un code de sortie |
-| **npm** | Gestionnaire de paquets (install, update, audit) |
-| **semver** | Versioning semantique (MAJOR.MINOR.PATCH) |
-| **package-lock.json** | Verrouillage des versions exactes |
+## 7. Seeds Anki
 
-> **A retenir** : Les modules sont la brique de base de toute application Node.js. Utilise ESM pour les nouveaux projets, `path.join()` pour les chemins, `fs/promises` pour le système de fichiers et `process.env` pour la configuration. npm et package.json sont les outils indispensables pour gérer les dépendances.
+```
+Quelle est la différence principale entre CJS et ESM pour le chargement ?|CJS charge de façon synchrone (require bloque) ; ESM est statique et analysable à la compilation — permet le tree-shaking et le top-level await
+Pourquoi readFileSync est-il interdit dans un serveur HTTP Node.js ?|Il bloque l'event loop : pendant la lecture, aucune autre requête n'est traitée. Utiliser fs/promises avec await qui libère le thread pendant l'I/O
+Comment obtenir __dirname en ESM avec Node.js 22 ?|import.meta.dirname (natif depuis Node 21.2). Alternative polyfill : const __filename = fileURLToPath(import.meta.url) puis path.dirname(__filename)
+Quel est le piège de exports = { foo } en CommonJS ?|Réassigner exports brise l'alias avec module.exports — l'importateur ne voit plus rien. Modifier module.exports directement ou ajouter des propriétés : exports.foo = foo
+Pourquoi import x from './math' échoue-t-il en ESM pur ?|En ESM, l'extension du fichier est obligatoire. Node ne tente pas '.js' automatiquement. Correct : import x from './math.js'
+Quelle différence entre path.join et path.resolve ?|path.join concatène des segments (résultat relatif si aucun segment absolu) ; path.resolve construit toujours un chemin absolu depuis le CWD (ou depuis le dernier segment absolu)
+Quel préfixe recommande Node.js 22 pour les modules natifs et pourquoi ?|node: — ex. 'node:fs/promises'. Évite les collisions avec des packages npm portant le même nom et signale clairement que c'est un module intégré
+Comment vérifier l'existence d'un fichier avec fs/promises sans lever d'exception ?|try { await access(path, constants.F_OK) } catch {} — access lève ENOENT si le fichier est absent, sinon réussit silencieusement
+```
 
----
+## Pont vers le lab
 
-## Navigation
-
-| | Lien |
-|---|---|
-| Module précédent | [Module 01 — Node.js — Event Loop & Asynchrone](./01-nodejs-event-loop.md) |
-| Module suivant | [Module 03 — Node.js — Streams & Buffers](./03-nodejs-streams-et-buffers.md) |
-| Quiz | [Quiz Module 02](../quizzes/02-nodejs-modules-et-fs.quiz.md) |
-| Lab | [Lab 02 — Modules et File System](../labs/02-nodejs-modules-et-fs.lab.md) |
-
----
-
-> **A retenir** : Maîtriser les modules, le système de fichiers et l'objet process est fondamental pour tout projet Node.js. Ces API natives sont la base sur laquelle tous les frameworks (Express, NestJS) sont construits. Un développeur backend qui connait bien ces outils est capable de comprendre et debugger n'importe quelle application Node.js.
-
----
-
-<!-- parcours-recommande -->
-
-::: tip Parcours recommandé
-1. **Screencast** : [screencast 02 modules fs](../screencasts/screencast-02-modules-fs.md)
-2. **Lab** : [lab-02-modules-fs](../labs/lab-02-modules-fs/README)
-3. **Quiz** : [quiz 02 modules fs](../quizzes/quiz-02-modules-fs.html)
-:::
+> Lab associé : `09-nestjs/labs/lab-02-modules-fs/`. Tu y implémentes `loadConfig` et `writeLog` avec `node:fs/promises` et `node:path` sur un projet Node.js 22 minimal en ESM, avec corrigé intégral commenté et variante J+30.
