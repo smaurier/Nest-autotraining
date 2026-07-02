@@ -1,955 +1,570 @@
-# Module 21 — NestJS — WebSockets, Fichiers & Temps réel
-
-> **Objectif** : Apprendre a gérer l'upload et le telechargement de fichiers, et a implementer une communication temps réel avec les WebSockets (Socket.io) dans NestJS.
-> **Difficulte** : ⭐⭐⭐⭐ (avance+)
-> **Prérequis** : Module 10 (Controllers), Module 13 (Interceptors), Module 19 (Auth JWT)
-> **Duree estimee** : 6 heures
-
+---
+titre: NestJS WebSockets et fichiers
+cours: 09-nestjs
+notions: [WebSocketGateway, cycle de vie de la gateway, SubscribeMessage et événements, rooms et broadcast, gestion de la connexion, upload de fichiers avec Multer, FileInterceptor, validation et stockage des fichiers, streaming de fichiers]
+outcomes: [créer une gateway WebSocket qui émet et reçoit des événements, diffuser dans une room, gérer l'upload d'un fichier avec FileInterceptor, valider et servir des fichiers]
+prerequis: [20-nestjs-config-swagger]
+next: 22-nestjs-jobs-queues
+libs: [{ name: "@nestjs/websockets", version: "^11" }, { name: "socket.io", version: "^4" }]
+tribuzen: notifications temps réel du feed TribuZen (nouveau post) et upload des médias famille
+last-reviewed: 2026-07
 ---
 
-## 1. Upload de fichiers
+# NestJS WebSockets et fichiers
 
-### 1.1 Installation
+> **Outcomes — tu sauras FAIRE :** créer une gateway WebSocket qui émet et reçoit des événements, diffuser dans une room, gérer l'upload d'un fichier avec `FileInterceptor`, valider et servir des fichiers.
+> **Difficulté :** :star::star::star::star:
 
-NestJS utilise Multer (via Express) pour gérer les uploads de fichiers.
+## 1. Cas concret d'abord
 
-```bash
-npm install @nestjs/platform-express
-npm install --save-dev @types/multer
+TribuZen doit notifier en temps réel tous les membres d'une famille lorsqu'un nouveau post apparaît dans leur feed. Tu essaies de le faire avec HTTP polling :
+
+```ts
+// ❌ tentative naïve — polling HTTP toutes les 5 s
+setInterval(() => {
+  fetch('/api/families/fam-1/feed/latest').then(r => r.json()).then(updateUI)
+}, 5000)
 ```
 
-> **Analogie** : L'upload de fichier est comme la reception d'un colis postal. Multer est le facteur qui recoit le colis, vérifié qu'il est correct (taille, type), et le depose a l'endroit que vous avez choisi (disque, mémoire).
+Cinq secondes de latence minimum, des centaines de requêtes inutiles, une infrastructure qui ne passe pas à l'échelle. TribuZen a aussi besoin d'uploader des photos de famille (avatars, souvenirs). Stocker le fichier dans le body JSON (base64) double la taille de la requête et casse les CDN.
 
-### 1.2 Upload d'un seul fichier
+WebSockets + Multer résolvent les deux problèmes dans NestJS :
 
-```typescript
-// files/files.controller.ts
+```ts
+// ✅ push immédiat — le serveur notifie les clients connectés
+this.server.to(`family-${familyId}`).emit('new-post', { postId, authorId, createdAt })
+
+// ✅ upload propre — Multer parse le multipart/form-data
+@Post('upload')
+@UseInterceptors(FileInterceptor('file'))
+uploadMedia(@UploadedFile() file: Express.Multer.File) { ... }
+```
+
+Ce module couvre le mécanisme complet : gateway WebSocket, cycle de vie, rooms, événements, upload Multer, validation et streaming de fichiers.
+
+## 2. Théorie complète, concise
+
+### 2.1 `@WebSocketGateway()` et le cycle de vie
+
+Une **gateway** est une classe décorée `@WebSocketGateway()` qui écoute les connexions Socket.IO. NestJS la traite comme un provider : elle doit être déclarée dans `providers` d'un `@Module()`.
+
+```ts
+import {
+  WebSocketGateway,
+  WebSocketServer,
+  OnGatewayInit,
+  OnGatewayConnection,
+  OnGatewayDisconnect,
+} from '@nestjs/websockets'
+import { Server, Socket } from 'socket.io'
+
+@WebSocketGateway({
+  cors: { origin: '*' }, // en production restreindre aux origines connues
+  namespace: '/feed',    // optionnel — isole les événements du feed
+})
+export class FeedGateway
+  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
+{
+  @WebSocketServer()
+  server: Server // instance Socket.IO injectée par NestJS après afterInit
+
+  afterInit(server: Server) {
+    console.log('FeedGateway initialisée')
+  }
+
+  handleConnection(client: Socket) {
+    console.log(`Connecté : ${client.id}`)
+  }
+
+  handleDisconnect(client: Socket) {
+    console.log(`Déconnecté : ${client.id}`)
+  }
+}
+```
+
+Les trois interfaces du cycle de vie :
+
+| Interface | Méthode | Moment d'appel |
+|-----------|---------|---------------|
+| `OnGatewayInit` | `afterInit(server)` | Après démarrage du serveur Socket.IO |
+| `OnGatewayConnection` | `handleConnection(client)` | Connexion d'un socket client |
+| `OnGatewayDisconnect` | `handleDisconnect(client)` | Déconnexion d'un socket client |
+
+NestJS injecte le `Server` Socket.IO dans la propriété annotée `@WebSocketServer()`. Ce décorateur est obligatoire pour émettre depuis la gateway.
+
+### 2.2 `@SubscribeMessage` et événements
+
+`@SubscribeMessage('event')` écoute un événement entrant. `@MessageBody()` extrait le payload ; `@ConnectedSocket()` donne accès au socket émetteur.
+
+```ts
+import {
+  SubscribeMessage,
+  MessageBody,
+  ConnectedSocket,
+  WsResponse,
+} from '@nestjs/websockets'
+import { Socket } from 'socket.io'
+
+// Retour void — diffusion asynchrone via server.to(...).emit(...)
+@SubscribeMessage('join-family')
+handleJoinFamily(
+  @MessageBody() data: { familyId: string },
+  @ConnectedSocket() client: Socket,
+): void {
+  client.join(`family-${data.familyId}`)
+  this.server.to(`family-${data.familyId}`).emit('member-joined', { socketId: client.id })
+}
+
+// Retour WsResponse<T> — acknowledgement synchrone vers l'émetteur uniquement
+@SubscribeMessage('ping')
+handlePing(): WsResponse<string> {
+  return { event: 'pong', data: 'pong' }
+}
+```
+
+Deux modes de réponse :
+
+| Mode | Quand l'utiliser |
+|------|-----------------|
+| `void` + `server.emit(...)` | Diffuser à plusieurs sockets (room, broadcast) |
+| `WsResponse<T>` | Réponse directe au client émetteur (acknowledgement) |
+
+### 2.3 Rooms et broadcast
+
+Les **rooms** sont des canaux virtuels gérés par Socket.IO. Un socket peut rejoindre et quitter des rooms à tout moment. Les messages envoyés à une room ne sont reçus que par les sockets inscrits.
+
+```ts
+// Rejoindre une room
+client.join('family-fam-1')
+
+// Quitter une room
+client.leave('family-fam-1')
+
+// Émettre vers une room — EXCLUT l'émetteur
+client.to('family-fam-1').emit('new-post', payload)
+
+// Émettre vers une room — INCLUT l'émetteur
+this.server.to('family-fam-1').emit('new-post', payload)
+
+// Émettre vers plusieurs rooms
+this.server.to('family-fam-1').to('family-fam-2').emit('announcement', payload)
+
+// Broadcast global — tous les sockets connectés
+this.server.emit('system-notice', { message: 'Maintenance dans 5 min' })
+```
+
+Différence clé :
+
+| Appel | Inclut l'émetteur | Accès requis |
+|-------|------------------|--------------|
+| `client.to(room).emit(...)` | Non | `@ConnectedSocket()` dans le handler |
+| `this.server.to(room).emit(...)` | Oui | `@WebSocketServer()` |
+
+### 2.4 Gestion de la connexion
+
+Le handshake HTTP initial est le moment privilégié pour valider le client. `client.handshake` expose `auth`, `headers`, `query` et `address`. Les données persistantes de session se stockent sur `client.data`.
+
+```ts
+handleConnection(client: Socket) {
+  const token =
+    client.handshake.auth?.token ??
+    client.handshake.headers?.authorization?.replace('Bearer ', '')
+
+  if (!token) {
+    client.disconnect() // refus immédiat
+    return
+  }
+
+  // Stocker les infos utilisateur sur le socket — persistant pendant la connexion
+  client.data.userId = 'usr-42'
+  client.data.familyId = 'fam-1'
+}
+```
+
+Le côté client envoie le token via `io(url, { auth: { token: 'eyJ...' } })`.
+
+### 2.5 Upload de fichiers avec `FileInterceptor`
+
+NestJS délègue l'upload à **Multer** (inclus dans `@nestjs/platform-express`). `FileInterceptor(fieldName, options)` parse le `multipart/form-data` et expose le fichier via `@UploadedFile()`.
+
+```ts
 import {
   Controller,
   Post,
-  UploadedFile,
   UseInterceptors,
-  BadRequestException,
+  UploadedFile,
+} from '@nestjs/common'
+import { FileInterceptor } from '@nestjs/platform-express'
+import { diskStorage } from 'multer'
+import { extname } from 'path'
+
+@Controller('media')
+export class MediaController {
+  @Post('upload')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: './uploads',
+        filename: (_req, file, cb) => {
+          // Nom unique côté serveur — ne jamais utiliser file.originalname directement
+          const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`
+          cb(null, `${unique}${extname(file.originalname)}`)
+        },
+      }),
+      limits: { fileSize: 5 * 1024 * 1024 }, // 5 Mo max
+    }),
+  )
+  uploadMedia(@UploadedFile() file: Express.Multer.File) {
+    return { url: `/uploads/${file.filename}`, originalName: file.originalname }
+  }
+}
+```
+
+`FileInterceptor` prend deux arguments :
+1. `fieldName` — nom du champ HTML `<input type="file" name="file">`
+2. `options` — objet `MulterOptions` optionnel : `storage`, `fileFilter`, `limits`
+
+Sans `storage` explicite, Multer utilise `memoryStorage()` : `file.filename` est `undefined`, seul `file.buffer` est disponible.
+
+### 2.6 Validation et stockage
+
+NestJS fournit `ParseFilePipe` avec des validateurs intégrés, applicables directement dans `@UploadedFile()`.
+
+```ts
+import {
+  UploadedFile,
   ParseFilePipe,
   MaxFileSizeValidator,
   FileTypeValidator,
-} from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
-import { Express } from 'express';
-
-@Controller('files')
-export class FilesController {
-  // Upload d'un seul fichier
-  // Le champ du formulaire doit s'appeler 'file'
-  @Post('upload')
-  @UseInterceptors(FileInterceptor('file'))
-  uploadFile(@UploadedFile() file: Express.Multer.File) {
-    if (!file) {
-      throw new BadRequestException('Aucun fichier fourni');
-    }
-
-    return {
-      message: 'Fichier televerse avec succes',
-      originalName: file.originalname,
-      filename: file.filename,
-      size: file.size,
-      mimetype: file.mimetype,
-    };
-  }
-
-  // Upload avec validation integree (NestJS 9+)
-  @Post('upload-validated')
-  @UseInterceptors(FileInterceptor('file'))
-  uploadValidatedFile(
-    @UploadedFile(
-      new ParseFilePipe({
-        validators: [
-          new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }), // 5 Mo
-          new FileTypeValidator({ fileType: /(jpg|jpeg|png|gif|webp)$/ }),
-        ],
-        errorHttpStatusCode: 400,
-        fileIsRequired: true,
-      }),
-    )
-    file: Express.Multer.File,
-  ) {
-    return {
-      message: 'Image telechargee avec succes',
-      originalName: file.originalname,
-      size: file.size,
-    };
-  }
-}
-```
-
-### 1.3 Upload de plusieurs fichiers
-
-```typescript
-import {
-  Controller,
-  Post,
-  UploadedFiles,
-  UseInterceptors,
-} from '@nestjs/common';
-import { FilesInterceptor, FileFieldsInterceptor } from '@nestjs/platform-express';
-
-@Controller('files')
-export class FilesController {
-  // Upload de plusieurs fichiers avec le meme champ
-  @Post('upload-multiple')
-  @UseInterceptors(FilesInterceptor('files', 10)) // Max 10 fichiers
-  uploadMultiple(@UploadedFiles() files: Express.Multer.File[]) {
-    return {
-      message: `${files.length} fichier(s) televerse(s)`,
-      files: files.map((f) => ({
-        originalName: f.originalname,
-        size: f.size,
-      })),
-    };
-  }
-
-  // Upload de fichiers dans differents champs
-  @Post('upload-fields')
-  @UseInterceptors(
-    FileFieldsInterceptor([
-      { name: 'avatar', maxCount: 1 },        // Un seul avatar
-      { name: 'documents', maxCount: 5 },      // Jusqu'a 5 documents
-    ]),
-  )
-  uploadFields(
-    @UploadedFiles()
-    files: {
-      avatar?: Express.Multer.File[];
-      documents?: Express.Multer.File[];
-    },
-  ) {
-    return {
-      avatar: files.avatar?.[0]?.originalname,
-      documents: files.documents?.map((f) => f.originalname),
-    };
-  }
-}
-```
-
-### 1.4 Configuration de Multer — Stockage sur disque
-
-```typescript
-// files/multer.config.ts
-import { diskStorage } from 'multer';
-import { extname, join } from 'path';
-import { v4 as uuid } from 'uuid';
-import { BadRequestException } from '@nestjs/common';
-
-// Configuration du stockage sur disque
-export const multerDiskConfig = {
-  storage: diskStorage({
-    // Dossier de destination
-    destination: (req, file, callback) => {
-      const uploadPath = join(__dirname, '..', '..', 'uploads');
-      callback(null, uploadPath);
-    },
-
-    // Nom du fichier
-    filename: (req, file, callback) => {
-      // Generer un nom unique avec UUID
-      const uniqueName = `${uuid()}${extname(file.originalname)}`;
-      callback(null, uniqueName);
-    },
-  }),
-
-  // Filtre de fichiers
-  fileFilter: (req, file, callback) => {
-    const allowedMimes = [
-      'image/jpeg',
-      'image/png',
-      'image/gif',
-      'image/webp',
-    ];
-
-    if (!allowedMimes.includes(file.mimetype)) {
-      return callback(
-        new BadRequestException(
-          `Type de fichier non autorise : ${file.mimetype}. ` +
-            `Types acceptes : ${allowedMimes.join(', ')}`,
-        ),
-        false,
-      );
-    }
-
-    callback(null, true);
-  },
-
-  // Limites
-  limits: {
-    fileSize: 5 * 1024 * 1024, // 5 Mo max
-    files: 10,                   // 10 fichiers max par requete
-  },
-};
-```
-
-Utilisation de la configuration :
-
-```typescript
-import { multerDiskConfig } from './multer.config';
+} from '@nestjs/common'
 
 @Post('upload')
-@UseInterceptors(FileInterceptor('file', multerDiskConfig))
-uploadFile(@UploadedFile() file: Express.Multer.File) {
-  return {
-    url: `/uploads/${file.filename}`,
-    originalName: file.originalname,
-    size: file.size,
-  };
+@UseInterceptors(FileInterceptor('file'))
+uploadMedia(
+  @UploadedFile(
+    new ParseFilePipe({
+      validators: [
+        new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }), // 5 Mo
+        new FileTypeValidator({ fileType: /image\/(jpeg|png|webp)/ }),
+      ],
+      fileIsRequired: true,
+    }),
+  )
+  file: Express.Multer.File,
+) {
+  return { filename: file.filename, size: file.size }
 }
 ```
 
-### 1.5 Stockage en mémoire
+Validateurs intégrés :
 
-Utile quand vous voulez traiter le fichier (redimensionner, envoyer vers un cloud) sans l'écrire sur le disque :
+| Validateur | Paramètre | Comportement |
+|------------|-----------|-------------|
+| `MaxFileSizeValidator` | `maxSize` (octets) | Lève 400 si le fichier dépasse la taille |
+| `FileTypeValidator` | `fileType` (string ou RegExp) | Lève 400 si le MIME ne correspond pas |
 
-```typescript
-import { memoryStorage } from 'multer';
+`ParseFilePipe` lève automatiquement une `BadRequestException` (400) en cas d'échec, avant que le handler soit invoqué.
 
-const multerMemoryConfig = {
-  storage: memoryStorage(),
-  limits: {
-    fileSize: 10 * 1024 * 1024, // 10 Mo
-  },
-};
+Stockage en mémoire pour transfert cloud :
+
+```ts
+import { memoryStorage } from 'multer'
 
 @Post('upload-memory')
 @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
 async uploadToCloud(@UploadedFile() file: Express.Multer.File) {
-  // file.buffer contient les donnees du fichier en memoire
-  // On peut les envoyer vers S3, CloudFlare R2, etc.
-  const url = await this.cloudService.upload(file.buffer, file.originalname);
-  return { url };
+  // file.buffer disponible — pas d'écriture disque
+  const url = await this.storageService.upload(file.buffer, file.originalname)
+  return { url }
 }
 ```
 
-### 1.6 Telechargement de fichiers — StreamableFile
+### 2.7 Streaming de fichiers avec `StreamableFile`
 
-```typescript
-import {
-  Controller,
-  Get,
-  Param,
-  StreamableFile,
-  Res,
-  NotFoundException,
-} from '@nestjs/common';
-import { Response } from 'express';
-import { createReadStream, existsSync } from 'fs';
-import { join } from 'path';
+Pour servir un fichier téléchargeable sans le charger entièrement en mémoire, utiliser `StreamableFile` + `createReadStream`.
 
-@Controller('files')
-export class FilesController {
-  // Telecharger un fichier
-  @Get('download/:filename')
-  downloadFile(
-    @Param('filename') filename: string,
-    @Res({ passthrough: true }) res: Response,
-  ): StreamableFile {
-    const filePath = join(__dirname, '..', '..', 'uploads', filename);
+```ts
+import { Get, Param, StreamableFile, Res, NotFoundException } from '@nestjs/common'
+import { Response } from 'express'
+import { createReadStream, existsSync } from 'fs'
+import { join } from 'path'
 
-    if (!existsSync(filePath)) {
-      throw new NotFoundException('Fichier introuvable');
-    }
+@Get('download/:filename')
+downloadFile(
+  @Param('filename') filename: string,
+  @Res({ passthrough: true }) res: Response,
+): StreamableFile {
+  const filePath = join(process.cwd(), 'uploads', filename)
+  if (!existsSync(filePath)) throw new NotFoundException('Fichier introuvable')
 
-    // Definir les headers de reponse
-    res.set({
-      'Content-Type': 'application/octet-stream',
-      'Content-Disposition': `attachment; filename="${filename}"`,
-    });
-
-    // Creer un stream de lecture
-    const fileStream = createReadStream(filePath);
-    return new StreamableFile(fileStream);
-  }
-
-  // Servir une image (affichage inline)
-  @Get('images/:filename')
-  serveImage(
-    @Param('filename') filename: string,
-    @Res({ passthrough: true }) res: Response,
-  ): StreamableFile {
-    const filePath = join(__dirname, '..', '..', 'uploads', filename);
-
-    if (!existsSync(filePath)) {
-      throw new NotFoundException('Image introuvable');
-    }
-
-    // Determiner le type MIME
-    const ext = filename.split('.').pop()?.toLowerCase();
-    const mimeTypes: Record<string, string> = {
-      jpg: 'image/jpeg',
-      jpeg: 'image/jpeg',
-      png: 'image/png',
-      gif: 'image/gif',
-      webp: 'image/webp',
-    };
-
-    res.set({
-      'Content-Type': mimeTypes[ext] || 'application/octet-stream',
-      'Content-Disposition': `inline; filename="${filename}"`,
-      'Cache-Control': 'public, max-age=86400', // Cache 24h
-    });
-
-    const fileStream = createReadStream(filePath);
-    return new StreamableFile(fileStream);
-  }
+  res.set({
+    'Content-Type': 'application/octet-stream',
+    'Content-Disposition': `attachment; filename="${filename}"`,
+  })
+  return new StreamableFile(createReadStream(filePath))
 }
 ```
 
-### 1.7 Servir les fichiers statiques
+`@Res({ passthrough: true })` permet de modifier les headers HTTP tout en laissant NestJS gérer la réponse. Sans `passthrough: true`, NestJS cède le contrôle total à Express : `ExceptionFilter`, `Interceptor` et la réponse automatique NestJS sont désactivés.
 
-```typescript
-// main.ts
-import { NestFactory } from '@nestjs/core';
-import { NestExpressApplication } from '@nestjs/platform-express';
-import { join } from 'path';
+## 3. Worked examples
 
-async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+### Exemple A — FeedGateway TribuZen
 
-  // Servir le dossier uploads comme fichiers statiques
-  app.useStaticAssets(join(__dirname, '..', 'uploads'), {
-    prefix: '/uploads/', // Accessible via http://localhost:3000/uploads/mon-image.jpg
-  });
+Gateway complète : rejoindre la room famille, émettre un nouveau post, gérer la déconnexion.
 
-  await app.listen(3000);
-}
-```
-
-> **Bonne pratique** : En production, servez les fichiers statiques via un reverse proxy (Nginx) ou un CDN, pas directement depuis NestJS. C'est beaucoup plus performant.
-
----
-
-## 2. WebSockets avec Socket.io
-
-### 2.1 Qu'est-ce qu'un WebSocket ?
-
-HTTP est un protocole **requête-réponse** : le client demandé, le serveur repond. Les WebSockets sont un protocole de communication **bidirectionnelle** et **persistante** : le serveur peut envoyer des donnees au client a tout moment, sans que le client n'ait rien demandé.
-
-> **Analogie** : HTTP c'est comme envoyer des lettres : vous ecrivez, vous postez, vous attendez la réponse. WebSocket c'est comme un appel telephonique : une fois la connexion etablie, les deux parties peuvent parler a tout moment.
-
-| Caracteristique | HTTP | WebSocket |
-|----------------|------|-----------|
-| Direction | Unidirectionnelle (requête → réponse) | Bidirectionnelle |
-| Connexion | Nouvelle à chaque requête | Persistante |
-| Overhead | Headers à chaque requête | Minimal après connexion |
-| Cas d'usage | API REST, pages web | Chat, notifications, jeux |
-
-### 2.2 Installation
-
-```bash
-npm install @nestjs/websockets @nestjs/platform-socket.io
-npm install socket.io
-npm install --save-dev @types/socket.io
-```
-
-### 2.3 Créer un Gateway (serveur WebSocket)
-
-```typescript
-// chat/chat.gateway.ts
+```ts
+// src/feed/feed.gateway.ts
 import {
   WebSocketGateway,
   WebSocketServer,
   SubscribeMessage,
   MessageBody,
   ConnectedSocket,
-  OnGatewayInit,
   OnGatewayConnection,
   OnGatewayDisconnect,
-  WsResponse,
-} from '@nestjs/websockets';
-import { Logger } from '@nestjs/common';
-import { Server, Socket } from 'socket.io';
+} from '@nestjs/websockets'
+import { Logger } from '@nestjs/common'
+import { Server, Socket } from 'socket.io'
 
-@WebSocketGateway({
-  cors: {
-    origin: '*', // En production, specifiez les origines autorisees
-  },
-  namespace: '/chat', // Optionnel : namespace pour isoler les evenements
-})
-export class ChatGateway
-  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
-{
+@WebSocketGateway({ cors: { origin: '*' }, namespace: '/feed' })
+export class FeedGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
-  server: Server; // Reference au serveur Socket.io
+  server: Server
 
-  private readonly logger = new Logger('ChatGateway');
+  private readonly logger = new Logger(FeedGateway.name)
 
-  // Compteur de connexions actives
-  private connectedUsers = new Map<string, { userId: number; nom: string }>();
-
-  // === Lifecycle Hooks ===
-
-  // Appele apres l'initialisation du gateway
-  afterInit(server: Server) {
-    this.logger.log('WebSocket Gateway initialise');
-  }
-
-  // Appele quand un client se connecte
   handleConnection(client: Socket) {
-    this.logger.log(`Client connecte : ${client.id}`);
+    this.logger.log(`Connecté : ${client.id}`)
   }
 
-  // Appele quand un client se deconnecte
   handleDisconnect(client: Socket) {
-    const user = this.connectedUsers.get(client.id);
-    if (user) {
-      this.connectedUsers.delete(client.id);
-      // Notifier les autres que l'utilisateur est parti
-      this.server.emit('userDisconnected', {
-        userId: user.userId,
-        nom: user.nom,
-        timestamp: new Date().toISOString(),
-      });
-    }
-    this.logger.log(`Client deconnecte : ${client.id}`);
+    this.logger.log(`Déconnecté : ${client.id}`)
   }
 
-  // === Gestionnaires d'evenements ===
-
-  // Recevoir un message de chat
-  @SubscribeMessage('sendMessage')
-  handleMessage(
-    @MessageBody() data: { room: string; message: string },
+  // Le client rejoint la room de sa famille
+  @SubscribeMessage('join-family')
+  handleJoinFamily(
+    @MessageBody() data: { familyId: string; userId: string },
     @ConnectedSocket() client: Socket,
   ): void {
-    const user = this.connectedUsers.get(client.id);
-    if (!user) return;
+    const room = `family-${data.familyId}`
+    client.join(room) // inscrit le socket à la room — persiste pendant la connexion
+    client.data.userId = data.userId
+    client.data.familyId = data.familyId
 
-    const payload = {
-      userId: user.userId,
-      nom: user.nom,
-      message: data.message,
-      room: data.room,
-      timestamp: new Date().toISOString(),
-    };
-
-    // Envoyer le message a tous dans la room (sauf l'expediteur)
-    client.to(data.room).emit('newMessage', payload);
-
-    // Aussi envoyer a l'expediteur (confirmation)
-    client.emit('newMessage', payload);
+    // Confirmer uniquement à l'émetteur — client.emit, pas server.to(room)
+    client.emit('joined', { room, userId: data.userId })
+    this.logger.log(`${data.userId} a rejoint ${room}`)
   }
 
-  // Rejoindre une room
-  @SubscribeMessage('joinRoom')
-  handleJoinRoom(
-    @MessageBody() data: { room: string; userId: number; nom: string },
-    @ConnectedSocket() client: Socket,
-  ): void {
-    // Enregistrer l'utilisateur
-    this.connectedUsers.set(client.id, {
-      userId: data.userId,
-      nom: data.nom,
-    });
-
-    // Rejoindre la room Socket.io
-    client.join(data.room);
-
-    // Notifier la room
-    this.server.to(data.room).emit('userJoined', {
-      userId: data.userId,
-      nom: data.nom,
-      room: data.room,
-      timestamp: new Date().toISOString(),
-    });
-
-    this.logger.log(`${data.nom} a rejoint la room ${data.room}`);
-  }
-
-  // Quitter une room
-  @SubscribeMessage('leaveRoom')
-  handleLeaveRoom(
-    @MessageBody() data: { room: string },
-    @ConnectedSocket() client: Socket,
-  ): void {
-    const user = this.connectedUsers.get(client.id);
-
-    client.leave(data.room);
-
-    if (user) {
-      this.server.to(data.room).emit('userLeft', {
-        userId: user.userId,
-        nom: user.nom,
-        room: data.room,
-        timestamp: new Date().toISOString(),
-      });
-    }
-  }
-
-  // Indicateur de frappe ("... est en train d'ecrire")
-  @SubscribeMessage('typing')
-  handleTyping(
-    @MessageBody() data: { room: string; isTyping: boolean },
-    @ConnectedSocket() client: Socket,
-  ): void {
-    const user = this.connectedUsers.get(client.id);
-    if (!user) return;
-
-    // Emettre a tous dans la room SAUF l'expediteur
-    client.to(data.room).emit('userTyping', {
-      userId: user.userId,
-      nom: user.nom,
-      isTyping: data.isTyping,
-    });
-  }
-
-  // Retourner une reponse au client (pattern requete-reponse)
-  @SubscribeMessage('getOnlineUsers')
-  handleGetOnlineUsers(
-    @MessageBody() data: { room: string },
-  ): WsResponse<any> {
-    // WsResponse retourne directement au client qui a emis
-    const users = Array.from(this.connectedUsers.values());
-    return {
-      event: 'onlineUsers',
-      data: users,
-    };
-  }
-
-  // === Methodes utilitaires (appelables depuis d'autres services) ===
-
-  // Envoyer une notification a un utilisateur specifique
-  sendToUser(userId: number, event: string, data: any): void {
-    for (const [socketId, user] of this.connectedUsers) {
-      if (user.userId === userId) {
-        this.server.to(socketId).emit(event, data);
-      }
-    }
-  }
-
-  // Broadcast a tous les clients connectes
-  broadcast(event: string, data: any): void {
-    this.server.emit(event, data);
-  }
-
-  // Envoyer a une room specifique
-  sendToRoom(room: string, event: string, data: any): void {
-    this.server.to(room).emit(event, data);
+  // Méthode publique — PostsService l'appelle après création d'un post
+  notifyNewPost(familyId: string, postId: string, authorId: string): void {
+    // server.to() inclut tous les sockets de la room, y compris l'auteur
+    this.server.to(`family-${familyId}`).emit('new-post', {
+      postId,
+      authorId,
+      createdAt: new Date().toISOString(),
+    })
   }
 }
 ```
 
-### 2.4 Authentification WebSocket
-
-```typescript
-// chat/chat.gateway.ts (avec authentification)
-import { JwtService } from '@nestjs/jwt';
-import { ConfigService } from '@nestjs/config';
-
-@WebSocketGateway({ cors: { origin: '*' } })
-export class ChatGateway implements OnGatewayConnection {
-  constructor(
-    private readonly jwtService: JwtService,
-    private readonly configService: ConfigService,
-  ) {}
-
-  @WebSocketServer()
-  server: Server;
-
-  // Verifier le JWT a la connexion
-  async handleConnection(client: Socket) {
-    try {
-      // Le token peut etre dans les headers ou dans la query string
-      const token =
-        client.handshake.auth?.token ||
-        client.handshake.headers?.authorization?.split(' ')[1];
-
-      if (!token) {
-        this.logger.warn(`Connexion refusee : pas de token (${client.id})`);
-        client.emit('error', { message: 'Token manquant' });
-        client.disconnect();
-        return;
-      }
-
-      // Verifier le token
-      const payload = this.jwtService.verify(token, {
-        secret: this.configService.get<string>('JWT_ACCESS_SECRET'),
-      });
-
-      // Stocker les infos utilisateur sur le socket
-      client.data.userId = payload.sub;
-      client.data.email = payload.email;
-      client.data.role = payload.role;
-
-      this.logger.log(
-        `Client authentifie : ${payload.email} (${client.id})`,
-      );
-    } catch (error) {
-      this.logger.warn(`Token invalide : ${error.message} (${client.id})`);
-      client.emit('error', { message: 'Token invalide' });
-      client.disconnect();
-    }
-  }
-}
-```
-
-Cote client (JavaScript/TypeScript) :
-
-```typescript
-// Code cote frontend (pour reference)
-import { io } from 'socket.io-client';
-
-const socket = io('http://localhost:3000/chat', {
-  auth: {
-    token: 'eyJhbGciOiJIUzI1NiIs...', // Token JWT
-  },
-});
-
-socket.on('connect', () => {
-  console.log('Connecte au serveur WebSocket');
-
-  // Rejoindre une room
-  socket.emit('joinRoom', {
-    room: 'general',
-    userId: 1,
-    nom: 'Alice',
-  });
-});
-
-// Ecouter les messages
-socket.on('newMessage', (data) => {
-  console.log(`${data.nom}: ${data.message}`);
-});
-
-// Envoyer un message
-socket.emit('sendMessage', {
-  room: 'general',
-  message: 'Bonjour tout le monde !',
-});
-
-// Indicateur de frappe
-socket.emit('typing', { room: 'general', isTyping: true });
-setTimeout(() => {
-  socket.emit('typing', { room: 'general', isTyping: false });
-}, 3000);
-
-// Gestion des erreurs
-socket.on('error', (data) => {
-  console.error('Erreur WebSocket:', data.message);
-});
-
-socket.on('disconnect', () => {
-  console.log('Deconnecte du serveur');
-});
-```
-
-### 2.5 Le ChatModule
-
-```typescript
-// chat/chat.module.ts
-import { Module } from '@nestjs/common';
-import { JwtModule } from '@nestjs/jwt';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { ChatGateway } from './chat.gateway';
-import { ChatService } from './chat.service';
+```ts
+// src/feed/feed.module.ts
+import { Module } from '@nestjs/common'
+import { FeedGateway } from './feed.gateway'
 
 @Module({
-  imports: [
-    JwtModule.registerAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_ACCESS_SECRET'),
+  providers: [FeedGateway],
+  exports: [FeedGateway], // PostsService peut injecter FeedGateway
+})
+export class FeedModule {}
+```
+
+```ts
+// src/posts/posts.service.ts
+import { Injectable } from '@nestjs/common'
+import { FeedGateway } from '../feed/feed.gateway'
+
+@Injectable()
+export class PostsService {
+  constructor(
+    // FeedGateway injectable car FeedModule est importé dans PostsModule
+    private readonly feedGateway: FeedGateway,
+  ) {}
+
+  createPost(familyId: string, authorId: string, content: string) {
+    const postId = `post-${Date.now()}`
+    // ... persistance en base (Prisma au module 14) ...
+
+    // Notifier en temps réel tous les membres connectés de la famille
+    this.feedGateway.notifyNewPost(familyId, postId, authorId)
+    return { postId, familyId, authorId, content }
+  }
+}
+```
+
+**Pas-à-pas :** (1) `@WebSocketGateway({ namespace: '/feed' })` isole les événements TribuZen — un client se connecte à `http://localhost:3000/feed` ; (2) `handleConnection` et `handleDisconnect` tracent les connexions sans logique métier — l'authentification s'y ajoute en 2.4 ; (3) `client.join(room)` inscrit le socket à `family-fam-1` — tous les sockets de cette room recevront les émissions ciblées ; (4) `notifyNewPost` est une méthode publique injectable via DI depuis `PostsService` ; (5) `exports: [FeedGateway]` dans `FeedModule` + `imports: [FeedModule]` dans `PostsModule` — même règle que pour les services (module 11).
+
+### Exemple B — MediaController avec upload et streaming
+
+```ts
+// src/media/media.controller.ts
+import {
+  Controller,
+  Post,
+  Get,
+  Param,
+  StreamableFile,
+  Res,
+  NotFoundException,
+  UseInterceptors,
+  UploadedFile,
+  ParseFilePipe,
+  MaxFileSizeValidator,
+  FileTypeValidator,
+} from '@nestjs/common'
+import { FileInterceptor } from '@nestjs/platform-express'
+import { diskStorage } from 'multer'
+import { extname, join } from 'path'
+import { createReadStream, existsSync } from 'fs'
+import { Response } from 'express'
+
+const UPLOAD_DIR = join(process.cwd(), 'uploads')
+const MAX_SIZE = 5 * 1024 * 1024 // 5 Mo
+
+@Controller('media')
+export class MediaController {
+  // Upload avec validation intégrée — ParseFilePipe lève 400 si invalide
+  @Post('upload')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: UPLOAD_DIR,
+        filename: (_req, file, cb) => {
+          // Nom généré côté serveur — jamais file.originalname (path traversal)
+          const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`
+          cb(null, `${unique}${extname(file.originalname)}`)
+        },
       }),
     }),
-  ],
-  providers: [ChatGateway, ChatService],
-  exports: [ChatGateway], // Exporter pour utiliser dans d'autres modules
-})
-export class ChatModule {}
-```
-
-### 2.6 Utiliser le Gateway depuis un autre service
-
-```typescript
-// notifications/notifications.service.ts
-import { Injectable } from '@nestjs/common';
-import { ChatGateway } from '../chat/chat.gateway';
-
-@Injectable()
-export class NotificationsService {
-  constructor(private readonly chatGateway: ChatGateway) {}
-
-  // Envoyer une notification en temps reel quand une commande est creee
-  notifyNewOrder(userId: number, orderId: number) {
-    this.chatGateway.sendToUser(userId, 'newOrder', {
-      orderId,
-      message: `Votre commande #${orderId} a ete recue !`,
-      timestamp: new Date().toISOString(),
-    });
+  )
+  uploadMedia(
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: [
+          new MaxFileSizeValidator({ maxSize: MAX_SIZE }),
+          new FileTypeValidator({ fileType: /image\/(jpeg|png|webp)/ }),
+        ],
+        fileIsRequired: true,
+      }),
+    )
+    file: Express.Multer.File,
+  ) {
+    // Retourner l'URL publique — le chemin disque n'est jamais exposé
+    return {
+      url: `/uploads/${file.filename}`,
+      originalName: file.originalname,
+      size: file.size,
+    }
   }
 
-  // Notifier tous les admins
-  notifyAdmins(event: string, data: any) {
-    this.chatGateway.sendToRoom('admin-room', event, data);
-  }
+  // Streaming — pas de chargement mémoire complet
+  @Get(':filename')
+  serveMedia(
+    @Param('filename') filename: string,
+    @Res({ passthrough: true }) res: Response,
+  ): StreamableFile {
+    const filePath = join(UPLOAD_DIR, filename)
+    if (!existsSync(filePath)) throw new NotFoundException('Média introuvable')
 
-  // Broadcast a tous les utilisateurs connectes
-  broadcastAnnouncement(message: string) {
-    this.chatGateway.broadcast('announcement', {
-      message,
-      timestamp: new Date().toISOString(),
-    });
-  }
-}
-```
-
----
-
-## 3. Rooms et Namespaces
-
-### 3.1 Les Rooms
-
-Les rooms sont des canaux virtuels dans lesquels les sockets peuvent entrer et sortir. Un message envoye à une room est recu par tous les sockets dans cette room.
-
-```typescript
-// Faire rejoindre une room
-client.join('room-projet-42');
-
-// Quitter une room
-client.leave('room-projet-42');
-
-// Envoyer a une room (tous les membres sauf l'expediteur)
-client.to('room-projet-42').emit('event', data);
-
-// Envoyer a une room (tous les membres Y COMPRIS l'expediteur)
-this.server.to('room-projet-42').emit('event', data);
-
-// Envoyer a plusieurs rooms
-this.server.to('room-1').to('room-2').emit('event', data);
-
-// Verifier les rooms d'un client
-const rooms = client.rooms; // Set<string>
-```
-
-### 3.2 Les Namespaces
-
-Les namespaces sont des canaux de communication separes avec leurs propres événements.
-
-```typescript
-// Gateway pour le chat
-@WebSocketGateway({ namespace: '/chat' })
-export class ChatGateway {}
-
-// Gateway pour les notifications (separe)
-@WebSocketGateway({ namespace: '/notifications' })
-export class NotificationsGateway {}
-
-// Cote client
-const chatSocket = io('http://localhost:3000/chat');
-const notifSocket = io('http://localhost:3000/notifications');
-```
-
----
-
-## 4. Exemple complet — Application de chat
-
-### 4.1 ChatService avec persistance des messages
-
-```typescript
-// chat/chat.service.ts
-import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-
-@Injectable()
-export class ChatService {
-  constructor(private readonly prisma: PrismaService) {}
-
-  // Sauvegarder un message en base
-  async saveMessage(data: {
-    userId: number;
-    room: string;
-    message: string;
-  }) {
-    return this.prisma.chatMessage.create({
-      data: {
-        contenu: data.message,
-        room: data.room,
-        userId: data.userId,
-      },
-      include: {
-        user: { select: { id: true, nom: true } },
-      },
-    });
-  }
-
-  // Recuperer l'historique des messages d'une room
-  async getMessages(room: string, limit: number = 50, before?: Date) {
-    return this.prisma.chatMessage.findMany({
-      where: {
-        room,
-        ...(before ? { createdAt: { lt: before } } : {}),
-      },
-      include: {
-        user: { select: { id: true, nom: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: limit,
-    });
-  }
-
-  // Compter les messages non lus
-  async getUnreadCount(userId: number, room: string, lastRead: Date) {
-    return this.prisma.chatMessage.count({
-      where: {
-        room,
-        createdAt: { gt: lastRead },
-        userId: { not: userId },
-      },
-    });
-  }
-}
-```
-
-### 4.2 Gateway avec persistance
-
-```typescript
-// Version enrichie du gateway avec sauvegarde en base
-@SubscribeMessage('sendMessage')
-async handleMessage(
-  @MessageBody() data: { room: string; message: string },
-  @ConnectedSocket() client: Socket,
-): Promise<void> {
-  const userId = client.data.userId;
-  if (!userId) return;
-
-  // Sauvegarder en base
-  const savedMessage = await this.chatService.saveMessage({
-    userId,
-    room: data.room,
-    message: data.message,
-  });
-
-  // Emettre a toute la room
-  this.server.to(data.room).emit('newMessage', savedMessage);
-}
-
-// Recuperer l'historique au moment de rejoindre
-@SubscribeMessage('joinRoom')
-async handleJoinRoom(
-  @MessageBody() data: { room: string },
-  @ConnectedSocket() client: Socket,
-): Promise<void> {
-  client.join(data.room);
-
-  // Envoyer l'historique des messages
-  const history = await this.chatService.getMessages(data.room, 50);
-  client.emit('messageHistory', history.reverse());
-
-  // Notifier la room
-  this.server.to(data.room).emit('userJoined', {
-    userId: client.data.userId,
-    email: client.data.email,
-  });
-}
-```
-
----
-
-## 5. Pipe de validation pour les fichiers
-
-```typescript
-// pipes/file-size-validation.pipe.ts
-import { PipeTransform, Injectable, BadRequestException } from '@nestjs/common';
-
-@Injectable()
-export class FileSizeValidationPipe implements PipeTransform {
-  constructor(private readonly maxSizeInMb: number = 5) {}
-
-  transform(file: Express.Multer.File) {
-    if (!file) {
-      throw new BadRequestException('Fichier requis');
+    const ext = filename.split('.').pop()?.toLowerCase() ?? ''
+    const mime: Record<string, string> = {
+      jpg: 'image/jpeg', jpeg: 'image/jpeg',
+      png: 'image/png', webp: 'image/webp',
     }
 
-    const maxBytes = this.maxSizeInMb * 1024 * 1024;
-    if (file.size > maxBytes) {
-      throw new BadRequestException(
-        `Le fichier depasse la taille maximale de ${this.maxSizeInMb} Mo`,
-      );
-    }
-
-    return file;
-  }
-}
-
-// pipes/file-type-validation.pipe.ts
-@Injectable()
-export class FileTypeValidationPipe implements PipeTransform {
-  constructor(private readonly allowedTypes: string[]) {}
-
-  transform(file: Express.Multer.File) {
-    if (!file) {
-      throw new BadRequestException('Fichier requis');
-    }
-
-    if (!this.allowedTypes.includes(file.mimetype)) {
-      throw new BadRequestException(
-        `Type ${file.mimetype} non autorise. Acceptes : ${this.allowedTypes.join(', ')}`,
-      );
-    }
-
-    return file;
+    res.set({
+      'Content-Type': mime[ext] ?? 'application/octet-stream',
+      'Content-Disposition': `inline; filename="${filename}"`,
+      'Cache-Control': 'public, max-age=86400',
+    })
+    return new StreamableFile(createReadStream(filePath))
   }
 }
 ```
 
+**Pas-à-pas :** (1) `FileInterceptor('file', { storage: diskStorage(...) })` parse le champ `file` du `multipart/form-data` et écrit sur le disque avec un nom unique — sans `storage`, Multer stocke en `memoryStorage` et `file.filename` est `undefined` ; (2) `ParseFilePipe` regroupe les validators dans `@UploadedFile()` — NestJS lève automatiquement 400 avant que le handler soit invoqué ; (3) `extname(file.originalname)` conserve `.jpg`, `.png`, etc. — jamais utiliser `file.originalname` directement comme nom de fichier (injection de chemin) ; (4) `StreamableFile(createReadStream(...))` streame le fichier sans le charger entièrement en mémoire — crucial pour les vidéos et archives ; (5) `@Res({ passthrough: true })` laisse NestJS gérer la réponse tout en permettant de définir les headers.
+
+## 4. Pièges & misconceptions
+
+- **Gateway non déclarée dans `providers`.** `@WebSocketGateway()` seul ne suffit pas. Si la gateway n'est pas dans `providers: [FeedGateway]` du module, NestJS ne l'instancie pas et Socket.IO n'écoute aucune connexion. Correction : déclarer la gateway dans `providers` comme tout autre provider.
+
+- **`this.server` accédé dans le constructeur.** `@WebSocketServer()` injecte l'instance après `afterInit()` — dans le constructeur, `this.server` est `undefined`. Utiliser `this.server` dans le constructeur provoque une erreur silencieuse ou un `TypeError: Cannot read properties of undefined`. Correction : n'accéder à `this.server` que dans les handlers et méthodes publiques appelées après démarrage.
+
+- **`client.to(room)` vs `this.server.to(room)` confondus.** `client.to(room).emit(...)` exclut l'émetteur ; `this.server.to(room).emit(...)` l'inclut. Pour diffuser "quelqu'un a rejoint" à tous les membres y compris l'arrivant → `this.server.to(room)`. Pour notifier la room de l'arrivée d'un autre → `client.to(room)`. Les confondre provoque des doublons ou des silences côté client.
+
+- **`FileInterceptor` sans `storage` = mémoire, `file.filename` undefined.** Sans option `storage`, Multer utilise `memoryStorage()`. `file.filename` est `undefined` — le handler qui tente `return { url: /uploads/${file.filename} }` retourne `url: '/uploads/undefined'`. Correction : toujours expliciter `{ storage: diskStorage(...) }` quand un nom de fichier est nécessaire.
+
+- **`@Res()` sans `passthrough: true` désactive les pipes NestJS.** Injecter `@Res()` seul donne le contrôle total à Express : `ExceptionFilter`, `Interceptor` et la réponse automatique NestJS sont désactivés — `NotFoundException` ne produit plus de 404, elle passe en silence. Correction : `@Res({ passthrough: true })` systématiquement quand on ne veut que modifier les headers.
+
+- **`file.originalname` utilisé comme nom de fichier disque.** Un client peut envoyer `../../etc/passwd` comme nom — path traversal. Correction : générer un nom unique côté serveur (`Date.now()` + random + `extname(file.originalname)`) et ne jamais faire confiance à `file.originalname` pour le stockage.
+
+## 5. Ancrage TribuZen
+
+Couche fil-rouge : **notifications temps réel du feed TribuZen (nouveau post) et upload des médias famille** (`smaurier/tribuzen`).
+
+- `FeedGateway` avec namespace `/feed` — chaque famille a sa room `family-{id}`. Quand un membre crée un post, `PostsService` appelle `feedGateway.notifyNewPost(familyId, postId, authorId)` et tous les sockets connectés à cette room reçoivent `new-post` immédiatement — zéro polling.
+- `handleConnection` vérifie le token JWT dans `client.handshake.auth.token` (module 19 auth) — un socket non authentifié est déconnecté avant de rejoindre une room.
+- `MediaController` gère l'upload des photos famille (souvenirs, avatars groupe) — `diskStorage` avec nom unique, `ParseFilePipe` avec `MaxFileSizeValidator` (5 Mo) et `FileTypeValidator` (jpeg/png/webp), streaming avec `StreamableFile` pour le téléchargement.
+- `FeedGateway` exportée depuis `FeedModule` et injectée dans `PostsService` — même pattern DI que les services classiques (module 11).
+
+Structure cible dans `smaurier/tribuzen` :
+
+```
+apps/api/src/
+  feed/
+    feed.gateway.ts       ← FeedGateway — WebSocket, rooms family-{id}
+    feed.module.ts        ← providers + exports FeedGateway
+  posts/
+    posts.service.ts      ← injecte FeedGateway, appelle notifyNewPost
+    posts.controller.ts   ← POST /posts → PostsService
+    posts.module.ts       ← imports FeedModule
+  media/
+    media.controller.ts   ← POST /media/upload + GET /media/:filename
+    media.module.ts
+uploads/                  ← fichiers locaux (CDN en production)
+```
+
+## 6. Points clés
+
+1. `@WebSocketGateway()` crée un serveur Socket.IO — déclaration dans `providers` obligatoire, comme tout provider.
+2. `@WebSocketServer()` injecte `Server` après `afterInit()` — jamais `undefined` hors du constructeur.
+3. `OnGatewayInit` / `OnGatewayConnection` / `OnGatewayDisconnect` — trois interfaces de cycle de vie pour brancher initialisation, authentification et nettoyage.
+4. `@SubscribeMessage('event')` + `@MessageBody()` + `@ConnectedSocket()` — triplet standard pour un handler d'événement entrant.
+5. `client.to(room).emit(...)` exclut l'émetteur ; `this.server.to(room).emit(...)` l'inclut — choisir selon le besoin de diffusion.
+6. `FileInterceptor('field', options)` dans `@UseInterceptors()` — `storage: diskStorage(...)` pour écriture disque, `memoryStorage()` (défaut implicite) pour buffer mémoire.
+7. `ParseFilePipe` dans `@UploadedFile(...)` regroupe `MaxFileSizeValidator` et `FileTypeValidator` — NestJS lève 400 avant le handler si la validation échoue.
+8. `StreamableFile(createReadStream(...))` + `@Res({ passthrough: true })` — stream sans chargement mémoire complet, headers HTTP personnalisables.
+
+## 7. Seeds Anki
+
+```
+Pourquoi @WebSocketGateway() doit-il être déclaré dans providers d'un @Module() ?|La décoration seule ne suffit pas — NestJS n'instancie et n'enregistre la gateway dans Socket.IO que si elle figure dans providers. Sans cette déclaration, aucun événement n'est écouté
+Quand this.server (@WebSocketServer()) est-il disponible dans une gateway ?|Après l'appel à afterInit() — dans le constructeur, this.server est undefined car NestJS l'injecte pendant l'initialisation Socket.IO
+Différence entre client.to(room).emit() et this.server.to(room).emit() ?|client.to(room) exclut le socket émetteur de la diffusion ; this.server.to(room) inclut tous les membres de la room y compris l'émetteur
+Que se passe-t-il si FileInterceptor est utilisé sans storage explicite ?|Multer utilise memoryStorage par défaut — file.filename est undefined et seul file.buffer contient les données du fichier
+Quels sont les deux validateurs intégrés de ParseFilePipe et que font-ils ?|MaxFileSizeValidator vérifie la taille en octets et FileTypeValidator vérifie le MIME type — tous deux lèvent BadRequestException (400) avant que le handler soit invoqué
+Pourquoi faut-il @Res({ passthrough: true }) et non @Res() seul avec StreamableFile ?|Sans passthrough: true NestJS cède le contrôle total à Express — ExceptionFilter et Interceptors sont désactivés et les exceptions NestJS ne produisent plus les réponses HTTP attendues
+Comment éviter la path traversal lors de la génération du nom de fichier Multer ?|Générer un nom unique côté serveur (Date.now() + random + extname) — ne jamais utiliser file.originalname directement comme nom de fichier disque
+Comment PostsService peut-il injecter FeedGateway pour émettre des événements WebSocket ?|Exporter FeedGateway depuis FeedModule (exports) et importer FeedModule dans PostsModule (imports) — même mécanique DI que pour tout autre provider NestJS
+```
+
+## Pont vers le lab
+
+> Lab associé : `09-nestjs/labs/lab-21-websockets/README.md`. Tu y implémentes `FeedGateway` avec rooms et `notifyNewPost`, et `MediaController` avec upload Multer validé et streaming — corrigé complet commenté + variante J+30 dans le README.
+
 ---
 
-## 6. Exercices pratiques
-
-### Exercice 1 : Upload d'images de produits
-
-Implementez un endpoint `POST /products/:id/images` qui :
-1. Accepte jusqu'a 5 images (jpeg, png, webp)
-2. Limite la taille a 2 Mo par image
-3. Sauvegarde sur le disque avec des noms uniques (UUID)
-4. Enregistre les chemins en base de donnees
-5. Retourne les URLs des images
-
-### Exercice 2 : Application de chat
-
-Implementez une application de chat complete avec :
-1. Authentification JWT à la connexion WebSocket
-2. Système de rooms
-3. Persistance des messages en base
-4. Indicateur de frappe
-5. Liste des utilisateurs connectes par room
-
-### Exercice 3 : Notifications en temps réel
-
-Creez un système de notifications temps réel qui envoie un événement WebSocket quand :
-1. Un nouvel article est publie
-2. Un commentaire est ajoute à un article de l'utilisateur
-3. Un utilisateur recoit un nouveau role
-
----
-
-## Liens
-
-| Ressource | Lien |
-|-----------|------|
-| Quiz Module 21 | `quiz/21-quiz.md` |
-| Lab Module 21 | `labs/21-lab-websockets-fichiers.md` |
-| Screencast | `screencasts/21-screencast.md` |
-| Module précédent | [Module 20 — Configuration & Swagger](20-nestjs-config-swagger.md) |
-| Module suivant | [Module 22 — Taches planifiees & Files d'attente](22-nestjs-jobs-queues.md) |
-| NestJS File Upload | https://docs.nestjs.com/techniques/file-upload |
-| NestJS WebSockets | https://docs.nestjs.com/websockets/gateways |
-| Socket.io | https://socket.io/docs/v4/ |
-| Multer | https://github.com/expressjs/multer |
-
----
-
-<!-- parcours-recommande -->
-
-::: tip Parcours recommandé
-1. **Screencast** : [screencast 21 websockets](../screencasts/screencast-21-websockets.md)
-2. **Lab** : [lab-21-websockets](../labs/lab-21-websockets/README)
-3. **Quiz** : [quiz 21 websockets](../quizzes/quiz-21-websockets.html)
-:::
+← [Module 20 — Configuration et Swagger](20-nestjs-config-swagger.md) | [Module 22 — Jobs et queues](22-nestjs-jobs-queues.md) →

@@ -1,1208 +1,588 @@
-# Module 18 — NestJS — Testing
-
-> **Objectif** : Apprendre à écrire des tests unitaires, d'intégration et end-to-end (E2E) pour une application NestJS, en maitrisant les techniques de mocking et l'outillage Jest.
-> **Difficulte** : ⭐⭐⭐ (avance)
-> **Prérequis** : Module 11 (Services), Module 13 (Pipes, Guards, Interceptors), Module 14 ou 16 (ORM au choix)
-> **Duree estimee** : 6 heures
-
+---
+titre: NestJS testing
+cours: 09-nestjs
+notions: [Test.createTestingModule, tester un service avec providers mockés, overrideProvider, tester un controller, tests e2e avec supertest, mock de repository, isolation des dépendances, structure des tests NestJS]
+outcomes: [écrire un test unitaire d'un service NestJS avec dépendances mockées, tester un controller, écrire un test e2e avec supertest, isoler proprement les dépendances]
+prerequis: [17-prisma-avance-comparaison]
+next: 19-nestjs-auth
+libs: [{ name: "@nestjs/testing", version: "^11" }, { name: supertest, version: "^7" }]
+tribuzen: tester FamilyService (unit) et le flux d'invitation (e2e supertest) de l'API TribuZen
+last-reviewed: 2026-07
 ---
 
-> **Note NestJS 11+** : NestJS supporte officiellement Vitest en plus de Jest. Pour utiliser Vitest : `npm i -D vitest unplugin-swc @swc/core` et configurez `vitest.config.ts`. Le cours 04-testing couvre Vitest en detail.
+# NestJS testing
 
-## 1. Introduction au testing dans NestJS
+> **Outcomes — tu sauras FAIRE :** écrire un test unitaire d'un service NestJS avec dépendances mockées, tester un controller, écrire un test e2e avec supertest, isoler proprement les dépendances.
+> **Difficulté :** :star::star::star:
 
-### 1.1 Pourquoi tester ?
+## 1. Cas concret d'abord
 
-> **Analogie** : Les tests sont comme les filets de sécurité d'un trapeziste. Ils ne vous empechent pas de faire des figures acrobatiques (du code complexe), mais ils vous rattrapent quand vous tombez (quand un bug est introduit). Sans filet, chaque modification devient un acte de bravoure.
+TribuZen doit vérifier que `FamilyService.canJoin()` refuse une famille pleine. La logique lit la base Prisma. Tu essaies de tester directement :
 
-### 1.2 Les trois niveaux de tests
-
-| Niveau          | Cible                      | Vitesse     | Couverture | Dependances           |
-| --------------- | -------------------------- | ----------- | ---------- | --------------------- |
-| **Unitaire**    | Une classe/méthode         | Très rapide | Etroite    | Mockees               |
-| **Intégration** | Plusieurs classes ensemble | Moyen       | Moyenne    | Partiellement reelles |
-| **E2E**         | L'application complete     | Lent        | Large      | Reelles (DB, HTTP)    |
-
-### 1.3 Configuration de Jest dans NestJS
-
-NestJS utilise Jest comme framework de test par defaut. La configuration est déjà présenté dans un projet NestJS généré avec la CLI.
-
-```json
-// package.json
-{
-  "jest": {
-    "moduleFileExtensions": ["js", "json", "ts"],
-    "rootDir": "src",
-    "testRegex": ".*\\.spec\\.ts$",
-    "transform": {
-      "^.+\\.(t|j)s$": "ts-jest"
-    },
-    "collectCoverageFrom": ["**/*.(t|j)s"],
-    "coverageDirectory": "../coverage",
-    "testEnvironment": "node"
-  }
-}
+```ts
+// ❌ tentative naïve — instanciation directe impossible
+const service = new FamilyService()
+// FamilyService attend PrismaService dans son constructeur
+// → TypeError: Cannot read properties of undefined (reading 'family')
 ```
 
-Ou dans un fichier separe :
+Il faut un module de test isolé qui fournit un faux `PrismaService` à la place du vrai. NestJS l'appelle `Test.createTestingModule()`.
 
-```typescript
-// jest.config.js
-module.exports = {
-  moduleFileExtensions: ["js", "json", "ts"],
-  rootDir: "src",
-  testRegex: ".*\\.spec\\.ts$",
-  transform: {
-    "^.+\\.(t|j)s$": "ts-jest",
-  },
-  collectCoverageFrom: [
-    "**/*.(t|j)s",
-    "!**/node_modules/**",
-    "!**/dist/**",
-    "!**/*.module.ts", // Exclure les modules
-    "!**/main.ts", // Exclure le bootstrap
+```ts
+// ✅ avec Test.createTestingModule — isolation réelle
+const module = await Test.createTestingModule({
+  providers: [
+    FamilyService,
+    { provide: PrismaService, useValue: mockPrisma }, // faux Prisma, zéro DB
   ],
-  coverageDirectory: "../coverage",
-  coverageThresholds: {
-    global: {
-      branches: 80,
-      functions: 80,
-      lines: 80,
-      statements: 80,
-    },
-  },
-  testEnvironment: "node",
-  moduleNameMapper: {
-    // Alias de chemins si vous en utilisez
-    "^@app/(.*)$": "<rootDir>/$1",
-    "^@common/(.*)$": "<rootDir>/common/$1",
-  },
-};
+}).compile()
+
+const service = module.get(FamilyService)
 ```
 
-Les commandes :
+Ce module couvre le mécanisme complet : tests unitaires de services, tests de controllers, et tests e2e HTTP avec supertest sur le flux d'invitation TribuZen.
 
-```bash
-# Lancer tous les tests
-npm run test
+## 2. Théorie complète, concise
 
-# Lancer les tests en mode watch (relance automatique)
-npm run test:watch
+### 2.1 Test.createTestingModule
 
-# Lancer les tests E2E
-npm run test:e2e
+`Test.createTestingModule()` crée un module NestJS jetable, identique à un vrai `@Module()` mais dédié aux tests. Il accepte les mêmes clés (`imports`, `controllers`, `providers`) et supporte `.overrideProvider()` avant `.compile()`.
 
-# Generer le rapport de couverture
-npm run test:cov
+```ts
+import { Test, TestingModule } from '@nestjs/testing'
 
-# Lancer un fichier de test specifique
-npx jest --testPathPattern=users.service.spec.ts
+const moduleRef: TestingModule = await Test.createTestingModule({
+  controllers: [FamilyController],
+  providers: [
+    FamilyService,
+    { provide: PrismaService, useValue: mockPrisma },
+  ],
+}).compile()
+
+// Récupérer une instance depuis le conteneur de test
+const service = moduleRef.get<FamilyService>(FamilyService)
+const controller = moduleRef.get<FamilyController>(FamilyController)
 ```
 
----
+`.compile()` retourne une Promise — toujours `await` dans `beforeEach` ou `beforeAll`.
 
-## 2. Tests unitaires — Tester les services
+### 2.2 Mocker les dépendances
 
-### 2.1 Le module de test NestJS
+La forme `useValue` remplace la dépendance réelle par un objet dont chaque méthode est un `jest.fn()`. Ce pattern évite toute connexion réseau ou DB dans les tests unitaires.
 
-NestJS fournit `Test.createTestingModule()` pour créer un module de test isole.
-
-```typescript
-// users/users.service.spec.ts
-import { Test, TestingModule } from "@nestjs/testing";
-import { UsersService } from "./users.service";
-import { getRepositoryToken } from "@nestjs/typeorm";
-import { User } from "./entities/user.entity";
-import { Repository } from "typeorm";
-import { NotFoundException, ConflictException } from "@nestjs/common";
-
-// Typage du repository mocke
-type MockRepository<T = any> = Partial<Record<keyof Repository<T>, jest.Mock>>;
-
-// Factory pour creer un repository mocke
-const createMockRepository = <T = any>(): MockRepository<T> => ({
-  find: jest.fn(),
-  findOne: jest.fn(),
-  findOneBy: jest.fn(),
-  create: jest.fn(),
-  save: jest.fn(),
-  update: jest.fn(),
-  delete: jest.fn(),
-  remove: jest.fn(),
-  preload: jest.fn(),
-  count: jest.fn(),
-  exist: jest.fn(),
-});
-
-describe("UsersService", () => {
-  let service: UsersService;
-  let userRepository: MockRepository<User>;
-
-  beforeEach(async () => {
-    // Creer le module de test
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        UsersService,
-        {
-          // Fournir un mock du repository au lieu du vrai
-          provide: getRepositoryToken(User),
-          useValue: createMockRepository(),
-        },
-      ],
-    }).compile();
-
-    // Recuperer les instances
-    service = module.get<UsersService>(UsersService);
-    userRepository = module.get<MockRepository<User>>(getRepositoryToken(User));
-  });
-
-  // Verifier que le service est bien instancie
-  it("devrait etre defini", () => {
-    expect(service).toBeDefined();
-  });
-
-  // === Tests de la methode findAll ===
-
-  describe("findAll", () => {
-    it("devrait retourner un tableau d'utilisateurs", async () => {
-      // Arrange : configurer le mock
-      const mockUsers = [
-        { id: 1, nom: "Alice", email: "alice@test.com" },
-        { id: 2, nom: "Bob", email: "bob@test.com" },
-      ];
-      userRepository.find.mockResolvedValue(mockUsers);
-
-      // Act : appeler la methode
-      const result = await service.findAll();
-
-      // Assert : verifier le resultat
-      expect(result).toEqual(mockUsers);
-      expect(result).toHaveLength(2);
-      expect(userRepository.find).toHaveBeenCalledTimes(1);
-    });
-
-    it("devrait retourner un tableau vide si aucun utilisateur", async () => {
-      userRepository.find.mockResolvedValue([]);
-
-      const result = await service.findAll();
-
-      expect(result).toEqual([]);
-      expect(result).toHaveLength(0);
-    });
-  });
-
-  // === Tests de la methode findOne ===
-
-  describe("findOne", () => {
-    it("devrait retourner un utilisateur par ID", async () => {
-      const mockUser = { id: 1, nom: "Alice", email: "alice@test.com" };
-      userRepository.findOne.mockResolvedValue(mockUser);
-
-      const result = await service.findOne(1);
-
-      expect(result).toEqual(mockUser);
-      expect(userRepository.findOne).toHaveBeenCalledWith({
-        where: { id: 1 },
-        relations: expect.any(Object),
-      });
-    });
-
-    it("devrait lancer NotFoundException si utilisateur introuvable", async () => {
-      userRepository.findOne.mockResolvedValue(null);
-
-      await expect(service.findOne(999)).rejects.toThrow(NotFoundException);
-      await expect(service.findOne(999)).rejects.toThrow(
-        "Utilisateur #999 introuvable",
-      );
-    });
-  });
-
-  // === Tests de la methode create ===
-
-  describe("create", () => {
-    const createUserDto = {
-      nom: "Charlie",
-      email: "charlie@test.com",
-      motDePasse: "SecurePass123",
-    };
-
-    it("devrait creer un utilisateur avec succes", async () => {
-      const mockCreatedUser = { id: 3, ...createUserDto };
-
-      userRepository.findOne.mockResolvedValue(null); // Pas de doublon
-      userRepository.create.mockReturnValue(mockCreatedUser);
-      userRepository.save.mockResolvedValue(mockCreatedUser);
-
-      const result = await service.create(createUserDto);
-
-      expect(result).toEqual(mockCreatedUser);
-      expect(userRepository.create).toHaveBeenCalledWith(createUserDto);
-      expect(userRepository.save).toHaveBeenCalledWith(mockCreatedUser);
-    });
-
-    it("devrait lancer ConflictException si email deja utilise", async () => {
-      const existingUser = { id: 1, email: "charlie@test.com" };
-      userRepository.findOne.mockResolvedValue(existingUser);
-
-      await expect(service.create(createUserDto)).rejects.toThrow(
-        ConflictException,
-      );
-    });
-  });
-
-  // === Tests de la methode update ===
-
-  describe("update", () => {
-    it("devrait mettre a jour un utilisateur", async () => {
-      const updateDto = { nom: "Alice Martin" };
-      const existingUser = {
-        id: 1,
-        nom: "Alice Dupont",
-        email: "alice@test.com",
-      };
-      const updatedUser = { ...existingUser, ...updateDto };
-
-      userRepository.preload.mockResolvedValue(updatedUser);
-      userRepository.save.mockResolvedValue(updatedUser);
-
-      const result = await service.update(1, updateDto);
-
-      expect(result.nom).toBe("Alice Martin");
-      expect(userRepository.preload).toHaveBeenCalledWith({
-        id: 1,
-        ...updateDto,
-      });
-    });
-
-    it("devrait lancer NotFoundException si utilisateur introuvable", async () => {
-      userRepository.preload.mockResolvedValue(undefined);
-
-      await expect(service.update(999, { nom: "Test" })).rejects.toThrow(
-        NotFoundException,
-      );
-    });
-  });
-
-  // === Tests de la methode remove ===
-
-  describe("remove", () => {
-    it("devrait supprimer un utilisateur existant", async () => {
-      const mockUser = { id: 1, nom: "Alice" };
-      userRepository.findOne.mockResolvedValue(mockUser);
-      userRepository.remove.mockResolvedValue(mockUser);
-
-      await service.remove(1);
-
-      expect(userRepository.remove).toHaveBeenCalledWith(mockUser);
-    });
-
-    it("devrait lancer NotFoundException si utilisateur introuvable", async () => {
-      userRepository.findOne.mockResolvedValue(null);
-
-      await expect(service.remove(999)).rejects.toThrow(NotFoundException);
-    });
-  });
-});
-```
-
-### 2.2 Tester un service avec Prisma
-
-```typescript
-// articles/articles.service.spec.ts
-import { Test, TestingModule } from "@nestjs/testing";
-import { ArticlesService } from "./articles.service";
-import { PrismaService } from "../prisma/prisma.service";
-
-// Mock complet de PrismaService
-const mockPrismaService = {
-  article: {
-    findMany: jest.fn(),
+```ts
+// Objet mock — réutilisable, réinitialisé avant chaque test
+const mockPrisma = {
+  family: {
     findUnique: jest.fn(),
-    findFirst: jest.fn(),
+    findMany: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
-    count: jest.fn(),
   },
-  user: {
-    findUnique: jest.fn(),
-  },
-};
-
-describe("ArticlesService", () => {
-  let service: ArticlesService;
-  let prisma: typeof mockPrismaService;
-
-  beforeEach(async () => {
-    // Reinitialiser tous les mocks avant chaque test
-    jest.clearAllMocks();
-
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        ArticlesService,
-        {
-          provide: PrismaService,
-          useValue: mockPrismaService,
-        },
-      ],
-    }).compile();
-
-    service = module.get<ArticlesService>(ArticlesService);
-    prisma = module.get(PrismaService);
-  });
-
-  describe("findAll", () => {
-    it("devrait retourner des articles pagines", async () => {
-      const mockArticles = [
-        { id: 1, titre: "Article 1", statut: "PUBLIE" },
-        { id: 2, titre: "Article 2", statut: "PUBLIE" },
-      ];
-      prisma.article.findMany.mockResolvedValue(mockArticles);
-      prisma.article.count.mockResolvedValue(2);
-
-      const result = await service.findAll(1, 10);
-
-      expect(result.data).toEqual(mockArticles);
-      expect(result.meta.total).toBe(2);
-      expect(result.meta.page).toBe(1);
-      expect(prisma.article.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          skip: 0,
-          take: 10,
-        }),
-      );
-    });
-  });
-
-  describe("findOne", () => {
-    it("devrait retourner un article par ID", async () => {
-      const mockArticle = {
-        id: 1,
-        titre: "Test Article",
-        auteur: { id: 1, nom: "Alice" },
-        tags: [],
-      };
-      prisma.article.findUnique.mockResolvedValue(mockArticle);
-
-      const result = await service.findOne(1);
-
-      expect(result).toEqual(mockArticle);
-      expect(prisma.article.findUnique).toHaveBeenCalledWith({
-        where: { id: 1 },
-        include: expect.any(Object),
-      });
-    });
-
-    it("devrait lancer NotFoundException", async () => {
-      prisma.article.findUnique.mockResolvedValue(null);
-
-      await expect(service.findOne(999)).rejects.toThrow(
-        "Article #999 introuvable",
-      );
-    });
-  });
-
-  describe("create", () => {
-    it("devrait creer un article", async () => {
-      const dto = {
-        titre: "Nouvel article",
-        contenu: "Contenu...",
-      };
-      const mockCreated = {
-        id: 1,
-        titre: "Nouvel article",
-        slug: "nouvel-article",
-        contenu: "Contenu...",
-      };
-      prisma.article.create.mockResolvedValue(mockCreated);
-
-      const result = await service.create(1, dto);
-
-      expect(result).toEqual(mockCreated);
-      expect(prisma.article.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            titre: "Nouvel article",
-            auteurId: 1,
-          }),
-        }),
-      );
-    });
-  });
-});
-```
-
-### 2.3 Techniques de mocking avec Jest
-
-```typescript
-// === jest.fn() — Creer une fonction mockee ===
-const mockFn = jest.fn();
-mockFn.mockReturnValue(42); // Retourne 42 (synchrone)
-mockFn.mockResolvedValue(42); // Retourne Promise<42> (async)
-mockFn.mockRejectedValue(new Error()); // Retourne Promise rejetee
-mockFn.mockImplementation((x) => x * 2); // Implementation custom
-
-// === jest.spyOn() — Espionner une methode existante ===
-const spy = jest.spyOn(service, "findOne");
-spy.mockResolvedValue(mockUser); // Override le comportement
-
-// Verifier les appels
-expect(spy).toHaveBeenCalled();
-expect(spy).toHaveBeenCalledTimes(1);
-expect(spy).toHaveBeenCalledWith(1);
-
-spy.mockRestore(); // Restaure l'implementation originale
-
-// === Assertions avancees ===
-
-// Verifier la structure d'un objet
-expect(result).toEqual(
-  expect.objectContaining({
-    id: expect.any(Number),
-    nom: expect.any(String),
-    email: expect.stringContaining("@"),
-    createdAt: expect.any(Date),
-  }),
-);
-
-// Verifier un tableau
-expect(result).toEqual(
-  expect.arrayContaining([expect.objectContaining({ nom: "Alice" })]),
-);
-
-// Verifier qu'une exception est lancee
-await expect(service.remove(999)).rejects.toThrow(NotFoundException);
-await expect(service.remove(999)).rejects.toThrow("introuvable");
-
-// Verifier les appels avec des matchers
-expect(mockFn).toHaveBeenCalledWith(
-  expect.objectContaining({ email: "test@test.com" }),
-);
-```
-
----
-
-## 3. Tester les controllers
-
-```typescript
-// users/users.controller.spec.ts
-import { Test, TestingModule } from "@nestjs/testing";
-import { UsersController } from "./users.controller";
-import { UsersService } from "./users.service";
-import { CreateUserDto } from "./dto/create-user.dto";
-import { NotFoundException } from "@nestjs/common";
-
-describe("UsersController", () => {
-  let controller: UsersController;
-  let service: UsersService;
-
-  // Mock du service
-  const mockUsersService = {
-    findAll: jest.fn(),
-    findOne: jest.fn(),
+  invitation: {
+    findFirst: jest.fn(),
     create: jest.fn(),
+  },
+}
+
+beforeEach(() => {
+  jest.clearAllMocks() // reset les compteurs et valeurs entre tests
+})
+```
+
+Dans le test, on configure le comportement du mock pour chaque scénario :
+
+```ts
+// Arrange — la DB retourne une famille pleine
+mockPrisma.family.findUnique.mockResolvedValue({
+  id: 'fam-1',
+  memberCount: 12,
+  maxSize: 12,
+})
+
+// Act
+const result = await service.canJoin('fam-1')
+
+// Assert
+expect(result).toBe(false)
+expect(mockPrisma.family.findUnique).toHaveBeenCalledWith({
+  where: { id: 'fam-1' },
+})
+```
+
+### 2.3 overrideProvider
+
+`overrideProvider()` remplace un provider déjà enregistré dans un module importé, sans modifier le module source. Utile pour les tests e2e où on importe `AppModule` entier mais on veut substituer un service.
+
+```ts
+const moduleRef = await Test.createTestingModule({
+  imports: [AppModule], // importe tout le module réel
+})
+  .overrideProvider(PrismaService) // substitue PrismaService dans tout l'arbre
+  .useValue(mockPrisma)
+  .compile()
+
+const app = moduleRef.createNestApplication()
+await app.init()
+```
+
+`.overrideProvider()` est chaînable — plusieurs substitutions avant `.compile()` :
+
+```ts
+const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+  .overrideProvider(PrismaService).useValue(mockPrisma)
+  .overrideProvider(MailService).useValue({ send: jest.fn() })
+  .compile()
+```
+
+### 2.4 Tester un controller
+
+Le controller délègue au service — il ne contient pas de logique métier. Son test vérifie uniquement la délégation et la propagation des exceptions. On mocke le service entier avec `useValue`.
+
+```ts
+const mockFamilyService = {
+  canJoin: jest.fn(),
+  invite: jest.fn(),
+  findAll: jest.fn(),
+}
+
+const moduleRef = await Test.createTestingModule({
+  controllers: [FamilyController],
+  providers: [{ provide: FamilyService, useValue: mockFamilyService }],
+}).compile()
+
+const controller = moduleRef.get(FamilyController)
+```
+
+`jest.spyOn()` est l'alternative quand on veut garder l'implémentation réelle et espionner les appels :
+
+```ts
+const spy = jest.spyOn(service, 'canJoin').mockResolvedValue(false)
+await controller.canJoin('fam-1')
+expect(spy).toHaveBeenCalledWith('fam-1')
+spy.mockRestore()
+```
+
+### 2.5 Tests e2e avec supertest
+
+Les tests e2e démarrent une vraie application NestJS (`INestApplication`) et envoient des requêtes HTTP via supertest. La DB est remplacée par `overrideProvider`.
+
+```ts
+import * as request from 'supertest'
+import { INestApplication, ValidationPipe } from '@nestjs/common'
+
+let app: INestApplication
+
+beforeAll(async () => {
+  const moduleRef = await Test.createTestingModule({
+    imports: [AppModule],
+  })
+    .overrideProvider(PrismaService)
+    .useValue(mockPrisma)
+    .compile()
+
+  app = moduleRef.createNestApplication()
+  // Même config que main.ts — les tests e2e doivent refléter la prod
+  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }))
+  await app.init()
+})
+
+afterAll(async () => {
+  await app.close() // libère le port et les connexions
+})
+
+it('POST /invitations retourne 201', () => {
+  return request(app.getHttpServer())
+    .post('/families/fam-1/invitations')
+    .send({ email: 'bob@tribu.fr' })
+    .expect(201)
+})
+```
+
+`app.getHttpServer()` retourne le serveur HTTP sous-jacent (Express ou Fastify) — supertest le consomme directement sans bind de port.
+
+## 3. Worked examples
+
+### Exemple A — Test unitaire de FamilyService avec PrismaService mocké
+
+```ts
+// src/family/family.service.spec.ts
+import { Test, TestingModule } from '@nestjs/testing'
+import { FamilyService } from './family.service'
+import { PrismaService } from '../prisma/prisma.service'
+import { NotFoundException, BadRequestException } from '@nestjs/common'
+
+// Mock de la couche Prisma — zéro connexion DB dans ces tests
+const mockPrisma = {
+  family: {
+    findUnique: jest.fn(),
+    findMany: jest.fn(),
     update: jest.fn(),
-    remove: jest.fn(),
-  };
+  },
+  invitation: {
+    findFirst: jest.fn(),
+    create: jest.fn(),
+  },
+}
+
+describe('FamilyService', () => {
+  let service: FamilyService
 
   beforeEach(async () => {
-    jest.clearAllMocks();
+    jest.clearAllMocks() // chaque test repart avec des mocks vierges
 
     const module: TestingModule = await Test.createTestingModule({
-      controllers: [UsersController],
       providers: [
-        {
-          provide: UsersService,
-          useValue: mockUsersService,
-        },
+        FamilyService,
+        { provide: PrismaService, useValue: mockPrisma },
       ],
-    }).compile();
-
-    controller = module.get<UsersController>(UsersController);
-    service = module.get<UsersService>(UsersService);
-  });
-
-  it("devrait etre defini", () => {
-    expect(controller).toBeDefined();
-  });
-
-  describe("findAll", () => {
-    it("devrait retourner tous les utilisateurs", async () => {
-      const mockUsers = [
-        { id: 1, nom: "Alice" },
-        { id: 2, nom: "Bob" },
-      ];
-      mockUsersService.findAll.mockResolvedValue(mockUsers);
-
-      const result = await controller.findAll();
-
-      expect(result).toEqual(mockUsers);
-      expect(service.findAll).toHaveBeenCalled();
-    });
-  });
-
-  describe("findOne", () => {
-    it("devrait retourner un utilisateur", async () => {
-      const mockUser = { id: 1, nom: "Alice" };
-      mockUsersService.findOne.mockResolvedValue(mockUser);
-
-      const result = await controller.findOne(1);
-
-      expect(result).toEqual(mockUser);
-      expect(service.findOne).toHaveBeenCalledWith(1);
-    });
-  });
-
-  describe("create", () => {
-    it("devrait creer un utilisateur", async () => {
-      const dto: CreateUserDto = {
-        nom: "Charlie",
-        email: "charlie@test.com",
-        motDePasse: "Pass123!",
-      };
-      const mockCreated = { id: 3, ...dto };
-      mockUsersService.create.mockResolvedValue(mockCreated);
-
-      const result = await controller.create(dto);
-
-      expect(result).toEqual(mockCreated);
-      expect(service.create).toHaveBeenCalledWith(dto);
-    });
-  });
-
-  describe("remove", () => {
-    it("devrait supprimer un utilisateur", async () => {
-      mockUsersService.remove.mockResolvedValue(undefined);
-
-      await controller.remove(1);
-
-      expect(service.remove).toHaveBeenCalledWith(1);
-    });
-  });
-});
-```
-
----
-
-## 4. Tester les guards, pipes et interceptors
-
-### 4.1 Tester un Guard
-
-```typescript
-// guards/roles.guard.spec.ts
-import { RolesGuard } from "./roles.guard";
-import { Reflector } from "@nestjs/core";
-import { ExecutionContext, ForbiddenException } from "@nestjs/common";
-
-describe("RolesGuard", () => {
-  let guard: RolesGuard;
-  let reflector: Reflector;
-
-  beforeEach(() => {
-    reflector = new Reflector();
-    guard = new RolesGuard(reflector);
-  });
-
-  // Helper pour creer un ExecutionContext mock
-  const createMockExecutionContext = (user?: any): ExecutionContext =>
-    ({
-      switchToHttp: () => ({
-        getRequest: () => ({ user }),
-        getResponse: () => ({}),
-        getNext: () => jest.fn(),
-      }),
-      getHandler: () => jest.fn(),
-      getClass: () => jest.fn() as any,
-      getType: () => "http" as any,
-      getArgs: () => [],
-      getArgByIndex: () => ({}),
-      switchToRpc: () => ({}) as any,
-      switchToWs: () => ({}) as any,
-    }) as ExecutionContext;
-
-  it("devrait autoriser l'acces si aucun role requis", () => {
-    jest.spyOn(reflector, "getAllAndOverride").mockReturnValue(undefined);
-
-    const context = createMockExecutionContext({ id: 1, roles: ["user"] });
-    expect(guard.canActivate(context)).toBe(true);
-  });
-
-  it("devrait autoriser l'acces si l'utilisateur a le bon role", () => {
-    jest.spyOn(reflector, "getAllAndOverride").mockReturnValue(["admin"]);
-
-    const context = createMockExecutionContext({
-      id: 1,
-      roles: ["admin"],
-    });
-    expect(guard.canActivate(context)).toBe(true);
-  });
-
-  it("devrait refuser l'acces si l'utilisateur n'a pas le bon role", () => {
-    jest.spyOn(reflector, "getAllAndOverride").mockReturnValue(["admin"]);
-
-    const context = createMockExecutionContext({
-      id: 1,
-      roles: ["user"],
-    });
-    expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
-  });
-
-  it("devrait refuser l'acces si aucun utilisateur", () => {
-    jest.spyOn(reflector, "getAllAndOverride").mockReturnValue(["admin"]);
-
-    const context = createMockExecutionContext(undefined);
-    expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
-  });
-});
-```
-
-### 4.2 Tester un Pipe
-
-```typescript
-// pipes/parse-objectid.pipe.spec.ts
-import { ParseObjectIdPipe } from "./parse-objectid.pipe";
-import { BadRequestException } from "@nestjs/common";
-
-describe("ParseObjectIdPipe", () => {
-  let pipe: ParseObjectIdPipe;
-
-  beforeEach(() => {
-    pipe = new ParseObjectIdPipe();
-  });
-
-  it("devrait accepter un ObjectId valide", () => {
-    const validId = "507f1f77bcf86cd799439011";
-    expect(pipe.transform(validId, { type: "param" } as any)).toBe(validId);
-  });
-
-  it("devrait rejeter un ObjectId invalide", () => {
-    expect(() =>
-      pipe.transform("invalid-id", { type: "param" } as any),
-    ).toThrow(BadRequestException);
-  });
-
-  it("devrait rejeter une chaine vide", () => {
-    expect(() => pipe.transform("", { type: "param" } as any)).toThrow(
-      BadRequestException,
-    );
-  });
-});
-```
-
-### 4.3 Tester un Interceptor
-
-```typescript
-// interceptors/transform-response.interceptor.spec.ts
-import { TransformResponseInterceptor } from "./transform-response.interceptor";
-import { ExecutionContext, CallHandler } from "@nestjs/common";
-import { of } from "rxjs";
-
-describe("TransformResponseInterceptor", () => {
-  let interceptor: TransformResponseInterceptor<any>;
-
-  beforeEach(() => {
-    interceptor = new TransformResponseInterceptor();
-  });
-
-  it("devrait envelopper la reponse dans un format standard", (done) => {
-    const mockData = { id: 1, nom: "Alice" };
-
-    const context = {
-      switchToHttp: () => ({
-        getRequest: () => ({ url: "/users/1" }),
-      }),
-    } as ExecutionContext;
-
-    const callHandler: CallHandler = {
-      handle: () => of(mockData),
-    };
-
-    interceptor.intercept(context, callHandler).subscribe({
-      next: (result) => {
-        expect(result).toEqual(
-          expect.objectContaining({
-            success: true,
-            data: mockData,
-            path: "/users/1",
-            timestamp: expect.any(String),
-          }),
-        );
-        done();
-      },
-    });
-  });
-});
-```
-
----
-
-## 5. Tests d'intégration
-
-Les tests d'intégration testent plusieurs composants ensemble, avec une vraie base de donnees.
-
-```typescript
-// users/users.integration.spec.ts
-import { Test, TestingModule } from "@nestjs/testing";
-import { TypeOrmModule } from "@nestjs/typeorm";
-import { UsersService } from "./users.service";
-import { User } from "./entities/user.entity";
-import { ConflictException, NotFoundException } from "@nestjs/common";
-
-describe("UsersService (Integration)", () => {
-  let service: UsersService;
-  let module: TestingModule;
-
-  beforeAll(async () => {
-    module = await Test.createTestingModule({
-      imports: [
-        // Base de donnees de test (SQLite en memoire pour la rapidite)
-        TypeOrmModule.forRoot({
-          type: "sqlite",
-          database: ":memory:",
-          entities: [User],
-          synchronize: true, // OK pour les tests
-          dropSchema: true, // Reset a chaque suite
-        }),
-        TypeOrmModule.forFeature([User]),
-      ],
-      providers: [UsersService],
-    }).compile();
-
-    service = module.get<UsersService>(UsersService);
-  });
-
-  afterAll(async () => {
-    await module.close();
-  });
-
-  // Nettoyer entre les tests
-  beforeEach(async () => {
-    // Vider la table users
-    const repo = module.get("UserRepository");
-    await repo.clear();
-  });
-
-  describe("create + findOne", () => {
-    it("devrait creer et retrouver un utilisateur", async () => {
-      // Creer
-      const created = await service.create({
-        nom: "Alice",
-        email: "alice@test.com",
-        motDePasse: "Pass123!",
-      });
-
-      expect(created.id).toBeDefined();
-      expect(created.nom).toBe("Alice");
-
-      // Retrouver
-      const found = await service.findOne(created.id);
-      expect(found.email).toBe("alice@test.com");
-    });
-
-    it("devrait empecher les emails en double", async () => {
-      await service.create({
-        nom: "Alice",
-        email: "alice@test.com",
-        motDePasse: "Pass123!",
-      });
-
-      await expect(
-        service.create({
-          nom: "Autre Alice",
-          email: "alice@test.com",
-          motDePasse: "Pass456!",
-        }),
-      ).rejects.toThrow(ConflictException);
-    });
-  });
-
-  describe("update", () => {
-    it("devrait mettre a jour le nom", async () => {
-      const user = await service.create({
-        nom: "Alice",
-        email: "alice@test.com",
-        motDePasse: "Pass123!",
-      });
-
-      const updated = await service.update(user.id, { nom: "Alice Martin" });
-
-      expect(updated.nom).toBe("Alice Martin");
-      expect(updated.email).toBe("alice@test.com"); // Inchange
-    });
-  });
-
-  describe("remove", () => {
-    it("devrait supprimer un utilisateur", async () => {
-      const user = await service.create({
-        nom: "Alice",
-        email: "alice@test.com",
-        motDePasse: "Pass123!",
-      });
-
-      await service.remove(user.id);
-
-      await expect(service.findOne(user.id)).rejects.toThrow(NotFoundException);
-    });
-  });
-});
-```
-
----
-
-## 6. Tests E2E (End-to-End)
-
-### 6.1 Configuration E2E
-
-```typescript
-// test/app.e2e-spec.ts
-import { Test, TestingModule } from "@nestjs/testing";
-import { INestApplication, ValidationPipe } from "@nestjs/common";
-import * as request from "supertest";
-import { AppModule } from "../src/app.module";
-
-describe("Application (E2E)", () => {
-  let app: INestApplication;
-
-  beforeAll(async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-
-    app = moduleFixture.createNestApplication();
-
-    // Appliquer la meme configuration que main.ts
-    app.useGlobalPipes(
-      new ValidationPipe({
-        whitelist: true,
-        forbidNonWhitelisted: true,
-        transform: true,
-      }),
-    );
-
-    await app.init();
-  });
-
-  afterAll(async () => {
-    await app.close();
-  });
-
-  // === Tests des routes Users ===
-
-  describe("Users (/users)", () => {
-    let createdUserId: number;
-
-    describe("POST /users", () => {
-      it("devrait creer un utilisateur (201)", () => {
-        return request(app.getHttpServer())
-          .post("/users")
-          .send({
-            nom: "Alice Dupont",
-            email: "alice@test.com",
-            motDePasse: "SecurePass123!",
-          })
-          .expect(201)
-          .expect((res) => {
-            expect(res.body).toEqual(
-              expect.objectContaining({
-                id: expect.any(Number),
-                nom: "Alice Dupont",
-                email: "alice@test.com",
-              }),
-            );
-            // Sauvegarder l'ID pour les tests suivants
-            createdUserId = res.body.id;
-            // Le mot de passe ne devrait PAS etre retourne
-            expect(res.body.motDePasse).toBeUndefined();
-          });
-      });
-
-      it("devrait rejeter un email invalide (400)", () => {
-        return request(app.getHttpServer())
-          .post("/users")
-          .send({
-            nom: "Test",
-            email: "pas-un-email",
-            motDePasse: "Pass123!",
-          })
-          .expect(400)
-          .expect((res) => {
-            expect(res.body.message).toContain("email");
-          });
-      });
-
-      it("devrait rejeter un body vide (400)", () => {
-        return request(app.getHttpServer()).post("/users").send({}).expect(400);
-      });
-
-      it("devrait rejeter les proprietes inconnues (400)", () => {
-        return request(app.getHttpServer())
-          .post("/users")
-          .send({
-            nom: "Test",
-            email: "test@test.com",
-            motDePasse: "Pass123!",
-            isAdmin: true, // Propriete non autorisee
-          })
-          .expect(400);
-      });
-    });
-
-    describe("GET /users", () => {
-      it("devrait retourner tous les utilisateurs (200)", () => {
-        return request(app.getHttpServer())
-          .get("/users")
-          .expect(200)
-          .expect((res) => {
-            expect(Array.isArray(res.body)).toBe(true);
-          });
-      });
-    });
-
-    describe("GET /users/:id", () => {
-      it("devrait retourner un utilisateur par ID (200)", () => {
-        return request(app.getHttpServer())
-          .get(`/users/${createdUserId}`)
-          .expect(200)
-          .expect((res) => {
-            expect(res.body.id).toBe(createdUserId);
-            expect(res.body.nom).toBe("Alice Dupont");
-          });
-      });
-
-      it("devrait retourner 404 si introuvable", () => {
-        return request(app.getHttpServer()).get("/users/99999").expect(404);
-      });
-
-      it("devrait retourner 400 si ID invalide", () => {
-        return request(app.getHttpServer()).get("/users/abc").expect(400);
-      });
-    });
-
-    describe("PATCH /users/:id", () => {
-      it("devrait mettre a jour un utilisateur (200)", () => {
-        return request(app.getHttpServer())
-          .patch(`/users/${createdUserId}`)
-          .send({ nom: "Alice Martin" })
-          .expect(200)
-          .expect((res) => {
-            expect(res.body.nom).toBe("Alice Martin");
-          });
-      });
-    });
-
-    describe("DELETE /users/:id", () => {
-      it("devrait supprimer un utilisateur (200)", () => {
-        return request(app.getHttpServer())
-          .delete(`/users/${createdUserId}`)
-          .expect(200);
-      });
-
-      it("devrait retourner 404 apres suppression", () => {
-        return request(app.getHttpServer())
-          .get(`/users/${createdUserId}`)
-          .expect(404);
-      });
-    });
-  });
-});
-```
-
-### 6.2 E2E avec authentification
-
-```typescript
-describe("Routes protegees", () => {
-  let authToken: string;
-
-  beforeAll(async () => {
-    // Creer un utilisateur de test
-    await request(app.getHttpServer()).post("/auth/register").send({
-      nom: "Admin Test",
-      email: "admin@test.com",
-      motDePasse: "Admin123!",
-    });
-
-    // Se connecter pour obtenir un token
-    const loginResponse = await request(app.getHttpServer())
-      .post("/auth/login")
-      .send({
-        email: "admin@test.com",
-        motDePasse: "Admin123!",
-      });
-
-    authToken = loginResponse.body.accessToken;
-  });
-
-  it("devrait acceder a une route protegee avec un token valide", () => {
-    return request(app.getHttpServer())
-      .get("/users/me")
-      .set("Authorization", `Bearer ${authToken}`)
-      .expect(200)
-      .expect((res) => {
-        expect(res.body.email).toBe("admin@test.com");
-      });
-  });
-
-  it("devrait refuser l'acces sans token (401)", () => {
-    return request(app.getHttpServer()).get("/users/me").expect(401);
-  });
-
-  it("devrait refuser un token invalide (401)", () => {
-    return request(app.getHttpServer())
-      .get("/users/me")
-      .set("Authorization", "Bearer token-invalide")
-      .expect(401);
-  });
-});
-```
-
----
-
-## 7. overrideProvider, overrideGuard, overrideInterceptor
-
-```typescript
-// Override un guard pour les tests
-const module = await Test.createTestingModule({
-  imports: [AppModule],
+    }).compile()
+
+    service = module.get<FamilyService>(FamilyService)
+  })
+
+  it('est défini', () => {
+    expect(service).toBeDefined()
+  })
+
+  describe('canJoin', () => {
+    it('retourne false si la famille est pleine', async () => {
+      // Arrange — famille avec memberCount = maxSize
+      mockPrisma.family.findUnique.mockResolvedValue({
+        id: 'fam-1',
+        memberCount: 12,
+        maxSize: 12,
+      })
+
+      // Act
+      const result = await service.canJoin('fam-1')
+
+      // Assert
+      expect(result).toBe(false)
+      expect(mockPrisma.family.findUnique).toHaveBeenCalledWith({
+        where: { id: 'fam-1' },
+      })
+    })
+
+    it('retourne true si la famille a de la place', async () => {
+      mockPrisma.family.findUnique.mockResolvedValue({
+        id: 'fam-2',
+        memberCount: 3,
+        maxSize: 12,
+      })
+
+      expect(await service.canJoin('fam-2')).toBe(true)
+    })
+
+    it('lève NotFoundException si la famille est introuvable', async () => {
+      mockPrisma.family.findUnique.mockResolvedValue(null)
+
+      // await + .rejects obligatoires pour les erreurs asynchrones
+      await expect(service.canJoin('fam-999')).rejects.toThrow(NotFoundException)
+    })
+  })
+
+  describe('invite', () => {
+    it('crée une invitation si aucune invitation en attente', async () => {
+      mockPrisma.family.findUnique.mockResolvedValue({
+        id: 'fam-1',
+        memberCount: 3,
+        maxSize: 12,
+      })
+      mockPrisma.invitation.findFirst.mockResolvedValue(null)
+      mockPrisma.invitation.create.mockResolvedValue({
+        id: 'inv-1',
+        familyId: 'fam-1',
+        email: 'bob@tribu.fr',
+        status: 'PENDING',
+      })
+
+      const result = await service.invite('fam-1', 'bob@tribu.fr')
+
+      expect(result).toMatchObject({ familyId: 'fam-1', email: 'bob@tribu.fr' })
+      expect(mockPrisma.invitation.create).toHaveBeenCalledTimes(1)
+    })
+
+    it('lève BadRequestException si une invitation est déjà en attente', async () => {
+      mockPrisma.family.findUnique.mockResolvedValue({
+        id: 'fam-1',
+        memberCount: 1,
+        maxSize: 12,
+      })
+      mockPrisma.invitation.findFirst.mockResolvedValue({ id: 'inv-0', status: 'PENDING' })
+
+      await expect(service.invite('fam-1', 'bob@tribu.fr')).rejects.toThrow(BadRequestException)
+      // L'invitation existante bloque — create ne doit pas être appelée
+      expect(mockPrisma.invitation.create).not.toHaveBeenCalled()
+    })
+  })
 })
-  .overrideGuard(AuthGuard)
-  .useValue({
-    canActivate: () => true, // Toujours autoriser
-  })
-  .overrideGuard(RolesGuard)
-  .useValue({
-    canActivate: () => true,
-  })
-  .overrideInterceptor(LoggingInterceptor)
-  .useValue({
-    intercept: (context, next) => next.handle(), // Ne rien faire
-  })
-  .overrideProvider(UsersService)
-  .useValue(mockUsersService)
-  .compile();
 ```
 
----
+**Pas-à-pas :** (1) `jest.clearAllMocks()` dans `beforeEach` — les compteurs et valeurs retournées sont remis à zéro avant chaque test, évitant les interférences entre cas ; (2) `mockPrisma.family.findUnique.mockResolvedValue(null)` configure le mock pour ce test uniquement — le suivant repart d'un mock propre ; (3) `await expect(...).rejects.toThrow(NotFoundException)` — le `await` et `.rejects` sont obligatoires pour les erreurs asynchrones ; (4) `expect(mockPrisma.invitation.create).not.toHaveBeenCalled()` — vérifie qu'un effet de bord indésirable n'a pas eu lieu.
 
-## 8. Couverture de code
+### Exemple B — Test unitaire de FamilyController
 
-```bash
-# Generer le rapport de couverture
-npm run test:cov
+```ts
+// src/family/family.controller.spec.ts
+import { Test, TestingModule } from '@nestjs/testing'
+import { FamilyController } from './family.controller'
+import { FamilyService } from './family.service'
+import { NotFoundException } from '@nestjs/common'
 
-# Le rapport HTML est genere dans coverage/lcov-report/index.html
+describe('FamilyController', () => {
+  let controller: FamilyController
+
+  const mockFamilyService = {
+    findAll: jest.fn(),
+    canJoin: jest.fn(),
+    invite: jest.fn(),
+  }
+
+  beforeEach(async () => {
+    jest.clearAllMocks()
+
+    const module: TestingModule = await Test.createTestingModule({
+      controllers: [FamilyController],
+      providers: [
+        { provide: FamilyService, useValue: mockFamilyService },
+      ],
+    }).compile()
+
+    controller = module.get<FamilyController>(FamilyController)
+  })
+
+  describe('findAll', () => {
+    it('délègue à FamilyService.findAll et retourne le résultat', async () => {
+      const families = [{ id: 'fam-1', name: 'Famille Martin' }]
+      mockFamilyService.findAll.mockResolvedValue(families)
+
+      const result = await controller.findAll()
+
+      expect(result).toEqual(families)
+      // Le controller délègue — pas de transformation propre
+      expect(mockFamilyService.findAll).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('canJoin', () => {
+    it('retourne { canJoin: true } si FamilyService le permet', async () => {
+      mockFamilyService.canJoin.mockResolvedValue(true)
+
+      const result = await controller.canJoin('fam-1')
+
+      expect(result).toEqual({ canJoin: true })
+      expect(mockFamilyService.canJoin).toHaveBeenCalledWith('fam-1')
+    })
+
+    it('propage NotFoundException si FamilyService la lève', async () => {
+      mockFamilyService.canJoin.mockRejectedValue(new NotFoundException('fam-999'))
+
+      await expect(controller.canJoin('fam-999')).rejects.toThrow(NotFoundException)
+    })
+  })
+
+  describe('invite', () => {
+    it('délègue à FamilyService.invite et retourne l\'invitation créée', async () => {
+      const invitation = { id: 'inv-1', familyId: 'fam-1', email: 'bob@tribu.fr' }
+      mockFamilyService.invite.mockResolvedValue(invitation)
+
+      const result = await controller.invite('fam-1', { email: 'bob@tribu.fr' })
+
+      expect(result).toEqual(invitation)
+      expect(mockFamilyService.invite).toHaveBeenCalledWith('fam-1', 'bob@tribu.fr')
+    })
+  })
+})
 ```
 
-Configuration des seuils de couverture dans `jest.config.js` :
+**Pas-à-pas :** (1) Le controller est testé sans le service réel — `useValue: mockFamilyService` ; (2) on vérifie la délégation (`toHaveBeenCalledWith`) et la réponse, pas la logique métier ; (3) `mockRejectedValue` simule une exception lancée par le service — le controller ne la capture pas (NestJS la gère via les filtres d'exception globaux).
 
-```typescript
-coverageThresholds: {
-  global: {
-    branches: 80,    // 80% des branches conditionnelles couvertes
-    functions: 80,   // 80% des fonctions couvertes
-    lines: 80,       // 80% des lignes couvertes
-    statements: 80,  // 80% des instructions couvertes
+### Exemple C — Test e2e du flux d'invitation avec supertest
+
+```ts
+// test/invitation.e2e-spec.ts
+import { Test, TestingModule } from '@nestjs/testing'
+import { INestApplication, ValidationPipe } from '@nestjs/common'
+import * as request from 'supertest'
+import { AppModule } from '../src/app.module'
+import { PrismaService } from '../src/prisma/prisma.service'
+
+// Mock centralisé — shared entre tous les tests e2e de ce fichier
+const mockPrisma = {
+  family: {
+    findUnique: jest.fn(),
+    findMany: jest.fn(),
   },
-},
+  invitation: {
+    findFirst: jest.fn(),
+    create: jest.fn(),
+  },
+}
+
+describe('Flux invitation TribuZen (E2E)', () => {
+  let app: INestApplication
+
+  beforeAll(async () => {
+    const moduleRef: TestingModule = await Test.createTestingModule({
+      imports: [AppModule],
+    })
+      // overrideProvider remplace PrismaService dans tout l'arbre de modules
+      .overrideProvider(PrismaService)
+      .useValue(mockPrisma)
+      .compile()
+
+    app = moduleRef.createNestApplication()
+    // Reproduire exactement la config de main.ts
+    app.useGlobalPipes(
+      new ValidationPipe({ whitelist: true, transform: true }),
+    )
+    await app.init()
+  })
+
+  afterAll(async () => {
+    await app.close() // libère le port — sans ça, Jest ne termine pas
+  })
+
+  beforeEach(() => {
+    jest.clearAllMocks()
+  })
+
+  describe('POST /families/:familyId/invitations', () => {
+    it('retourne 201 et l\'invitation créée', async () => {
+      // Arrange — famille avec de la place
+      mockPrisma.family.findUnique.mockResolvedValue({
+        id: 'fam-1',
+        memberCount: 3,
+        maxSize: 12,
+      })
+      mockPrisma.invitation.findFirst.mockResolvedValue(null)
+      mockPrisma.invitation.create.mockResolvedValue({
+        id: 'inv-1',
+        familyId: 'fam-1',
+        email: 'bob@tribu.fr',
+        status: 'PENDING',
+      })
+
+      const res = await request(app.getHttpServer())
+        .post('/families/fam-1/invitations')
+        .send({ email: 'bob@tribu.fr' })
+        .expect(201)
+
+      expect(res.body).toMatchObject({
+        familyId: 'fam-1',
+        email: 'bob@tribu.fr',
+        status: 'PENDING',
+      })
+    })
+
+    it('retourne 400 si email manquant (validation DTO)', () => {
+      return request(app.getHttpServer())
+        .post('/families/fam-1/invitations')
+        .send({}) // body vide → ValidationPipe rejette
+        .expect(400)
+    })
+
+    it('retourne 400 si une invitation est déjà en attente', async () => {
+      mockPrisma.family.findUnique.mockResolvedValue({
+        id: 'fam-1',
+        memberCount: 3,
+        maxSize: 12,
+      })
+      mockPrisma.invitation.findFirst.mockResolvedValue({ id: 'inv-0', status: 'PENDING' })
+
+      await request(app.getHttpServer())
+        .post('/families/fam-1/invitations')
+        .send({ email: 'bob@tribu.fr' })
+        .expect(400)
+    })
+
+    it('retourne 404 si la famille est introuvable', async () => {
+      mockPrisma.family.findUnique.mockResolvedValue(null)
+
+      await request(app.getHttpServer())
+        .post('/families/fam-1/invitations')
+        .send({ email: 'bob@tribu.fr' })
+        .expect(404)
+    })
+
+    it('retourne 422 si la famille est pleine', async () => {
+      mockPrisma.family.findUnique.mockResolvedValue({
+        id: 'fam-1',
+        memberCount: 12,
+        maxSize: 12,
+      })
+
+      await request(app.getHttpServer())
+        .post('/families/fam-1/invitations')
+        .send({ email: 'bob@tribu.fr' })
+        .expect(422)
+    })
+  })
+})
 ```
 
----
+**Pas-à-pas :** (1) `overrideProvider(PrismaService).useValue(mockPrisma)` substitue Prisma dans tout `AppModule` sans modifier le code source ; (2) `app.useGlobalPipes(new ValidationPipe(...))` dans `beforeAll` — refléter exactement `main.ts` : le test à body vide doit retourner 400 exactement comme en prod ; (3) `await app.close()` dans `afterAll` — obligatoire, sinon Jest attend le timeout ; (4) `request(app.getHttpServer())` — pas de bind de port, supertest consomme le serveur HTTP directement ; (5) `beforeEach(() => jest.clearAllMocks())` — reset entre tests e2e pour éviter les contaminations de mocks.
 
-## 9. Bonnes pratiques de test
+## 4. Pièges & misconceptions
 
-| Pratique                  | Description                                                        |
-| ------------------------- | ------------------------------------------------------------------ |
-| Pattern AAA               | Arrange (preparer), Act (agir), Assert (vérifier)                  |
-| Un test = une assertion   | Chaque test vérifié UNE chose spécifique                           |
-| Nommer clairement         | `devrait retourner 404 si utilisateur introuvable`                 |
-| Tests independants        | Chaque test peut s'exécuter seul, dans n'importe quel ordre        |
-| Éviter les tests fragiles | Ne testez pas les details d'implementation, testez le comportement |
-| Mocker avec parcimonie    | Preferez les tests d'intégration pour les cas complexes            |
-| Nettoyer après            | Utilisez `afterEach` / `afterAll` pour nettoyer                    |
-| CI/CD                     | Lancez les tests automatiquement à chaque push                     |
+- **Oublier `jest.clearAllMocks()` dans `beforeEach`.** Si le test A configure `mockPrisma.family.findUnique.mockResolvedValue(null)` et que le test B ne le reconfigure pas, B hérite de la valeur de A. Le test B peut passer pour la mauvaise raison. Correction : `jest.clearAllMocks()` systématique dans chaque `beforeEach`.
 
-> **Bonne pratique** : Suivez la pyramide de tests. Beaucoup de tests unitaires (rapides, isoles), quelques tests d'intégration (service + DB), et peu de tests E2E (lents mais complets).
+- **Ne pas appliquer les mêmes pipes qu'en prod dans les tests e2e.** Un test e2e sans `ValidationPipe` accepte les corps de requête invalides. En prod, les requêtes sont rejetées. Les tests ne valident alors pas le vrai comportement. Correction : reproduire exactement la config de `main.ts` dans `beforeAll` (pipes, intercepteurs, filtres globaux).
 
----
+- **Oublier `await app.close()` dans `afterAll`.** Jest affiche `Jest did not exit one second after the test run has completed` — le serveur HTTP tient le processus ouvert. Correction : `afterAll(async () => { await app.close() })` systématique dans chaque fichier e2e.
 
-## 10. Exercices pratiques
+- **`await` manquant avec `.rejects.toThrow()`.** `expect(promise).rejects.toThrow('msg')` sans `await` passe toujours vert — le rejet n'est jamais observé par le runner. Correction : `await expect(promise).rejects.toThrow('msg')` systématiquement.
 
-### Exercice 1 : Tests unitaires
+- **Mocker `PrismaService` avec `jest.mock()` au lieu de `useValue`.** `jest.mock('../prisma/prisma.service')` bypasse le conteneur NestJS — `module.get(PrismaService)` peut retourner `undefined`. Correction : toujours passer le mock via `{ provide: PrismaService, useValue: mockPrisma }` dans `Test.createTestingModule`.
 
-Ecrivez les tests unitaires complets pour un `ProductsService` avec les méthodes : create, findAll, findOne, update, remove. Utilisez des mocks pour le repository.
+- **Importer `AppModule` dans un test unitaire.** Un test unitaire qui importe `AppModule` démarre toutes les dépendances (Prisma, ConfigService, etc.) — lent et couplé à l'infra. Correction : les tests unitaires n'importent que les classes testées et leurs dépendances mockées via `providers`.
 
-### Exercice 2 : Test de Guard
+## 5. Ancrage TribuZen
 
-Testez un `ApiKeyGuard` qui vérifié le header `x-api-key`. Testez les cas : clé valide, clé invalide, clé absente.
+Couche fil-rouge : **tester FamilyService (unit) et le flux d'invitation (e2e supertest) de l'API TribuZen** (`smaurier/tribuzen`).
 
-### Exercice 3 : Test E2E
+- `FamilyService.canJoin()` est une règle métier critique — un bug silencieux peut laisser une famille dépasser sa taille maximale. Le test unitaire couvre les trois cas : famille pleine (`false`), place disponible (`true`), famille introuvable (`NotFoundException`).
+- `FamilyService.invite()` protège contre les doublons d'invitation — `findFirst` est vérifié avant `create`. Le test vérifie que `create` n'est pas appelé si une invitation `PENDING` existe déjà.
+- `FamilyController` ne contient aucune logique métier — son test vérifie uniquement la délégation et la propagation des exceptions.
+- Le test e2e du flux d'invitation couvre les 5 cas HTTP : 201 (créée), 400 (validation DTO), 400 (doublon), 404 (famille inconnue), 422 (famille pleine). `overrideProvider(PrismaService)` remplace la vraie DB — les tests sont rapides et reproductibles en CI.
+- `ValidationPipe` est appliqué dans `beforeAll` — le test e2e à body vide doit retourner 400, ce qui valide que la prod se comporterait pareil.
 
-Ecrivez une suite de tests E2E pour un CRUD complet de produits, incluant la validation des DTOs et l'authentification.
+Structure cible dans `smaurier/tribuzen` :
 
----
-
-## Bonus — Strategie de tests BFF (Express ou Nest)
-
-Pour un BFF, tester seulement le CRUD n'est pas suffisant. Il faut verifier l'orchestration, le mapping des reponses, et la resilience face aux pannes upstream.
-
-### 1) Matrice minimale de tests BFF
-
-| Type        | Ce qu'on valide                                        |
-| ----------- | ------------------------------------------------------ |
-| Unitaire    | Mapping payload upstream -> DTO frontend               |
-| Integration | Orchestration multi-services + timeouts                |
-| Contrat     | Shape stable pour Angular (`success`, `data`, `error`) |
-| E2E         | Parcours critique avec auth + cookies + CSRF           |
-
-### 2) Cas critiques a couvrir
-
-1. Un upstream renvoie `500` -> le BFF renvoie une erreur normalisee.
-2. Un upstream timeout -> le BFF degrade partiellement sans casser l'ecran.
-3. Donnees upstream incompletes -> le BFF applique des valeurs par defaut explicites.
-4. Changement de payload upstream -> le contrat BFF expose au front reste stable.
-
-### 3) Exemple de test contrat BFF
-
-```typescript
-it("retourne un contrat frontend stable", async () => {
-  const res = await request(app.getHttpServer())
-    .get("/bff/dashboard")
-    .set("Authorization", `Bearer ${token}`)
-    .expect(200);
-
-  expect(res.body).toEqual(
-    expect.objectContaining({
-      success: expect.any(Boolean),
-      data: expect.any(Object),
-      error: expect.anything(),
-    }),
-  );
-});
+```
+apps/api/src/family/
+  family.service.spec.ts    ← tests unitaires FamilyService (Exemple A)
+  family.controller.spec.ts ← tests unitaires FamilyController (Exemple B)
+apps/api/test/
+  invitation.e2e-spec.ts    ← tests e2e flux invitation (Exemple C)
 ```
 
-> **A retenir BFF** : Le vrai risque n'est pas seulement le bug de code, c'est la rupture de contrat entre BFF et frontend quand un service amont change.
+## 6. Points clés
 
----
+1. `Test.createTestingModule()` crée un module NestJS isolé — mêmes clés qu'un vrai `@Module()`, mais jetable après les tests.
+2. `module.get<T>(Token)` récupère une instance depuis le conteneur de test — toujours après `.compile()`.
+3. `useValue` dans `providers` remplace une dépendance par un objet mocké — pattern universel pour les tests unitaires.
+4. `overrideProvider(Token).useValue(mock)` remplace un provider dans un module importé — pattern standard pour les tests e2e avec `AppModule`.
+5. `jest.clearAllMocks()` dans chaque `beforeEach` — évite les contaminations entre tests.
+6. Tests e2e : `app.useGlobalPipes(...)` dans `beforeAll` doit refléter exactement `main.ts` — sinon les tests ne valident pas la prod.
+7. `await app.close()` dans `afterAll` — obligatoire pour libérer le serveur HTTP et terminer Jest proprement.
+8. `await expect(promise).rejects.toThrow(...)` — `await` et `.rejects` sont tous deux requis pour les erreurs asynchrones.
 
-## Liens
+## 7. Seeds Anki
 
-| Ressource          | Lien                                                                       |
-| ------------------ | -------------------------------------------------------------------------- |
-| Quiz Module 18     | `quiz/18-quiz.md`                                                          |
-| Lab Module 18      | `labs/18-lab-testing.md`                                                   |
-| Screencast         | `screencasts/18-screencast.md`                                             |
-| Module précédent   | [Module 17 — Prisma avance & Comparaison](17-prisma-avance-comparaison.md) |
-| Module suivant     | [Module 19 — Authentification & Autorisation](19-nestjs-auth.md)           |
-| NestJS Testing     | https://docs.nestjs.com/fundamentals/testing                               |
-| Jest Documentation | https://jestjs.io/docs/getting-started                                     |
-| Supertest          | https://github.com/ladjs/supertest                                         |
+```
+Quel est le rôle de Test.createTestingModule() ?|Créer un module NestJS isolé pour les tests — mêmes clés qu'un @Module() réel mais jetable. .compile() retourne une Promise à await
+Comment récupérer une instance depuis un module de test ?|module.get<MonService>(MonService) après .compile() — utilise le même conteneur IoC que l'app réelle
+Différence entre useValue dans providers et overrideProvider ?|useValue dans providers remplace à la déclaration (tests unitaires) ; overrideProvider remplace dans un module importé comme AppModule (tests e2e) avant .compile()
+Pourquoi jest.clearAllMocks() dans chaque beforeEach ?|Les mocks conservent leur état (compteurs et valeurs retournées) entre tests. Sans reset un test peut passer grâce à la configuration d'un test précédent
+Pourquoi reproduire ValidationPipe dans beforeAll des tests e2e ?|Sans ValidationPipe les requêtes invalides passent en test mais sont rejetées en prod — les tests ne valideraient pas le comportement réel
+Quelle est la syntaxe correcte pour tester un rejet de Promise asynchrone ?|await expect(promise).rejects.toThrow('message') — sans await le rejet n'est jamais observé et le test passe toujours vert
+Pourquoi await app.close() dans afterAll est-il obligatoire ?|Sans close() le serveur HTTP tient le processus Node.js ouvert — Jest affiche "did not exit" et attend le timeout
+Comment supertest consomme-t-il l'app NestJS sans bind de port ?|request(app.getHttpServer()) — getHttpServer() retourne le serveur HTTP sous-jacent que supertest consomme directement en mémoire
+```
 
----
+## Pont vers le lab
 
-<!-- parcours-recommande -->
-
-::: tip Parcours recommandé
-
-1. **Screencast** : [screencast 18 testing](../screencasts/screencast-18-testing.md)
-2. **Lab** : [lab-18-testing](../labs/lab-18-testing/README)
-3. **Quiz** : [quiz 18 testing](../quizzes/quiz-18-testing.html)
-   :::
+> Lab associé : `09-nestjs/labs/lab-18-testing/README.md`. Tu y écris les tests unitaires de `FamilyService` (canJoin + invite) et le test e2e du flux d'invitation — corrigé complet commenté + variante J+30 dans le README.

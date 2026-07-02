@@ -1,955 +1,689 @@
-# Module 23 — Performance & Déploiement
-
-> **Objectif** : Optimiser les performances d'une application NestJS (caching, rate limiting, compression) et la déployer en production avec Docker, PM2 et les bonnes pratiques de monitoring.
-> **Difficulte** : ⭐⭐⭐⭐ (avance+)
-> **Prérequis** : Modules 10 a 22 (ensemble du parcours NestJS)
-> **Duree estimee** : 6 heures
-
+---
+titre: Performance et déploiement
+cours: 09-nestjs
+notions: [cache avec cache-manager, compression des réponses, Docker multi-stage pour NestJS, variables d'environnement en production, health checks avec terminus, logging structuré, arrêt gracieux, bonnes pratiques de déploiement]
+outcomes: [mettre en cache des réponses, dockeriser une app NestJS en multi-stage, exposer un health check, configurer un arrêt gracieux et un logging structuré pour la prod]
+prerequis: [22-nestjs-jobs-queues]
+next: 24-nestjs-projet-final
+libs: [{ name: "@nestjs/cache-manager", version: "^3" }, { name: "@nestjs/terminus", version: "^11" }]
+tribuzen: dockeriser et durcir pour la prod l'API TribuZen (cache, health check, graceful shutdown)
+last-reviewed: 2026-07
 ---
 
-## 1. Caching — Mise en cache des réponses
+# Performance et déploiement
 
-### 1.1 Pourquoi le cache ?
+> **Outcomes — tu sauras FAIRE :** mettre en cache des réponses avec `@nestjs/cache-manager`, dockeriser une app NestJS en multi-stage, exposer un health check avec Terminus v11, configurer un arrêt gracieux et un logging structuré pour la prod.
+> **Difficulté :** :star::star::star::star:
 
-Le cache evite de recalculer ou re-interroger la base de donnees pour des donnees qui changent rarement. Il peut reduire drastiquement les temps de réponse (de 200ms a 2ms).
+## 1. Cas concret d'abord
 
-> **Analogie** : Le cache c'est comme un post-it sur votre bureau. Au lieu d'aller chercher l'information dans le classeur à chaque fois (base de donnees), vous la notez sur un post-it (cache) et vous la consultez directement. De temps en temps, vous mettez a jour le post-it.
+L'API TribuZen répond à `GET /families`. Chaque requête interroge Prisma → PostgreSQL : 80 ms en local, 200 ms avec la latence réseau en prod. Un `SIGTERM` pendant un rolling deploy tue les requêtes en vol. Kubernetes ne sait pas si le pod est prêt à recevoir du trafic. L'image Docker pèse 900 MB parce qu'elle embarque les `devDependencies`.
 
-### 1.2 Installation
+Tu essaies de déployer sur Render.com et tu constates :
 
 ```bash
-npm install @nestjs/cache-manager cache-manager
-
-# Pour utiliser Redis comme store (recommande en production)
-npm install cache-manager-redis-yet redis
+# Rolling deploy — le pod redémarre avant que le nouveau soit prêt
+# curl http://api.tribuzen.io/families
+# ← 502 Bad Gateway (20-40 s d'indisponibilité)
 ```
 
-### 1.3 Configuration du cache
+Ce module résout les quatre problèmes dans l'ordre d'impact : cache (réponses < 1 ms au lieu de 200 ms), health check (l'orchestrateur sait quand le pod est prêt), graceful shutdown (requêtes en vol terminées proprement), Dockerfile multi-stage (image < 200 MB, pull 4× plus rapide).
 
-```typescript
+## 2. Théorie complète, concise
+
+### 2.1 Cache avec @nestjs/cache-manager v3
+
+`@nestjs/cache-manager` v3 est un module NestJS qui encapsule `cache-manager` v5. Il utilise [Keyv](https://keyv.org/) comme abstraction de store : une interface unique, plusieurs backends (mémoire, Redis, Memcached) sans changer le code applicatif.
+
+```bash
+npm i @nestjs/cache-manager cache-manager
+# Store Redis en production
+npm i @keyv/redis cacheable
+```
+
+**Enregistrement global — mémoire (dev) :**
+
+```ts
 // app.module.ts
-import { Module } from "@nestjs/common";
-import { CacheModule } from "@nestjs/cache-manager";
-import { ConfigModule, ConfigService } from "@nestjs/config";
+import { CacheModule } from '@nestjs/cache-manager'
 
 @Module({
   imports: [
-    // Cache en memoire (developpement)
     CacheModule.register({
-      isGlobal: true,
-      ttl: 60, // Duree de vie par defaut : 60 secondes
-      max: 100, // Maximum 100 entrees en cache
+      isGlobal: true,  // CACHE_MANAGER injectable partout sans réimporter
+      ttl: 60_000,     // ⚠️ millisecondes en v3 (pas secondes) — 60 000 ms = 60 s
+      max: 200,        // nombre max d'entrées en mémoire
     }),
   ],
 })
 export class AppModule {}
 ```
 
-Configuration avec Redis (production) :
+**Enregistrement async — Redis prod, mémoire dev :**
 
-```typescript
+```ts
 // app.module.ts
-import { redisStore } from "cache-manager-redis-yet";
+import { CacheModule } from '@nestjs/cache-manager'
+import { ConfigModule, ConfigService } from '@nestjs/config'
+import Keyv from 'keyv'
+import { CacheableMemory } from 'cacheable'
+import KeyvRedis from '@keyv/redis'
 
-@Module({
-  imports: [
-    CacheModule.registerAsync({
-      isGlobal: true,
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: async (configService: ConfigService) => {
-        const isProduction = configService.get("NODE_ENV") === "production";
-
-        if (isProduction) {
-          // Redis en production
-          return {
-            store: await redisStore({
-              socket: {
-                host: configService.get("REDIS_HOST", "localhost"),
-                port: configService.get<number>("REDIS_PORT", 6379),
-              },
-              password: configService.get("REDIS_PASSWORD"),
-              ttl: 60 * 1000, // 60 secondes en millisecondes
-            }),
-          };
-        }
-
-        // Cache memoire en dev
-        return {
-          ttl: 60,
-          max: 100,
-        };
-      },
-    }),
-  ],
+CacheModule.registerAsync({
+  isGlobal: true,
+  imports: [ConfigModule],
+  inject: [ConfigService],
+  useFactory: (config: ConfigService) => {
+    const isProd = config.get('NODE_ENV') === 'production'
+    if (isProd) {
+      return {
+        stores: [
+          new KeyvRedis(config.get<string>('REDIS_URL', 'redis://localhost:6379')),
+        ],
+      }
+    }
+    return {
+      stores: [
+        new Keyv({ store: new CacheableMemory({ ttl: 60_000, lruSize: 5000 }) }),
+      ],
+    }
+  },
 })
-export class AppModule {}
 ```
 
-### 1.4 Utilisation du cache dans un service
+**Injection et API :**
 
-```typescript
-// products/products.service.ts
-import { Injectable, Inject } from "@nestjs/common";
-import { CACHE_MANAGER } from "@nestjs/cache-manager";
-import { Cache } from "cache-manager";
+```ts
+import { CACHE_MANAGER } from '@nestjs/cache-manager'
+import { Cache } from 'cache-manager'
+import { Inject, Injectable } from '@nestjs/common'
 
 @Injectable()
-export class ProductsService {
+export class FamilyService {
   constructor(
-    @Inject(CACHE_MANAGER)
-    private readonly cacheManager: Cache,
-    private readonly prisma: PrismaService,
+    @Inject(CACHE_MANAGER) private readonly cache: Cache,
   ) {}
 
-  async findAll(page: number, limit: number) {
-    const cacheKey = `products:list:${page}:${limit}`;
+  async findAll(): Promise<Family[]> {
+    const key = 'families:all'
+    const cached = await this.cache.get<Family[]>(key)
+    if (cached) return cached  // retour < 1 ms
 
-    // 1. Chercher dans le cache
-    const cached = await this.cacheManager.get(cacheKey);
-    if (cached) {
-      return cached; // Retour instantane !
-    }
-
-    // 2. Si pas en cache, interroger la base
-    const result = await this.prisma.product.findMany({
-      skip: (page - 1) * limit,
-      take: limit,
-      include: { category: true },
-    });
-
-    // 3. Mettre en cache pour les prochaines requetes
-    await this.cacheManager.set(cacheKey, result, 120); // 120 secondes
-
-    return result;
+    const families = await this.prisma.family.findMany()
+    await this.cache.set(key, families, 300_000)  // 5 min en ms
+    return families
   }
 
-  async findOne(id: number) {
-    const cacheKey = `product:${id}`;
-
-    const cached = await this.cacheManager.get(cacheKey);
-    if (cached) return cached;
-
-    const product = await this.prisma.product.findUnique({
-      where: { id },
-      include: { category: true, images: true },
-    });
-
-    if (product) {
-      await this.cacheManager.set(cacheKey, product, 300); // 5 minutes
-    }
-
-    return product;
-  }
-
-  async update(id: number, data: any) {
-    const updated = await this.prisma.product.update({
-      where: { id },
-      data,
-    });
-
-    // Invalider le cache apres modification
-    await this.cacheManager.del(`product:${id}`);
-    // Invalider aussi les listes
-    const keys = await this.cacheManager.store.keys("products:list:*");
-    for (const key of keys) {
-      await this.cacheManager.del(key);
-    }
-
-    return updated;
-  }
-
-  async remove(id: number) {
-    await this.prisma.product.delete({ where: { id } });
-
-    // Invalider le cache
-    await this.cacheManager.del(`product:${id}`);
+  async update(id: string, data: Partial<Family>): Promise<Family> {
+    const updated = await this.prisma.family.update({ where: { id }, data })
+    // Invalider après mutation — prochain findAll reconstruira depuis Prisma
+    await this.cache.del('families:all')
+    await this.cache.del(`family:${id}`)
+    return updated
   }
 }
 ```
 
-### 1.5 CacheInterceptor automatique
+**`CacheInterceptor`** — cache automatique sur les routes GET :
 
-Pour les cas simples, NestJS fournit un interceptor qui cache automatiquement les réponses GET :
+```ts
+import { CacheInterceptor, CacheTTL } from '@nestjs/cache-manager'
+import { UseInterceptors, Get, Controller } from '@nestjs/common'
 
-```typescript
-import { Controller, Get, UseInterceptors } from "@nestjs/common";
-import { CacheInterceptor, CacheTTL, CacheKey } from "@nestjs/cache-manager";
-
-@Controller("categories")
-@UseInterceptors(CacheInterceptor) // Cache toutes les routes GET du controller
-export class CategoriesController {
+@Controller('families')
+@UseInterceptors(CacheInterceptor)  // toutes les routes GET du controller
+export class FamilyController {
   @Get()
-  @CacheTTL(300) // Cache 5 minutes (override le TTL global)
+  @CacheTTL(300_000)  // override du TTL global — 5 min
   findAll() {
-    return this.categoriesService.findAll();
-  }
-
-  @Get(":id")
-  @CacheKey("category") // Cle de cache personnalisee
-  @CacheTTL(600) // Cache 10 minutes
-  findOne(@Param("id", ParseIntPipe) id: number) {
-    return this.categoriesService.findOne(id);
+    return this.familyService.findAll()
   }
 }
 ```
 
-> **Piege classique** : Le `CacheInterceptor` ne cache que les requêtes GET. Il utilise l'URL comme clé de cache par defaut. Si vous avez des paramètres de requête différents, chaque combinaison unique sera cachee separement.
-
----
-
-## 2. Compression
-
-### 2.1 Configuration
-
-La compression reduit la taille des réponses HTTP, accelerant le transfert réseau.
+### 2.2 Compression des réponses
 
 ```bash
-npm install compression
-npm install --save-dev @types/compression
+npm i compression && npm i -D @types/compression
 ```
 
-```typescript
+```ts
 // main.ts
-import * as compression from "compression";
+import * as compression from 'compression'
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-
-  // Activer la compression gzip
-  app.use(
-    compression({
-      threshold: 1024, // Ne compresser que si la reponse depasse 1 Ko
-      level: 6, // Niveau de compression (1-9, 6 = bon compromis)
-      filter: (req, res) => {
-        // Ne pas compresser les SSE (Server-Sent Events)
-        if (req.headers["x-no-compression"]) {
-          return false;
-        }
-        return compression.filter(req, res);
-      },
-    }),
-  );
-
-  await app.listen(3000);
+  const app = await NestFactory.create(AppModule)
+  app.use(compression({ threshold: 1024 }))  // compresser si réponse > 1 Ko
+  await app.listen(process.env.PORT ?? 3000)
 }
 ```
 
-> **Bonne pratique** : En production, la compression est généralement gérée par le reverse proxy (Nginx, CloudFlare) et pas par NestJS directement. Cela libere les ressources CPU de votre application.
+En production, déléguer à Nginx (zéro CPU applicatif) :
 
----
-
-## 3. Rate Limiting — Protection contre les abus
-
-### 3.1 Installation et configuration
-
-```bash
-npm install @nestjs/throttler
+```nginx
+gzip on;
+gzip_min_length 1024;
+gzip_types application/json text/plain;
 ```
 
-```typescript
+### 2.3 Docker multi-stage pour NestJS
+
+Un Dockerfile multi-stage produit deux images intermédiaires : `builder` (compile TypeScript + installe toutes les deps) et `runner` (exécute seulement le JS compilé + prod deps). L'image finale n'embarque ni TypeScript, ni les `devDependencies`, ni le code source brut.
+
+```dockerfile
+# Stage 1 — builder : installe tout, compile
+FROM node:20-alpine AS builder
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci                  # lockfile strict, build reproductible
+
+COPY . .
+RUN npm run build           # → dist/main.js + dist/**
+
+# Stage 2 — runner : image finale allégée
+FROM node:20-alpine AS runner
+
+# Utilisateur non-root — bonne pratique sécurité obligatoire
+RUN addgroup --system --gid 1001 nestjs \
+ && adduser  --system --uid 1001 --ingroup nestjs nestjs
+
+WORKDIR /app
+
+COPY --from=builder /app/dist          ./dist
+COPY --from=builder /app/package*.json ./
+RUN npm ci --omit=dev                  # prod deps seulement (~200 MB vs ~600 MB)
+
+RUN chown -R nestjs:nestjs /app
+USER nestjs                            # le process tourne sans droits root
+
+ENV NODE_ENV=production
+ENV PORT=3000
+EXPOSE 3000
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+  CMD wget -qO- http://localhost:3000/health/live || exit 1
+
+CMD ["node", "dist/main.js"]
+```
+
+**`.dockerignore`** — indispensable pour exclure `node_modules` (slow COPY) et `.env` (fuite de secrets) :
+
+```bash
+node_modules
+dist
+.git
+.env
+.env.*
+coverage
+*.md
+```
+
+### 2.4 Variables d'environnement en production
+
+Valider les variables obligatoires au démarrage avec Joi — l'app refuse de démarrer avec un message d'erreur clair plutôt que de crasher en prod avec un `undefined` mystérieux :
+
+```ts
 // app.module.ts
-import { Module } from "@nestjs/common";
-import { ThrottlerModule, ThrottlerGuard } from "@nestjs/throttler";
-import { APP_GUARD } from "@nestjs/core";
+import * as Joi from 'joi'
+import { ConfigModule } from '@nestjs/config'
+
+ConfigModule.forRoot({
+  isGlobal: true,
+  validationSchema: Joi.object({
+    DATABASE_URL: Joi.string().required(),
+    JWT_SECRET:   Joi.string().min(32).required(),
+    REDIS_URL:    Joi.string().uri().optional(),
+    NODE_ENV:     Joi.string()
+                    .valid('development', 'production', 'test')
+                    .default('development'),
+    PORT:         Joi.number().default(3000),
+  }),
+})
+```
+
+Jamais de secrets en dur dans le `Dockerfile` (ni `ENV JWT_SECRET=...`). Passer via `docker run --env-file .env.prod` ou les secrets de l'orchestrateur (K8s Secrets, Render environment).
+
+### 2.5 Health checks avec @nestjs/terminus v11
+
+Terminus expose des endpoints que l'orchestrateur interroge pour décider du routage du trafic :
+
+- `/health/live` — **liveness** : le process tourne-t-il ? (200 = vivant, K8s redémarre le pod si échoue)
+- `/health/ready` — **readiness** : les dépendances sont-elles prêtes ? (K8s ne route pas de trafic si échoue)
+
+```bash
+npm i @nestjs/terminus
+```
+
+```ts
+// health/health.module.ts
+import { Module } from '@nestjs/common'
+import { TerminusModule } from '@nestjs/terminus'
+import { HealthController } from './health.controller'
 
 @Module({
   imports: [
-    ThrottlerModule.forRoot([
-      {
-        name: "short", // Limite courte
-        ttl: 1000, // 1 seconde
-        limit: 3, // 3 requetes max par seconde
-      },
-      {
-        name: "medium", // Limite moyenne
-        ttl: 10000, // 10 secondes
-        limit: 20, // 20 requetes max par 10 secondes
-      },
-      {
-        name: "long", // Limite longue
-        ttl: 60000, // 1 minute
-        limit: 100, // 100 requetes max par minute
-      },
-    ]),
+    TerminusModule.forRoot({
+      // Attend 3 s après SIGTERM avant d'arrêter l'app
+      // Laisse l'ingress rediriger le trafic vers d'autres pods
+      gracefulShutdownTimeoutMs: 3000,
+    }),
   ],
-  providers: [
-    {
-      provide: APP_GUARD,
-      useClass: ThrottlerGuard, // Applique le rate limiting globalement
-    },
-  ],
-})
-export class AppModule {}
-```
-
-### 3.2 Personnaliser par route
-
-```typescript
-import { Throttle, SkipThrottle } from "@nestjs/throttler";
-
-@Controller("auth")
-export class AuthController {
-  // Route de login : limiter plus strictement (5 tentatives par minute)
-  @Post("login")
-  @Throttle({ short: { ttl: 60000, limit: 5 } })
-  login(@Body() loginDto: LoginDto) {
-    return this.authService.login(loginDto);
-  }
-
-  // Route publique : pas de rate limiting
-  @Get("health")
-  @SkipThrottle()
-  health() {
-    return { status: "ok" };
-  }
-}
-
-// Desactiver le rate limiting pour tout un controller
-@SkipThrottle()
-@Controller("public")
-export class PublicController {}
-```
-
----
-
-## 4. CORS — Cross-Origin Resource Sharing
-
-```typescript
-// main.ts
-async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-
-  // Configuration CORS detaillee
-  app.enableCors({
-    // Origines autorisees
-    origin: [
-      "http://localhost:4200", // Angular dev
-      "http://localhost:3001", // React dev
-      "https://monsite.com", // Production
-    ],
-    // Ou une fonction pour plus de controle
-    // origin: (origin, callback) => {
-    //   if (!origin || allowedOrigins.includes(origin)) {
-    //     callback(null, true);
-    //   } else {
-    //     callback(new Error('Not allowed by CORS'));
-    //   }
-    // },
-
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
-    exposedHeaders: ["X-Total-Count"], // Headers visibles par le client
-    credentials: true, // Autoriser les cookies cross-origin
-    maxAge: 86400, // Cache le preflight pendant 24h
-  });
-
-  await app.listen(3000);
-}
-```
-
-> **Piege classique** : `origin: '*'` est pratique en développement mais dangereux en production. Specifiez toujours les origines exactes autorisees. Et `credentials: true` est incompatible avec `origin: '*'`.
-
----
-
-## 5. Graceful Shutdown — Arret propre
-
-### 5.1 Pourquoi c'est important ?
-
-Quand l'application s'arrete (déploiement, redemarrage), il faut :
-
-1. Arreter d'accepter de nouvelles requêtes
-2. Terminer les requêtes en cours
-3. Fermer proprement les connexions (DB, Redis, WebSocket)
-
-```typescript
-// main.ts
-async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-
-  // Activer les hooks de shutdown
-  app.enableShutdownHooks();
-
-  await app.listen(3000);
-}
-```
-
-```typescript
-// services/database.service.ts
-import {
-  Injectable,
-  OnModuleDestroy,
-  OnApplicationShutdown,
-  BeforeApplicationShutdown,
-} from "@nestjs/common";
-
-@Injectable()
-export class DatabaseService
-  implements OnModuleDestroy, BeforeApplicationShutdown, OnApplicationShutdown
-{
-  // 1. Appele quand le module est detruit
-  onModuleDestroy() {
-    console.log("Module detruit — nettoyage des resources du module");
-  }
-
-  // 2. Appele avant l'arret de l'application (requetes en cours encore traitees)
-  async beforeApplicationShutdown(signal?: string) {
-    console.log(`Signal d'arret recu : ${signal}`);
-    console.log("Attente de la fin des requetes en cours...");
-    // Donner du temps aux requetes de se terminer
-    await new Promise((resolve) => setTimeout(resolve, 5000));
-  }
-
-  // 3. Appele apres l'arret (plus aucune requete)
-  async onApplicationShutdown(signal?: string) {
-    console.log("Application arretee — fermeture des connexions");
-    // Fermer la connexion a la base de donnees
-    // await this.connection.close();
-  }
-}
-```
-
-### 5.2 Ordre des hooks de shutdown
-
-```
-Signal SIGTERM/SIGINT recu
-         |
-         v
-  beforeApplicationShutdown()   ← Les requetes peuvent encore etre traitees
-         |
-         v
-  L'application arrete d'accepter de nouvelles connexions
-         |
-         v
-  onModuleDestroy()             ← Pour chaque module
-         |
-         v
-  onApplicationShutdown()       ← Nettoyage final
-         |
-         v
-  Process.exit()
-```
-
----
-
-## 6. Health Checks — Vérification de sante
-
-### 6.1 Installation
-
-```bash
-npm install @nestjs/terminus
-```
-
-### 6.2 Configuration
-
-```typescript
-// health/health.module.ts
-import { Module } from "@nestjs/common";
-import { TerminusModule } from "@nestjs/terminus";
-import { HttpModule } from "@nestjs/axios";
-import { HealthController } from "./health.controller";
-
-@Module({
-  imports: [TerminusModule, HttpModule],
   controllers: [HealthController],
 })
 export class HealthModule {}
 ```
 
-```typescript
+```ts
 // health/health.controller.ts
-import { Controller, Get } from "@nestjs/common";
+import { Controller, Get } from '@nestjs/common'
 import {
   HealthCheck,
   HealthCheckService,
-  TypeOrmHealthIndicator,
-  HttpHealthIndicator,
-  DiskHealthIndicator,
   MemoryHealthIndicator,
-} from "@nestjs/terminus";
+} from '@nestjs/terminus'
 
-@Controller("health")
+@Controller('health')
 export class HealthController {
   constructor(
-    private health: HealthCheckService,
-    private db: TypeOrmHealthIndicator,
-    private http: HttpHealthIndicator,
-    private disk: DiskHealthIndicator,
-    private memory: MemoryHealthIndicator,
+    private readonly health: HealthCheckService,
+    private readonly memory: MemoryHealthIndicator,
   ) {}
 
-  // Endpoint principal de sante
-  @Get()
-  @HealthCheck()
-  check() {
-    return this.health.check([
-      // Verification de la base de donnees
-      () => this.db.pingCheck("database"),
-
-      // Verification d'un service externe
-      () =>
-        this.http.pingCheck("api-externe", "https://api.example.com/health"),
-
-      // Verification de l'espace disque (80% max)
-      () =>
-        this.disk.checkStorage("disk", {
-          thresholdPercent: 0.8,
-          path: "/",
-        }),
-
-      // Verification de la memoire (300 Mo max pour le heap)
-      () => this.memory.checkHeap("memory_heap", 300 * 1024 * 1024),
-
-      // Verification de la memoire RSS (500 Mo max)
-      () => this.memory.checkRSS("memory_rss", 500 * 1024 * 1024),
-    ]);
-  }
-
-  // Endpoint simplifie pour le load balancer
-  @Get("live")
+  // Liveness — check vide : si le process répond = vivant
+  @Get('live')
   @HealthCheck()
   liveness() {
-    return this.health.check([]);
-    // Retourne juste 200 OK si l'application tourne
+    return this.health.check([])
   }
 
-  // Endpoint pour verifier que toutes les dependances sont prets
-  @Get("ready")
+  // Readiness — DB et mémoire vérifiées
+  @Get('ready')
   @HealthCheck()
   readiness() {
-    return this.health.check([() => this.db.pingCheck("database")]);
+    return this.health.check([
+      () => this.memory.checkHeap('memory_heap', 512 * 1024 * 1024),  // 512 MB max
+    ])
   }
 }
 ```
 
-Reponse JSON :
+Réponse JSON (statut 200) :
 
 ```json
 {
   "status": "ok",
-  "info": {
-    "database": { "status": "up" },
-    "api-externe": { "status": "up" },
-    "disk": { "status": "up" },
-    "memory_heap": { "status": "up" },
-    "memory_rss": { "status": "up" }
-  },
+  "info": { "memory_heap": { "status": "up" } },
   "error": {},
-  "details": {
-    "database": { "status": "up" },
-    "api-externe": { "status": "up" },
-    "disk": { "status": "up" },
-    "memory_heap": { "status": "up" },
-    "memory_rss": { "status": "up" }
+  "details": { "memory_heap": { "status": "up" } }
+}
+```
+
+Si un indicateur échoue, le statut HTTP passe à 503 et le payload indique le composant en erreur.
+
+### 2.6 Logging structuré
+
+En production, les logs doivent être en JSON (ingérables par Datadog, Grafana Loki, CloudWatch). `nestjs-pino` remplace le logger intégré NestJS par Pino, le logger Node.js le plus rapide :
+
+```bash
+npm i nestjs-pino pino-http
+npm i -D pino-pretty
+```
+
+```ts
+// app.module.ts
+import { LoggerModule } from 'nestjs-pino'
+
+LoggerModule.forRoot({
+  pinoHttp: {
+    level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
+    transport: process.env.NODE_ENV !== 'production'
+      ? { target: 'pino-pretty', options: { colorize: true, singleLine: true } }
+      : undefined,  // JSON brut en production
+    redact: ['req.headers.authorization', 'req.body.password'],
+  },
+})
+```
+
+```ts
+// main.ts
+import { Logger } from 'nestjs-pino'
+
+const app = await NestFactory.create(AppModule, { bufferLogs: true })
+app.useLogger(app.get(Logger))
+```
+
+### 2.7 Arrêt gracieux
+
+Sans `enableShutdownHooks()`, NestJS ignore `SIGTERM` — le process meurt immédiatement et toutes les requêtes en vol retournent une erreur 500.
+
+```ts
+// main.ts
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule)
+  app.enableShutdownHooks()  // écoute SIGTERM et SIGINT
+  await app.listen(process.env.PORT ?? 3000)
+}
+```
+
+`TerminusModule.forRoot({ gracefulShutdownTimeoutMs: 3000 })` ajoute un délai après `SIGTERM` — pendant ces 3 s, l'ingress redirige le trafic vers d'autres pods avant que le pod s'arrête. Cycle complet :
+
+```
+SIGTERM reçu
+    ↓
+Terminus attend gracefulShutdownTimeoutMs (3 s)
+    ↓
+beforeApplicationShutdown() — requêtes en vol encore traitées
+    ↓
+onModuleDestroy() — nettoyage de chaque module
+    ↓
+onApplicationShutdown() — fermeture connexions (Prisma, Redis)
+    ↓
+process.exit(0)
+```
+
+Implémenter `OnApplicationShutdown` dans `PrismaService` pour fermer la connexion proprement :
+
+```ts
+// prisma/prisma.service.ts
+import { Injectable, OnApplicationShutdown } from '@nestjs/common'
+import { PrismaClient } from '@prisma/client'
+
+@Injectable()
+export class PrismaService extends PrismaClient implements OnApplicationShutdown {
+  async onApplicationShutdown() {
+    await this.$disconnect()  // ferme le pool de connexions PostgreSQL
   }
 }
 ```
 
----
+## 3. Worked examples
 
-> **SWC (alternative rapide)** : NestJS supporte SWC comme compilateur alternatif a tsc. `nest start --builder swc` compile 5-10x plus vite, ideal pour le dev. Ajoutez `"builder": "swc"` dans `nest-cli.json` pour l'activer par defaut.
+### Exemple A — Cache des familles TribuZen avec invalidation
 
-## 7. Docker — Conteneurisation
+```ts
+// src/family/family.service.ts
+import { Injectable, Inject } from '@nestjs/common'
+import { CACHE_MANAGER } from '@nestjs/cache-manager'
+import { Cache } from 'cache-manager'
+import { PrismaService } from '../prisma/prisma.service'
 
-### 7.1 Dockerfile multi-stage
+export interface Family {
+  id: string
+  name: string
+  memberCount: number
+}
 
-```dockerfile
-# === Etape 1 : Build ===
-FROM node:20-alpine AS builder
+// Constantes nommées — évite d'écrire 300 quand on veut 300 000 ms
+const FAMILIES_ALL_KEY = 'families:all'
+const FAMILY_TTL_MS    = 300_000  // 5 minutes
 
-# Repertoire de travail dans le conteneur
-WORKDIR /app
+@Injectable()
+export class FamilyService {
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(CACHE_MANAGER) private readonly cache: Cache,
+  ) {}
 
-# Copier les fichiers de dependances
-COPY package*.json ./
-COPY prisma ./prisma/
+  async findAll(): Promise<Family[]> {
+    // 1. Cache-aside — chercher en cache avant Prisma
+    const cached = await this.cache.get<Family[]>(FAMILIES_ALL_KEY)
+    if (cached) return cached  // < 1 ms — Prisma non sollicité
 
-# Installer les dependances (y compris devDependencies pour le build)
-RUN npm ci
+    // 2. Cache miss — interroger la DB (100-200 ms en prod)
+    const families = await this.prisma.family.findMany({
+      select: { id: true, name: true, memberCount: true },
+    })
 
-# Copier le code source
-COPY . .
+    // 3. Stocker pour les prochains appelants
+    await this.cache.set(FAMILIES_ALL_KEY, families, FAMILY_TTL_MS)
+    return families
+  }
 
-# Build de l'application
-RUN npm run build
+  async findOne(id: string): Promise<Family | null> {
+    const key = `family:${id}`
+    const cached = await this.cache.get<Family>(key)
+    if (cached) return cached
 
-# Generer le client Prisma
-RUN npx prisma generate
+    const family = await this.prisma.family.findUnique({ where: { id } })
+    if (family) await this.cache.set(key, family, FAMILY_TTL_MS)
+    return family
+  }
 
-# === Etape 2 : Production ===
-FROM node:20-alpine AS runner
+  async update(id: string, data: Partial<Family>): Promise<Family> {
+    const updated = await this.prisma.family.update({ where: { id }, data })
 
-# Creer un utilisateur non-root pour la securite
-RUN addgroup --system --gid 1001 nestjs
-RUN adduser --system --uid 1001 nestjs
+    // Invalider les deux clés stales — l'ordre n'a pas d'importance
+    await this.cache.del(FAMILIES_ALL_KEY)
+    await this.cache.del(`family:${id}`)
 
-WORKDIR /app
-
-# Copier seulement les fichiers necessaires depuis le builder
-COPY --from=builder /app/package*.json ./
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/prisma ./prisma
-
-# Changer le proprietaire des fichiers
-RUN chown -R nestjs:nestjs /app
-
-# Utiliser l'utilisateur non-root
-USER nestjs
-
-# Exposer le port
-EXPOSE 3000
-
-# Variables d'environnement par defaut
-ENV NODE_ENV=production
-ENV PORT=3000
-
-# Commande de demarrage
-CMD ["node", "dist/main.js"]
+    return updated
+  }
+}
 ```
 
-### 7.2 .dockerignore
-
-```
-node_modules
-dist
-.git
-.github
-.env
-.env.*
-*.md
-coverage
-test
-.vscode
-.idea
-docker-compose*.yml
-Dockerfile
-.dockerignore
-```
-
-### 7.3 Docker Compose
-
-```yaml
-# docker-compose.yml
-version: "3.8"
-
-services:
-  # Application NestJS
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    ports:
-      - "3000:3000"
-    environment:
-      - NODE_ENV=production
-      - PORT=3000
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_USERNAME=postgres
-      - DB_PASSWORD=secretPassword
-      - DB_DATABASE=nest_course
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - JWT_ACCESS_SECRET=monSuperSecretAccess
-      - JWT_REFRESH_SECRET=monSuperSecretRefresh
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    restart: unless-stopped
-    healthcheck:
-      test:
-        ["CMD", "wget", "-q", "--spider", "http://localhost:3000/health/live"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-
-  # Base de donnees PostgreSQL
-  postgres:
-    image: postgres:17-alpine
-    ports:
-      - "5432:5432"
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=secretPassword
-      - POSTGRES_DB=nest_course
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-
-  # Redis (cache et queues)
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-
-volumes:
-  postgres_data:
-  redis_data:
-```
-
-```bash
-# Lancer l'ensemble
-docker compose up -d
-
-# Voir les logs
-docker compose logs -f app
-
-# Arreter
-docker compose down
-
-# Reconstruire apres des changements
-docker compose up -d --build app
-```
-
----
-
-## 8. PM2 — Process Manager
-
-PM2 est un gestionnaire de processus pour Node.js en production.
-
-```bash
-npm install -g pm2
-```
-
-```typescript
-// ecosystem.config.js
-module.exports = {
-  apps: [
-    {
-      name: "nest-api",
-      script: "dist/main.js",
-      instances: "max", // Utilise tous les CPU disponibles
-      exec_mode: "cluster", // Mode cluster pour le multi-threading
-      autorestart: true, // Redemarre en cas de crash
-      watch: false, // Pas de watch en production
-      max_memory_restart: "1G", // Redemarre si >1 Go de RAM
-      env: {
-        NODE_ENV: "production",
-        PORT: 3000,
-      },
-      // Gestion des logs
-      log_date_format: "YYYY-MM-DD HH:mm:ss",
-      error_file: "/var/log/nest-api/error.log",
-      out_file: "/var/log/nest-api/out.log",
-      merge_logs: true,
-      // Graceful shutdown
-      kill_timeout: 10000, // 10s pour s'arreter proprement
-      listen_timeout: 10000,
-    },
-  ],
-};
-```
-
-```bash
-# Demarrer
-pm2 start ecosystem.config.js
-
-# Voir le statut
-pm2 status
-
-# Voir les logs
-pm2 logs nest-api
-
-# Monitoring en temps reel
-pm2 monit
-
-# Redemarrage sans downtime (zero-downtime reload)
-pm2 reload nest-api
-
-# Arreter
-pm2 stop nest-api
-
-# Sauvegarder la configuration pour le demarrage auto
-pm2 save
-pm2 startup
-```
-
----
-
-## 9. Logging structure
-
-### 9.1 Intégration avec Pino (recommande)
-
-```bash
-npm install nestjs-pino pino-http pino pino-pretty
-```
-
-```typescript
-// app.module.ts
-import { Module } from "@nestjs/common";
-import { LoggerModule } from "nestjs-pino";
+```ts
+// src/app.module.ts (extrait cache — configuration complète)
+import { Module } from '@nestjs/common'
+import { CacheModule } from '@nestjs/cache-manager'
+import { ConfigModule, ConfigService } from '@nestjs/config'
+import Keyv from 'keyv'
+import { CacheableMemory } from 'cacheable'
+import KeyvRedis from '@keyv/redis'
 
 @Module({
   imports: [
-    LoggerModule.forRoot({
-      pinoHttp: {
-        level: process.env.NODE_ENV === "production" ? "info" : "debug",
-        transport:
-          process.env.NODE_ENV !== "production"
-            ? {
-                target: "pino-pretty",
-                options: {
-                  colorize: true,
-                  singleLine: true,
-                  translateTime: "SYS:standard",
-                },
-              }
-            : undefined, // JSON en production
-        // Masquer les donnees sensibles
-        redact: {
-          paths: ["req.headers.authorization", "req.body.motDePasse"],
-          remove: true,
-        },
+    ConfigModule.forRoot({ isGlobal: true }),
+    CacheModule.registerAsync({
+      isGlobal: true,
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => {
+        if (config.get('NODE_ENV') === 'production') {
+          return {
+            stores: [
+              new KeyvRedis(config.get<string>('REDIS_URL', 'redis://localhost:6379')),
+            ],
+          }
+        }
+        // Dev — mémoire LRU, TTL 60 s, 5 000 entrées max
+        return {
+          stores: [
+            new Keyv({ store: new CacheableMemory({ ttl: 60_000, lruSize: 5000 }) }),
+          ],
+        }
       },
     }),
+    // ...autres modules
   ],
 })
 export class AppModule {}
 ```
 
-```typescript
-// main.ts
-import { Logger } from "nestjs-pino";
+**Pas-à-pas :** (1) `isGlobal: true` — `CACHE_MANAGER` injectable dans toute l'app sans réimporter `CacheModule` dans chaque module ; (2) `useFactory` retourne un store différent selon `NODE_ENV` — même code applicatif en dev et prod, seul le backend change ; (3) `cache.get<Family[]>(key)` — le générique type le retour, `undefined` si miss (pas `null`) ; (4) `cache.del()` après `update` — invalidation manuelle ; le prochain `findAll()` reconstruira depuis Prisma puis remettra en cache ; (5) TTL en ms — la constante `FAMILY_TTL_MS = 300_000` rend l'intention claire et empêche l'erreur `300` (300 ms) au lieu de `300_000` (5 min).
 
-async function bootstrap() {
-  const app = await NestFactory.create(AppModule, {
-    bufferLogs: true,
-  });
-  app.useLogger(app.get(Logger));
-  // ...
+### Exemple B — Dockerfile multi-stage + HealthController
+
+```dockerfile
+# Dockerfile — TribuZen API
+# Image finale < 200 MB (vs ~900 MB sans multi-stage)
+
+# ── Stage 1 : builder ─────────────────────────────────────────
+FROM node:20-alpine AS builder
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci
+
+COPY . .
+RUN npm run build          # produit dist/main.js
+
+# ── Stage 2 : runner ──────────────────────────────────────────
+FROM node:20-alpine AS runner
+
+RUN addgroup --system --gid 1001 nestjs \
+ && adduser  --system --uid 1001 --ingroup nestjs nestjs
+
+WORKDIR /app
+
+COPY --from=builder /app/dist          ./dist
+COPY --from=builder /app/package*.json ./
+RUN npm ci --omit=dev                  # devDeps exclues de l'image finale
+
+RUN chown -R nestjs:nestjs /app
+USER nestjs
+
+ENV NODE_ENV=production
+EXPOSE 3000
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+  CMD wget -qO- http://localhost:3000/health/live || exit 1
+
+CMD ["node", "dist/main.js"]
+```
+
+```ts
+// src/health/health.controller.ts
+import { Controller, Get } from '@nestjs/common'
+import {
+  HealthCheck,
+  HealthCheckService,
+  MemoryHealthIndicator,
+} from '@nestjs/terminus'
+
+@Controller('health')
+export class HealthController {
+  constructor(
+    private readonly health: HealthCheckService,
+    private readonly memory: MemoryHealthIndicator,
+  ) {}
+
+  // Liveness — K8s redémarre le pod si ce check échoue
+  @Get('live')
+  @HealthCheck()
+  liveness() {
+    return this.health.check([])  // process vivant = 200
+  }
+
+  // Readiness — K8s bloque le trafic vers ce pod si check échoue
+  @Get('ready')
+  @HealthCheck()
+  readiness() {
+    return this.health.check([
+      () => this.memory.checkHeap('memory_heap', 512 * 1024 * 1024),
+    ])
+  }
 }
 ```
 
----
+```ts
+// src/health/health.module.ts
+import { Module } from '@nestjs/common'
+import { TerminusModule } from '@nestjs/terminus'
+import { HealthController } from './health.controller'
 
-## 10. Checklist de déploiement production
+@Module({
+  imports: [
+    TerminusModule.forRoot({ gracefulShutdownTimeoutMs: 3000 }),
+  ],
+  controllers: [HealthController],
+})
+export class HealthModule {}
+```
 
-| Étape                     | Fait ? | Details                                    |
-| ------------------------- | ------ | ------------------------------------------ |
-| `synchronize: false`      |        | Utiliser les migrations                    |
-| Variables d'environnement |        | Pas de secrets en dur                      |
-| Validation .env (Joi)     |        | Erreur au démarrage si manquant            |
-| CORS configure            |        | Origines spécifiques, pas `*`              |
-| Rate limiting actif       |        | `@nestjs/throttler`                        |
-| Helmet actif              |        | Headers de sécurité                        |
-| Compression               |        | Gzip via Nginx ou app                      |
-| Health checks             |        | `/health`, `/health/live`, `/health/ready` |
-| Logging structure         |        | Pino ou Winston, JSON en prod              |
-| Graceful shutdown         |        | `enableShutdownHooks()`                    |
-| Docker multi-stage        |        | Image legere, user non-root                |
-| PM2 cluster mode          |        | Utiliser tous les CPU                      |
-| Monitoring                |        | Metriques, alertes                         |
-| Sauvegarde DB             |        | Backup automatique quotidien               |
-| HTTPS                     |        | Certificat SSL via reverse proxy           |
-| CI/CD                     |        | Tests automatiques avant déploiement       |
+```bash
+# Construire l'image et tester localement
+docker build -t tribuzen-api .
+docker run -d -p 3000:3000 --name tz tribuzen-api
 
----
+curl http://localhost:3000/health/live
+# {"status":"ok","info":{},"error":{},"details":{}}
 
-## 11. Exercices pratiques
+curl http://localhost:3000/health/ready
+# {"status":"ok","info":{"memory_heap":{"status":"up"}},...}
 
-### Exercice 1 : Cache Redis
+docker image ls tribuzen-api
+# REPOSITORY      TAG     SIZE
+# tribuzen-api    latest  ~180MB
 
-Implementez un cache Redis pour :
+docker stop tz
+# → logs NestJS : "Application shutdown"
+```
 
-1. La liste des produits (TTL 5 min)
-2. Les details d'un produit (TTL 10 min)
-3. Invalidation automatique du cache lors des modifications
+**Pas-à-pas :** (1) `AS builder` embarque TypeScript, `tsconfig.json`, `devDependencies` — le stage `runner` ne les voit jamais ; (2) `npm ci --omit=dev` dans le runner installe seulement les prod deps — `node_modules` passe de ~600 MB à ~200 MB ; (3) `USER nestjs` — si une dépendance est compromise, l'attaquant n'a pas les droits root sur le container ; (4) `HEALTHCHECK` dans le Dockerfile est utilisé par Docker Compose ; en K8s, on configure `livenessProbe`/`readinessProbe` dans le manifest YAML en pointant les mêmes URLs ; (5) `TerminusModule.forRoot({ gracefulShutdownTimeoutMs: 3000 })` + `app.enableShutdownHooks()` — les deux sont nécessaires pour le shutdown propre : Terminus gère le délai, NestJS écoute le signal.
 
-### Exercice 2 : Docker Compose
+## 4. Pièges & misconceptions
 
-Creez un `docker-compose.yml` complet avec :
+- **TTL en ms dans cache-manager v3.** `cache.set(key, value, 300)` met en cache 300 ms, pas 5 min. En v3, le TTL est toujours en millisecondes. La migration de v2 vers v3 a changé l'unité sans changer le type — le bug compile et passe en prod silencieusement. Écrire `300_000` ou une constante nommée `5 * 60 * 1000`.
 
-1. Application NestJS (Dockerfile multi-stage)
-2. PostgreSQL
-3. Redis
-4. Health checks sur les trois services
-5. Volumes persistants
+- **`CacheModule` non global.** Sans `isGlobal: true`, chaque module qui veut injecter `CACHE_MANAGER` doit importer `CacheModule`. L'erreur `Nest can't resolve dependencies of FamilyService (?, PrismaService)` indique souvent un oubli d'import ou l'absence de `isGlobal`.
 
-### Exercice 3 : Monitoring
+- **`CacheInterceptor` cache l'URL entière.** `GET /families?page=1` et `GET /families?page=2` sont deux clés distinctes — chacune cachée séparément, ce qui est correct. Mais `CacheInterceptor` ne s'applique qu'aux requêtes GET. Les routes POST/PATCH/DELETE ne sont jamais cachées automatiquement.
 
-Configurez :
+- **Oublier `USER nestjs` dans le Dockerfile.** Sans cette ligne, le process NestJS tourne en `root` dans le container. Si une dépendance est compromise, l'attaquant dispose d'un shell root — potentiellement exploitable pour s'échapper vers l'hôte. `adduser` + `USER` représente une ligne de sécurité peu coûteuse.
 
-1. Health checks avec Terminus (DB, Redis, mémoire, disque)
-2. Logging structure avec Pino
-3. Rate limiting global et personnalise sur les routes sensibles
+- **`enableShutdownHooks()` absent.** Sans cette ligne, `SIGTERM` tue le process instantanément. Toutes les requêtes en vol retournent une connexion coupée. En K8s, chaque rolling deploy provoque des erreurs visibles par les utilisateurs. `enableShutdownHooks()` est requis même si `TerminusModule.forRoot({ gracefulShutdownTimeoutMs })` est configuré — les deux jouent des rôles différents.
 
----
+- **Health check protégé par auth.** Si `/health/*` passe par un guard JWT global, l'orchestrateur reçoit 401 et considère le pod en erreur — il le redémarre en boucle. Exclure `/health/*` du guard global (whitelist ou `@SkipGuard()` sur le controller).
 
-## Bonus — Performance et observabilite BFF
+- **Compression en double.** Activer `compression()` dans NestJS ET `gzip on` dans Nginx compresse deux fois — CPU gaspillé, en-têtes parfois incohérents. Choisir un seul niveau : Nginx en prod (recommandé), NestJS en dev ou quand il n'y a pas de proxy.
 
-Un BFF est souvent sensible a la latence car il orchestre plusieurs upstreams par requete frontend. Il faut donc piloter explicitement budget de latence, cache et degradation.
+## 5. Ancrage TribuZen
 
-### 1) Budget de latence BFF
+Couche fil-rouge : **dockeriser et durcir pour la prod l'API TribuZen (cache, health check, graceful shutdown)** (`smaurier/tribuzen`).
 
-Exemple de cible simple :
+- `FamilyService` met en cache `GET /families` (TTL 5 min) — la liste des familles change rarement. Chaque `PATCH /families/:id` invalide `families:all` et `family:${id}`. Sur un profil de charge réel (100 req/s), le taux de hit Redis devrait dépasser 95 %.
 
-- p95 endpoint BFF critique < 300ms
-- timeout upstream individuel <= 800ms
-- au moins un mode degrade pour les widgets non critiques
+- `HealthModule` expose `/health/live` (liveness) et `/health/ready` (readiness). Le manifest K8s de l'API configure `livenessProbe` et `readinessProbe` sur ces endpoints — le pod n'accepte pas de trafic tant que la mémoire heap n'est pas sous le seuil.
 
-### 2) Cache adapte au BFF
+- `PrismaService.onApplicationShutdown()` appelle `$disconnect()` — la connexion PostgreSQL est fermée proprement lors d'un redeploy, sans attendre le timeout TCP (60 s par défaut sur PostgreSQL).
 
-| Donnee                    | Strategie                            |
-| ------------------------- | ------------------------------------ |
-| Catalogue / referentiels  | TTL court-moyen (30-120s)            |
-| Profil utilisateur        | Cache prudent par utilisateur        |
-| Donnees transactionnelles | Peu/pas de cache, priorite fraicheur |
+- Le Dockerfile multi-stage produit une image ~ 180 MB (vs ~ 900 MB sans multi-stage). Dans le pipeline CI/CD avec GitHub Container Registry, le pull time lors d'un scale-up passe de 40 s à < 10 s.
 
-### 3) Trace de bout en bout
+- `TerminusModule.forRoot({ gracefulShutdownTimeoutMs: 3000 })` laisse 3 s à l'ingress Render.com pour rediriger le trafic — zéro 502 visible par les utilisateurs lors des deploys.
 
-Propager un `correlationId` depuis Angular jusqu'aux upstreams pour relier logs BFF + logs services backend lors d'un incident.
+Structure cible dans `smaurier/tribuzen` :
 
-### 4) Checklist BFF production-ready
+```
+apps/api/
+  Dockerfile                         ← multi-stage builder/runner, USER nestjs
+  .dockerignore
+  src/
+    health/
+      health.controller.ts           ← GET /health/live, /health/ready
+      health.module.ts               ← TerminusModule.forRoot + gracefulShutdown
+    prisma/
+      prisma.service.ts              ← OnApplicationShutdown → $disconnect()
+    family/
+      family.service.ts              ← CACHE_MANAGER injecté, pattern cache-aside
+    app.module.ts                    ← CacheModule.registerAsync isGlobal
+    main.ts                          ← enableShutdownHooks()
+```
 
-1. Timeouts explicites sur tous les appels sortants.
-2. Retry uniquement sur operations idempotentes.
-3. Fallback documente par endpoint BFF critique.
-4. Metriques par route BFF: latence, erreurs, taux de fallback.
-5. Alerting minimal sur p95 et taux d'erreur.
+## 6. Points clés
 
-> **A retenir BFF** : La performance BFF n'est pas seulement "optimiser Node.js". C'est surtout maitriser l'orchestration reseau, les timeouts et les degradations pour proteger l'experience frontend.
+1. `@nestjs/cache-manager` v3 — TTL en **millisecondes**. `300_000` = 5 min. Écrire `300` cache 300 ms — bug silencieux.
+2. `CacheModule.register({ isGlobal: true })` dans `AppModule` — une seule fois, `CACHE_MANAGER` injectable partout sans réimporter le module.
+3. Pattern cache-aside — `get` → si `undefined`, requête DB → `set` ; invalider avec `del` sur mutation. Ne jamais laisser de données stales sans TTL.
+4. Dockerfile multi-stage — `AS builder` compile, `AS runner` copie seulement `dist` + prod deps. Image divisée par 4-5, pull 4× plus rapide.
+5. `USER nestjs` dans le Dockerfile — non-root, une ligne de sécurité dont le coût est nul.
+6. `app.enableShutdownHooks()` + `TerminusModule.forRoot({ gracefulShutdownTimeoutMs })` — les deux sont nécessaires pour un shutdown sans 502 : NestJS écoute le signal, Terminus gère le délai.
+7. Deux endpoints health — `/health/live` (liveness, toujours 200 si le process tourne) et `/health/ready` (readiness, vérifie les dépendances).
+8. Exclure `/health/*` des guards JWT — un health check protégé par auth fait crasher l'orchestrateur en boucle de redémarrage.
 
----
+## 7. Seeds Anki
 
-## Liens
+```
+Quelle est l'unité du TTL dans @nestjs/cache-manager v3 ?|Millisecondes — cache.set(key, value, 300_000) = 5 minutes. Écrire 300 = 300 ms (bug silencieux de migration v2 vers v3)
+À quoi sert isGlobal: true dans CacheModule.register() ?|Rend CACHE_MANAGER injectable dans tous les modules sans réimporter CacheModule dans chaque module
+Différence /health/live vs /health/ready pour K8s ?|live = liveness — process tourne (K8s redémarre le pod si échoue) ; ready = readiness — dépendances prêtes (K8s bloque le trafic si échoue)
+Pourquoi enableShutdownHooks() est-il nécessaire même avec TerminusModule.forRoot({ gracefulShutdownTimeoutMs }) ?|Ils jouent des rôles différents — enableShutdownHooks() fait écouter NestJS le signal SIGTERM/SIGINT ; gracefulShutdownTimeoutMs ajoute un délai avant l'arrêt effectif. Sans enableShutdownHooks(), SIGTERM tue le process immédiatement.
+Pourquoi USER nestjs dans le Dockerfile NestJS ?|Évite de tourner en root dans le container — si l'app est compromise, l'attaquant n'a pas de droits root sur le container
+À quoi sert le stage builder vs runner dans un Dockerfile multi-stage ?|builder installe devDependencies et compile TypeScript ; runner copie seulement dist + prod deps — l'image finale n'embarque ni TypeScript ni devDependencies
+Comment invalider le cache après une mutation en cache-aside ?|Appeler cache.del(key) sur toutes les clés dépendantes après la mise à jour — par exemple del('families:all') et del('family:id') après PATCH /families/:id
+Pourquoi exclure /health/* des guards JWT globaux ?|L'orchestrateur interroge ces endpoints sans token — s'il reçoit 401 il considère le pod en erreur et le redémarre en boucle
+```
 
-| Ressource                     | Lien                                                                        |
-| ----------------------------- | --------------------------------------------------------------------------- |
-| Quiz Module 23                | `quiz/23-quiz.md`                                                           |
-| Lab Module 23                 | `labs/23-lab-performance-deploiement.md`                                    |
-| Screencast                    | `screencasts/23-screencast.md`                                              |
-| Module précédent              | [Module 22 — Taches planifiees & Files d'attente](22-nestjs-jobs-queues.md) |
-| Module suivant                | [Module 24 — Projet Final](24-projet-final.md)                              |
-| NestJS Caching                | https://docs.nestjs.com/techniques/caching                                  |
-| NestJS Rate Limiting          | https://docs.nestjs.com/security/rate-limiting                              |
-| NestJS Health Checks          | https://docs.nestjs.com/recipes/terminus                                    |
-| Docker Node.js Best Practices | https://github.com/nodejs/docker-node/blob/main/docs/BestPractices.md       |
-| PM2 Documentation             | https://pm2.keymetrics.io/docs/                                             |
+## Pont vers le lab
 
----
-
-<!-- parcours-recommande -->
-
-::: tip Parcours recommandé
-
-1. **Screencast** : [screencast 23 performance](../screencasts/screencast-23-performance.md)
-2. **Lab** : [lab-23-docker-deploy](../labs/lab-23-docker-deploy/README)
-3. **Quiz** : [quiz 23 performance](../quizzes/quiz-23-performance.html)
-   :::
+> Lab associé : `09-nestjs/labs/lab-23-docker-deploy/README.md`. Tu y construis un Dockerfile multi-stage réel pour l'API TribuZen, configures le health check avec Terminus, testes le graceful shutdown et mesures le poids de l'image avant/après multi-stage.

@@ -1,948 +1,567 @@
-# Module 22 — NestJS — Taches planifiees & Files d'attente
-
-> **Objectif** : Implementer des taches planifiees (cron jobs) avec @nestjs/schedule et des files d'attente (queues) avec Bull/BullMQ pour traiter des operations longues de manière asynchrone.
-> **Difficulte** : ⭐⭐⭐⭐ (avance+)
-> **Prérequis** : Module 11 (Services), Module 12 (Modules), Redis installe
-> **Duree estimee** : 5 heures
-
+---
+titre: NestJS jobs et queues
+cours: 09-nestjs
+notions: [traitement en arrière-plan, files d'attente avec BullMQ et Redis, producteur et processor, options de job retries et backoff, tâches planifiées avec le module schedule, décorateur Cron, workers, monitoring des jobs]
+outcomes: [mettre un travail lourd en file avec BullMQ, écrire un processor, configurer retries et backoff, planifier une tâche récurrente avec Cron]
+prerequis: [21-nestjs-websockets-fichiers]
+next: 23-nestjs-performance-deploiement
+libs: [{ name: "@nestjs/bullmq", version: "^11" }, { name: bullmq, version: "^5" }, { name: "@nestjs/schedule", version: "^6" }]
+tribuzen: jobs TribuZen (envoi async des emails d'invitation, génération de la gazette hebdomadaire)
+last-reviewed: 2026-07
 ---
 
-## 1. Introduction — Pourquoi les taches asynchrones ?
+# NestJS jobs et queues
 
-### 1.1 Le problème
+> **Outcomes — tu sauras FAIRE :** mettre un travail lourd en file d'attente BullMQ, écrire un processor avec `WorkerHost`, configurer retries et backoff exponentiel, planifier une tâche récurrente avec le décorateur `@Cron`.
+> **Difficulté :** :star::star::star::star:
 
-Certaines operations sont trop longues pour etre executees dans le cycle requête-réponse HTTP :
+## 1. Cas concret d'abord
 
-- Envoi d'emails (1-5 secondes)
-- Génération de rapports PDF (10-30 secondes)
-- Redimensionnement d'images (2-10 secondes)
-- Import de fichiers CSV (minutes)
-- Nettoyage de donnees (variable)
+TribuZen doit envoyer un email d'invitation dès qu'un membre en ajoute un autre à sa famille. Première tentative dans le controller :
 
-Si vous executez ces operations directement dans un endpoint, l'utilisateur attend... et attend... et risque un timeout.
-
-> **Analogie** : Imaginez un restaurant. Le serveur (votre API) prend la commande et la transmet à la cuisine (la queue). Il ne reste pas plante devant le four a attendre que le plat soit pret. Il revient a sa table (réponse HTTP) et la cuisine le previent quand c'est fini (événement).
-
-### 1.2 Deux approches complementaires
-
-| Approche                     | Utilite                                  | Exemple                                   |
-| ---------------------------- | ---------------------------------------- | ----------------------------------------- |
-| **Taches planifiees** (Cron) | Exécuter une tache a intervalle regulier | Nettoyage quotidien, rapport hebdomadaire |
-| **Files d'attente** (Queue)  | Traiter une tache quand elle arrive      | Envoi d'email, génération PDF             |
-
----
-
-## 2. Taches planifiees avec @nestjs/schedule
-
-### 2.1 Installation
-
-```bash
-npm install @nestjs/schedule
+```ts
+// ❌ naïf — email synchrone dans le handler HTTP
+@Post('invite')
+async invite(@Body() dto: InviteDto) {
+  await this.mailer.sendInviteMail(dto.email)   // 2-5 secondes bloquantes
+  return { ok: true }                            // l'utilisateur attend tout ce temps
+}
 ```
 
-### 2.2 Configuration
+Problème réel : l'envoi SMTP prend 2-5 s. Sur mobile 3G, l'utilisateur voit un loader, puis un timeout. Si le serveur mail est temporairement down, la requête échoue avec 500 — l'invitation est perdue définitivement.
 
-```typescript
+Le même problème se répète chaque lundi matin : TribuZen doit générer la gazette hebdomadaire (agrège les événements de la semaine, formate un email, l'envoie à toutes les familles). Ce travail ne vit pas dans un endpoint — personne ne l'appelle manuellement.
+
+Deux solutions complémentaires dans NestJS :
+
+| Besoin | Outil | Cas TribuZen |
+|--------|-------|--------------|
+| Travail déclenché par une action utilisateur | BullMQ — file d'attente Redis | Envoi d'email d'invitation |
+| Travail déclenché par l'horloge | `@nestjs/schedule` — décorateur `@Cron` | Gazette hebdomadaire |
+
+Ce module couvre les deux : BullMQ (producteur, processor `WorkerHost`, retries) et `@nestjs/schedule` (`@Cron`, `@Interval`).
+
+## 2. Théorie complète, concise
+
+### 2.1 BullMQ — architecture
+
+BullMQ est une file d'attente persistée dans Redis. Trois acteurs :
+
+| Acteur | Rôle | Classe NestJS |
+|--------|------|---------------|
+| Queue | Reçoit et stocke les jobs | injectée via `@InjectQueue()` |
+| Worker (Processor) | Dépile et traite les jobs | `WorkerHost` + `@Processor()` |
+| Redis | Persistance — jobs survivent au redémarrage | externe, lancé via Docker |
+
+Cycle de vie d'un job :
+
+```
+add() → WAITING → ACTIVE → COMPLETED
+                         ↘ FAILED → (WAITING si attempts restants)
+```
+
+Si le worker crash pendant `ACTIVE`, BullMQ replace le job en `WAITING` — aucune perte.
+
+### 2.2 Installation et configuration
+
+```bash
+pnpm add @nestjs/bullmq bullmq
+```
+
+Configurer la connexion Redis une seule fois dans `AppModule` :
+
+```ts
 // app.module.ts
-import { Module } from "@nestjs/common";
-import { ScheduleModule } from "@nestjs/schedule";
-import { TasksModule } from "./tasks/tasks.module";
+import { Module } from '@nestjs/common'
+import { BullModule } from '@nestjs/bullmq'
+import { ConfigModule, ConfigService } from '@nestjs/config'
+import { InvitationModule } from './invitation/invitation.module'
 
 @Module({
   imports: [
-    ScheduleModule.forRoot(), // Active le systeme de planification
-    TasksModule,
-  ],
-})
-export class AppModule {}
-```
-
-### 2.3 Le decorateur @Cron
-
-```typescript
-// tasks/tasks.service.ts
-import { Injectable, Logger } from "@nestjs/common";
-import { Cron, CronExpression, Interval, Timeout } from "@nestjs/schedule";
-
-@Injectable()
-export class TasksService {
-  private readonly logger = new Logger("TasksService");
-
-  // === @Cron — Expression cron ===
-
-  // Chaque jour a minuit
-  @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
-  async handleDailyCleanup() {
-    this.logger.log("Nettoyage quotidien des sessions expirees");
-    // Logique de nettoyage...
-  }
-
-  // Chaque lundi a 8h00
-  @Cron(CronExpression.EVERY_WEEK)
-  async handleWeeklyReport() {
-    this.logger.log("Generation du rapport hebdomadaire");
-    // Logique de rapport...
-  }
-
-  // Expression cron personnalisee : chaque jour a 2h30 du matin
-  @Cron("30 2 * * *")
-  async handleDatabaseBackup() {
-    this.logger.log("Sauvegarde de la base de donnees");
-    // Logique de backup...
-  }
-
-  // Toutes les 5 minutes (du lundi au vendredi)
-  @Cron("*/5 * * * 1-5")
-  async handleHealthCheck() {
-    this.logger.log("Verification de sante des services externes");
-    // Logique de health check...
-  }
-
-  // Le premier jour de chaque mois a 6h00
-  @Cron("0 6 1 * *")
-  async handleMonthlyInvoice() {
-    this.logger.log("Generation des factures mensuelles");
-    // Logique de facturation...
-  }
-}
-```
-
-### 2.4 Syntaxe des expressions cron
-
-```
-┌───────── seconde (optionnel, 0-59)
-│ ┌─────── minute (0-59)
-│ │ ┌───── heure (0-23)
-│ │ │ ┌─── jour du mois (1-31)
-│ │ │ │ ┌── mois (1-12)
-│ │ │ │ │ ┌ jour de la semaine (0-7, 0 et 7 = dimanche)
-│ │ │ │ │ │
-* * * * * *
-```
-
-| Expression     | Description                    |
-| -------------- | ------------------------------ |
-| `* * * * *`    | Chaque minute                  |
-| `*/5 * * * *`  | Toutes les 5 minutes           |
-| `0 * * * *`    | Chaque heure (à la minute 0)   |
-| `0 0 * * *`    | Chaque jour a minuit           |
-| `0 8 * * 1-5`  | Du lundi au vendredi a 8h00    |
-| `0 0 1 * *`    | Le 1er de chaque mois a minuit |
-| `0 6,18 * * *` | A 6h et 18h chaque jour        |
-| `30 2 * * *`   | Chaque jour a 2h30             |
-
-### 2.5 CronExpression — Constantes predefinies
-
-```typescript
-import { CronExpression } from "@nestjs/schedule";
-
-CronExpression.EVERY_SECOND; // * * * * * *
-CronExpression.EVERY_5_SECONDS; // */5 * * * * *
-CronExpression.EVERY_10_SECONDS; // */10 * * * * *
-CronExpression.EVERY_30_SECONDS; // */30 * * * * *
-CronExpression.EVERY_MINUTE; // */1 * * * *
-CronExpression.EVERY_5_MINUTES; // 0 */5 * * * *
-CronExpression.EVERY_10_MINUTES; // 0 */10 * * * *
-CronExpression.EVERY_30_MINUTES; // 0 */30 * * * *
-CronExpression.EVERY_HOUR; // 0 0 * * * *
-CronExpression.EVERY_DAY_AT_MIDNIGHT; // 0 0 0 * * *
-CronExpression.EVERY_DAY_AT_1AM; // 0 0 1 * * *
-CronExpression.EVERY_WEEK; // 0 0 0 * * 0
-CronExpression.EVERY_1ST_DAY_OF_MONTH_AT_MIDNIGHT; // 0 0 0 1 * *
-CronExpression.EVERY_QUARTER; // 0 0 0 1 */3 *
-```
-
-### 2.6 @Interval et @Timeout
-
-```typescript
-@Injectable()
-export class TasksService {
-  // Executer toutes les 30 secondes (en millisecondes)
-  @Interval(30000)
-  handleInterval() {
-    this.logger.log("Tache executee toutes les 30 secondes");
-  }
-
-  // Nommer l'intervalle pour pouvoir l'arreter
-  @Interval("metricsCollection", 60000)
-  handleMetrics() {
-    this.logger.log("Collecte des metriques");
-  }
-
-  // Executer UNE SEULE FOIS apres un delai (en millisecondes)
-  @Timeout(5000)
-  handleTimeout() {
-    this.logger.log("Execute une seule fois, 5 secondes apres le demarrage");
-  }
-
-  // Timeout nomme
-  @Timeout("warmup", 10000)
-  handleWarmup() {
-    this.logger.log("Prechauffage du cache au demarrage");
-  }
-}
-```
-
-### 2.7 Controle dynamique des taches
-
-```typescript
-import { Injectable } from "@nestjs/common";
-import { SchedulerRegistry } from "@nestjs/schedule";
-import { CronJob } from "cron";
-
-@Injectable()
-export class TasksService {
-  constructor(private readonly schedulerRegistry: SchedulerRegistry) {}
-
-  // Ajouter un cron job dynamiquement
-  addCronJob(name: string, cronExpression: string) {
-    const job = new CronJob(cronExpression, () => {
-      this.logger.log(`Tache dynamique "${name}" executee`);
-    });
-
-    this.schedulerRegistry.addCronJob(name, job);
-    job.start();
-  }
-
-  // Arreter un cron job
-  stopCronJob(name: string) {
-    const job = this.schedulerRegistry.getCronJob(name);
-    job.stop();
-    this.logger.log(`Tache "${name}" arretee`);
-  }
-
-  // Supprimer un cron job
-  deleteCronJob(name: string) {
-    this.schedulerRegistry.deleteCronJob(name);
-  }
-
-  // Lister tous les cron jobs
-  listCronJobs() {
-    const jobs = this.schedulerRegistry.getCronJobs();
-    const jobList: string[] = [];
-    jobs.forEach((value, key) => {
-      const nextDate = value.nextDate();
-      jobList.push(`${key} → prochaine execution : ${nextDate}`);
-    });
-    return jobList;
-  }
-
-  // Arreter un intervalle
-  stopInterval(name: string) {
-    const interval = this.schedulerRegistry.getInterval(name);
-    clearInterval(interval);
-    this.schedulerRegistry.deleteInterval(name);
-  }
-}
-```
-
----
-
-## 3. Files d'attente avec Bull / BullMQ
-
-### 3.1 Qu'est-ce que Bull ?
-
-**Bull** (et sa version modernisee **BullMQ**) est une bibliotheque de files d'attente robuste pour Node.js, basee sur Redis.
-
-> **Analogie** : Une file d'attente c'est comme la file à la poste. Chaque client (job) arrive avec sa demandé, prend un ticket, et attend son tour. Les guichetiers (workers) traitent les demandes dans l'ordre. Si un guichetier tombe malade (crash), le client est remis dans la file.
-
-### 3.2 Installation
-
-```bash
-# Option 1 : Bull (stable, largement utilise)
-npm install @nestjs/bull bull
-npm install --save-dev @types/bull
-
-# Option 2 : BullMQ (version moderne, recommandee pour les nouveaux projets)
-npm install @nestjs/bullmq bullmq
-```
-
-Prérequis : **Redis** doit etre installe et accessible.
-
-```bash
-# Installation locale de Redis
-# macOS : brew install redis
-# Linux : sudo apt install redis-server
-# Windows : utiliser Docker
-docker run -d --name redis -p 6379:6379 redis
-```
-
-### 3.3 Configuration avec @nestjs/bull
-
-```typescript
-// app.module.ts
-import { Module } from "@nestjs/common";
-import { BullModule } from "@nestjs/bull";
-import { ConfigModule, ConfigService } from "@nestjs/config";
-import { EmailModule } from "./email/email.module";
-
-@Module({
-  imports: [
-    // Configuration globale de Bull (connexion Redis)
+    ConfigModule.forRoot(),
     BullModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        redis: {
-          host: configService.get<string>("REDIS_HOST", "localhost"),
-          port: configService.get<number>("REDIS_PORT", 6379),
-          password: configService.get<string>("REDIS_PASSWORD", undefined),
-        },
-        defaultJobOptions: {
-          attempts: 3, // 3 tentatives en cas d'echec
-          backoff: {
-            type: "exponential", // Delai exponentiel entre les tentatives
-            delay: 1000, // 1s, 2s, 4s, 8s...
-          },
-          removeOnComplete: 100, // Garder les 100 derniers jobs completes
-          removeOnFail: 200, // Garder les 200 derniers jobs echoues
+      useFactory: (config: ConfigService) => ({
+        connection: {
+          host: config.get('REDIS_HOST', 'localhost'),
+          port: config.get<number>('REDIS_PORT', 6379),
         },
       }),
     }),
-    EmailModule,
+    InvitationModule,
   ],
 })
 export class AppModule {}
 ```
 
-### 3.4 Définir une Queue
+`forRootAsync` — même pattern que `TypeOrmModule.forRootAsync` : factory + `inject` pour recevoir `ConfigService`. La connexion Redis est partagée par toutes les queues de l'application.
 
-```typescript
-// email/email.module.ts
-import { Module } from "@nestjs/common";
-import { BullModule } from "@nestjs/bull";
-import { EmailService } from "./email.service";
-import { EmailProcessor } from "./email.processor";
+### 2.3 Enregistrer une queue
+
+```ts
+// invitation.module.ts
+import { Module } from '@nestjs/common'
+import { BullModule } from '@nestjs/bullmq'
+import { InvitationService } from './invitation.service'
+import { InvitationProcessor } from './invitation.processor'
 
 @Module({
   imports: [
-    // Enregistrer la queue 'email'
-    BullModule.registerQueue({
-      name: "email",
-      // Options specifiques a cette queue
-      limiter: {
-        max: 10, // Maximum 10 jobs traites
-        duration: 1000, // par seconde (rate limiting)
-      },
-    }),
+    // Déclare la queue et crée le token @InjectQueue('invitation')
+    BullModule.registerQueue({ name: 'invitation' }),
   ],
-  providers: [EmailService, EmailProcessor],
-  exports: [EmailService],
+  providers: [InvitationService, InvitationProcessor],
+  exports: [InvitationService],
 })
-export class EmailModule {}
+export class InvitationModule {}
 ```
 
-### 3.5 Le Producer — Ajouter des jobs à la queue
+`registerQueue` déclare la queue nommée et crée le token d'injection `@InjectQueue('invitation')`. Sans cette ligne dans `imports`, NestJS lève `Nest can't resolve dependencies of InvitationService (?)` — le `forRootAsync` dans `AppModule` configure Redis globalement mais ne crée pas les queues individuelles.
 
-```typescript
-// email/email.service.ts
-import { Injectable, Logger } from "@nestjs/common";
-import { InjectQueue } from "@nestjs/bull";
-import { Queue } from "bull";
+### 2.4 Producteur — ajouter un job
 
-// Types des donnees de job
-interface SendEmailJobData {
-  to: string;
-  subject: string;
-  template: string;
-  context: Record<string, any>;
-}
-
-interface SendBulkEmailJobData {
-  recipients: string[];
-  subject: string;
-  template: string;
-  context: Record<string, any>;
-}
+```ts
+// invitation.service.ts
+import { Injectable } from '@nestjs/common'
+import { InjectQueue } from '@nestjs/bullmq'
+import { Queue } from 'bullmq'               // Queue importée depuis bullmq, pas @nestjs/bullmq
 
 @Injectable()
-export class EmailService {
-  private readonly logger = new Logger("EmailService");
-
+export class InvitationService {
   constructor(
-    @InjectQueue("email")
-    private readonly emailQueue: Queue,
+    // Token généré par registerQueue({ name: 'invitation' })
+    @InjectQueue('invitation') private readonly invitationQueue: Queue,
   ) {}
 
-  // Ajouter un job d'envoi d'email
-  async sendEmail(data: SendEmailJobData) {
-    const job = await this.emailQueue.add("send", data, {
-      // Options specifiques a ce job
-      priority: 1, // Priorite (1 = plus haute)
-      attempts: 5, // 5 tentatives
-      backoff: {
-        type: "exponential",
-        delay: 2000, // 2s, 4s, 8s, 16s, 32s
+  async enqueueInvite(familyId: string, email: string): Promise<{ jobId: string }> {
+    const job = await this.invitationQueue.add(
+      'send-invite',              // nom du job — routé dans le switch du processor
+      { familyId, email },        // payload sérialisé dans Redis
+      {
+        attempts: 3,              // 3 tentatives avant FAILED définitif
+        backoff: {
+          type: 'exponential',    // 1 s, 2 s, 4 s entre les tentatives
+          delay: 1000,
+        },
+        removeOnComplete: { count: 100 }, // garder les 100 derniers jobs complétés
+        removeOnFail: { count: 200 },
       },
-    });
-
-    this.logger.log(`Job d'email ajoute : #${job.id} vers ${data.to}`);
-    return { jobId: job.id };
-  }
-
-  // Envoi differe (dans 30 minutes)
-  async sendEmailLater(data: SendEmailJobData, delayMs: number) {
-    const job = await this.emailQueue.add("send", data, {
-      delay: delayMs, // Delai en millisecondes
-    });
-
-    this.logger.log(`Email programme dans ${delayMs / 1000}s : #${job.id}`);
-    return { jobId: job.id };
-  }
-
-  // Envoi en masse
-  async sendBulkEmail(data: SendBulkEmailJobData) {
-    const job = await this.emailQueue.add("sendBulk", data, {
-      attempts: 3,
-      timeout: 60000, // Timeout de 60 secondes pour les envois en masse
-    });
-
-    this.logger.log(
-      `Job d'email en masse ajoute : #${job.id} (${data.recipients.length} destinataires)`,
-    );
-    return { jobId: job.id };
-  }
-
-  // Email de bienvenue (apres inscription)
-  async sendWelcomeEmail(email: string, nom: string) {
-    return this.sendEmail({
-      to: email,
-      subject: "Bienvenue sur notre plateforme !",
-      template: "welcome",
-      context: { nom, loginUrl: "https://example.com/login" },
-    });
-  }
-
-  // Email de reset de mot de passe
-  async sendPasswordResetEmail(email: string, token: string) {
-    return this.sendEmail({
-      to: email,
-      subject: "Reinitialisation de votre mot de passe",
-      template: "password-reset",
-      context: {
-        resetUrl: `https://example.com/reset?token=${token}`,
-        expiration: "1 heure",
-      },
-    });
-  }
-
-  // Verifier le statut d'un job
-  async getJobStatus(jobId: string) {
-    const job = await this.emailQueue.getJob(jobId);
-    if (!job) {
-      return { status: "not_found" };
-    }
-
-    const state = await job.getState();
-    return {
-      id: job.id,
-      status: state,
-      progress: job.progress(),
-      data: job.data,
-      attemptsMade: job.attemptsMade,
-      failedReason: job.failedReason,
-      finishedOn: job.finishedOn,
-    };
-  }
-
-  // Statistiques de la queue
-  async getQueueStats() {
-    const [waiting, active, completed, failed, delayed] = await Promise.all([
-      this.emailQueue.getWaitingCount(),
-      this.emailQueue.getActiveCount(),
-      this.emailQueue.getCompletedCount(),
-      this.emailQueue.getFailedCount(),
-      this.emailQueue.getDelayedCount(),
-    ]);
-
-    return { waiting, active, completed, failed, delayed };
+    )
+    return { jobId: String(job.id) }
   }
 }
 ```
 
-### 3.6 Le Consumer (Processor) — Traiter les jobs
+Le handler HTTP retourne `{ jobId }` en quelques millisecondes — l'utilisateur n'attend plus l'envoi SMTP.
 
-```typescript
-// email/email.processor.ts
-import {
-  Processor,
-  Process,
-  OnQueueActive,
-  OnQueueCompleted,
-  OnQueueFailed,
-  OnQueueStalled,
-} from "@nestjs/bull";
-import { Logger } from "@nestjs/common";
-import { Job } from "bull";
+### 2.5 Processor — traiter les jobs avec WorkerHost
 
-@Processor("email") // Le nom doit correspondre a la queue
-export class EmailProcessor {
-  private readonly logger = new Logger("EmailProcessor");
+L'API de `@nestjs/bullmq` utilise `WorkerHost` (classe de base) + `@Processor()` (décorateur de classe). Le `@Process()` de l'ancien package `@nestjs/bull` n'existe pas dans `@nestjs/bullmq` — c'est une source fréquente de confusion.
 
-  // Traiter les jobs de type 'send'
-  @Process("send")
-  async handleSendEmail(
-    job: Job<{ to: string; subject: string; template: string; context: any }>,
-  ) {
-    this.logger.log(`Traitement du job #${job.id} : envoi a ${job.data.to}`);
+```ts
+// invitation.processor.ts
+import { Processor, WorkerHost } from '@nestjs/bullmq'
+import { Logger } from '@nestjs/common'
+import { Job } from 'bullmq'
 
-    try {
-      // Mise a jour de la progression
-      await job.progress(10);
+@Processor('invitation')   // doit correspondre exactement au name passé à registerQueue
+export class InvitationProcessor extends WorkerHost {
+  private readonly logger = new Logger(InvitationProcessor.name)
 
-      // Simuler l'envoi d'email (remplacer par un vrai service mail)
-      // const transporter = nodemailer.createTransport({...});
-      // await transporter.sendMail({...});
-      await this.simulateEmailSend(job.data);
-
-      await job.progress(100);
-
-      this.logger.log(`Email envoye avec succes a ${job.data.to}`);
-
-      // La valeur retournee est stockee comme resultat du job
-      return {
-        success: true,
-        sentAt: new Date().toISOString(),
-        to: job.data.to,
-      };
-    } catch (error) {
-      this.logger.error(
-        `Erreur lors de l'envoi a ${job.data.to} : ${error.message}`,
-      );
-      // Relancer l'erreur pour que Bull retente
-      throw error;
-    }
-  }
-
-  // Traiter les jobs de type 'sendBulk'
-  @Process("sendBulk")
-  async handleSendBulkEmail(
-    job: Job<{
-      recipients: string[];
-      subject: string;
-      template: string;
-      context: any;
-    }>,
-  ) {
-    const { recipients } = job.data;
-    this.logger.log(
-      `Envoi en masse : ${recipients.length} destinataires (Job #${job.id})`,
-    );
-
-    let sent = 0;
-    for (const recipient of recipients) {
-      try {
-        await this.simulateEmailSend({
-          to: recipient,
-          subject: job.data.subject,
-          template: job.data.template,
-          context: job.data.context,
-        });
-        sent++;
-        // Mise a jour de la progression
-        await job.progress(Math.round((sent / recipients.length) * 100));
-      } catch (error) {
-        this.logger.warn(`Echec pour ${recipient} : ${error.message}`);
+  // NestJS appelle process() pour chaque job dépilé de la queue
+  async process(job: Job): Promise<void> {
+    switch (job.name) {
+      case 'send-invite': {
+        const { familyId, email } = job.data as { familyId: string; email: string }
+        this.logger.log(`[job #${job.id}] invitation → ${email} (famille ${familyId})`)
+        await job.updateProgress(50)
+        await this.dispatchInviteEmail(email, familyId)
+        await job.updateProgress(100)
+        return
       }
-    }
-
-    return { sent, total: recipients.length };
-  }
-
-  // === Evenements de la queue ===
-
-  @OnQueueActive()
-  onActive(job: Job) {
-    this.logger.debug(`Job #${job.id} demarre (type: ${job.name})`);
-  }
-
-  @OnQueueCompleted()
-  onCompleted(job: Job, result: any) {
-    this.logger.log(
-      `Job #${job.id} termine avec succes — Resultat : ${JSON.stringify(result)}`,
-    );
-  }
-
-  @OnQueueFailed()
-  onFailed(job: Job, error: Error) {
-    this.logger.error(
-      `Job #${job.id} echoue (tentative ${job.attemptsMade}/${job.opts.attempts}) : ${error.message}`,
-    );
-  }
-
-  @OnQueueStalled()
-  onStalled(job: Job) {
-    this.logger.warn(`Job #${job.id} bloque (stalled) — sera retente`);
-  }
-
-  // Simulation d'envoi (a remplacer par un vrai service)
-  private async simulateEmailSend(data: any): Promise<void> {
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    // 5% de chance d'echec pour tester les retries
-    if (Math.random() < 0.05) {
-      throw new Error("Erreur SMTP simulee");
+      default:
+        this.logger.warn(`[job #${job.id}] type de job inconnu : ${job.name}`)
     }
   }
-}
-```
 
-### 3.7 Concurrence des workers
-
-```typescript
-// Traiter jusqu'a 5 jobs en parallele
-@Process({ name: 'send', concurrency: 5 })
-async handleSendEmail(job: Job) {
-  // ...
-}
-
-// Ou au niveau de la configuration du processor
-@Processor({
-  name: 'email',
-  concurrency: 3,  // 3 jobs max en parallele pour toute la queue
-})
-export class EmailProcessor {}
-```
-
----
-
-## 4. Cycle de vie d'un Job
-
-```
-                     ┌─────────┐
-                     │ WAITING │ ← Job ajoute a la queue
-                     └────┬────┘
-                          │
-                          v
-              ┌───────────────────────┐
-              │       DELAYED          │ ← Si option delay configuree
-              └───────────┬───────────┘
-                          │ (apres le delai)
-                          v
-                     ┌─────────┐
-                     │ ACTIVE  │ ← Un worker prend le job
-                     └────┬────┘
-                          │
-                ┌─────────┴──────────┐
-                v                    v
-         ┌────────────┐      ┌────────────┐
-         │ COMPLETED  │      │   FAILED   │
-         └────────────┘      └─────┬──────┘
-                                   │
-                          (si attempts restants)
-                                   │
-                                   v
-                             ┌──────────┐
-                             │ WAITING  │ ← Remis dans la queue
-                             └──────────┘
-```
-
----
-
-## 5. Patterns avances
-
-### 5.1 Retry avec backoff exponentiel
-
-```typescript
-// Le job sera retente avec des delais croissants
-const job = await this.emailQueue.add("send", data, {
-  attempts: 5,
-  backoff: {
-    type: "exponential",
-    delay: 1000, // Delais : 1s, 2s, 4s, 8s, 16s
-  },
-});
-
-// Ou backoff fixe
-const job = await this.emailQueue.add("send", data, {
-  attempts: 3,
-  backoff: {
-    type: "fixed",
-    delay: 5000, // Toujours 5 secondes entre les tentatives
-  },
-});
-```
-
-### 5.2 Dead Letter Queue (DLQ)
-
-Quand un job echoue definitivement (toutes les tentatives epuisees), on peut le deplacer vers une queue speciale pour analyse.
-
-```typescript
-@OnQueueFailed()
-async onFailed(job: Job, error: Error) {
-  // Si c'est la derniere tentative
-  if (job.attemptsMade >= (job.opts.attempts || 1)) {
-    this.logger.error(`Job #${job.id} definitivement echoue — Ajout a la DLQ`);
-
-    // Ajouter a la dead letter queue
-    await this.deadLetterQueue.add('failed-email', {
-      originalJobId: job.id,
-      originalData: job.data,
-      error: error.message,
-      attempts: job.attemptsMade,
-      failedAt: new Date().toISOString(),
-    });
+  private async dispatchInviteEmail(email: string, familyId: string): Promise<void> {
+    // Appel réel : MailerService, Resend, SendGrid…
+    this.logger.log(`[SMTP] invitation envoyée à ${email} pour famille ${familyId}`)
   }
 }
 ```
 
-#### Reperes operationnels utiles
+`WorkerHost` gère la connexion Redis et l'écoute de la queue. Tu n'instancies jamais `Worker` manuellement — NestJS le fait au démarrage du module, dès que `InvitationProcessor` est dans `providers`.
 
-En pratique, l'objectif n'est pas d'avoir 0 echec, mais de **maitriser** les echecs.
+### 2.6 Options de job — retries et backoff
 
-| Indicateur                         | Cible de depart   | Seuil d'alerte |
-| ---------------------------------- | ----------------- | -------------- |
-| Taux de jobs en echec (15 min)     | < 1%              | > 5%           |
-| Taille DLQ                         | proche de 0       | > 100 messages |
-| Age du plus vieux job en attente   | < 60 s            | > 300 s        |
-| Temps moyen de traitement d'un job | stable (baseline) | x2 vs baseline |
+| Option | Type | Effet |
+|--------|------|-------|
+| `attempts` | `number` | Nombre total de tentatives (1 = pas de retry) |
+| `backoff.type` | `'exponential'` / `'fixed'` | Stratégie de délai entre tentatives |
+| `backoff.delay` | `number` (ms) | Délai de base — exponentiel : ×2 à chaque tentative |
+| `delay` | `number` (ms) | Délai avant la première exécution (job différé) |
+| `removeOnComplete` | `{ count: N }` | Nettoyer les anciens jobs complétés |
+| `removeOnFail` | `{ count: N }` | Garder N jobs échoués pour audit |
 
-Ces seuils donnent une base de pilotage. Ils doivent etre ajustes selon le volume reel de votre application.
+```ts
+// backoff exponentiel — tentatives à +1 s, +2 s, +4 s
+{ attempts: 3, backoff: { type: 'exponential', delay: 1000 } }
 
-### 5.3 Bull Board — Interface de monitoring
+// backoff fixe — toujours 5 s entre les tentatives
+{ attempts: 5, backoff: { type: 'fixed', delay: 5000 } }
+
+// job différé de 30 minutes (bienvenue envoyée après l'inscription)
+{ delay: 30 * 60 * 1000 }
+```
+
+Quand `process()` lève une erreur, BullMQ re-planifie automatiquement le job selon `backoff`. Après épuisement de `attempts`, le job passe en `FAILED` et reste dans Redis pour inspection ou rejoue manuelle.
+
+### 2.7 Tâches planifiées avec @nestjs/schedule
 
 ```bash
-npm install @bull-board/express @bull-board/api
+pnpm add @nestjs/schedule
 ```
 
-```typescript
-// main.ts
-import { createBullBoard } from "@bull-board/api";
-import { BullAdapter } from "@bull-board/api/bullAdapter";
-import { ExpressAdapter } from "@bull-board/express";
-
-async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-
-  // Recuperer les queues
-  const emailQueue = app.get<Queue>("BullQueue_email");
-  const reportQueue = app.get<Queue>("BullQueue_report");
-
-  // Configurer Bull Board
-  const serverAdapter = new ExpressAdapter();
-  serverAdapter.setBasePath("/admin/queues");
-
-  createBullBoard({
-    queues: [new BullAdapter(emailQueue), new BullAdapter(reportQueue)],
-    serverAdapter,
-  });
-
-  // Monter l'interface
-  app.use("/admin/queues", serverAdapter.getRouter());
-
-  await app.listen(3000);
-  console.log("Bull Board : http://localhost:3000/admin/queues");
-}
-```
-
----
-
-## 6. Exemple complet — Génération de rapports
-
-```typescript
-// reports/reports.module.ts
-import { Module } from "@nestjs/common";
-import { BullModule } from "@nestjs/bull";
-import { ReportsService } from "./reports.service";
-import { ReportsProcessor } from "./reports.processor";
-import { ReportsController } from "./reports.controller";
+```ts
+// app.module.ts — activer le planificateur global une seule fois
+import { ScheduleModule } from '@nestjs/schedule'
 
 @Module({
   imports: [
-    BullModule.registerQueue({
-      name: "report",
-    }),
+    ScheduleModule.forRoot(),
+    // ...
   ],
-  controllers: [ReportsController],
-  providers: [ReportsService, ReportsProcessor],
 })
-export class ReportsModule {}
+export class AppModule {}
 ```
 
-```typescript
-// reports/reports.service.ts
-import { Injectable } from "@nestjs/common";
-import { InjectQueue } from "@nestjs/bull";
-import { Queue } from "bull";
+`ScheduleModule.forRoot()` démarre le planificateur global. Tous les services `@Injectable()` qui utilisent `@Cron`, `@Interval` ou `@Timeout` dans des modules importés sont automatiquement découverts.
+
+### 2.8 Décorateur @Cron
+
+```ts
+import { Injectable, Logger } from '@nestjs/common'
+import { Cron, CronExpression, Interval } from '@nestjs/schedule'
 
 @Injectable()
-export class ReportsService {
+export class GazetteScheduler {
+  private readonly logger = new Logger(GazetteScheduler.name)
+
+  // Chaque lundi à 8h00 — gazette hebdomadaire TribuZen
+  @Cron('0 8 * * 1')
+  async handleWeeklyGazette(): Promise<void> {
+    this.logger.log('Génération de la gazette hebdomadaire')
+    // appel à GazetteService.generateAndSend()
+  }
+
+  // Constante prédéfinie — chaque jour à minuit
+  @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
+  async handleDailyCleanup(): Promise<void> {
+    this.logger.log('Nettoyage des tokens expirés')
+  }
+
+  // Toutes les 5 minutes — health check
+  @Interval(5 * 60 * 1000)
+  handleHealthCheck(): void {
+    this.logger.debug('Health check planificateur : OK')
+  }
+}
+```
+
+Syntaxe cron (5 champs : minute heure jour-mois mois jour-semaine) :
+
+| Expression | Déclenchement |
+|------------|---------------|
+| `'0 8 * * 1'` | Lundi à 8h00 |
+| `'0 0 * * *'` | Chaque jour à minuit |
+| `'*/5 * * * *'` | Toutes les 5 minutes |
+| `'0 6,18 * * *'` | À 6h et 18h chaque jour |
+| `CronExpression.EVERY_WEEK` | Dimanche à minuit |
+| `CronExpression.EVERY_DAY_AT_MIDNIGHT` | Chaque jour à minuit |
+
+## 3. Worked examples
+
+### Exemple A — InvitationModule complet (producteur + processor + module)
+
+```ts
+// src/invitation/invitation.module.ts
+import { Module } from '@nestjs/common'
+import { BullModule } from '@nestjs/bullmq'
+import { InvitationService } from './invitation.service'
+import { InvitationProcessor } from './invitation.processor'
+import { InvitationController } from './invitation.controller'
+
+@Module({
+  imports: [
+    // Enregistre la queue 'invitation' et crée le token @InjectQueue('invitation')
+    BullModule.registerQueue({ name: 'invitation' }),
+  ],
+  controllers: [InvitationController],
+  providers: [InvitationService, InvitationProcessor],
+})
+export class InvitationModule {}
+```
+
+```ts
+// src/invitation/invitation.jobs.ts
+// Constantes partagées entre producteur et processor — évite les typos
+export const INVITE_JOB = 'send-invite' as const
+export const WELCOME_JOB = 'welcome' as const
+```
+
+```ts
+// src/invitation/invitation.service.ts
+import { Injectable } from '@nestjs/common'
+import { InjectQueue } from '@nestjs/bullmq'
+import { Queue } from 'bullmq'
+import { INVITE_JOB, WELCOME_JOB } from './invitation.jobs'
+
+export interface InviteJobData {
+  familyId: string
+  email: string
+  invitedBy: string
+}
+
+@Injectable()
+export class InvitationService {
   constructor(
-    @InjectQueue("report")
-    private readonly reportQueue: Queue,
+    @InjectQueue('invitation') private readonly invitationQueue: Queue,
   ) {}
 
-  async generateReport(
-    type: "ventes" | "utilisateurs" | "produits",
-    params: any,
-  ) {
-    const job = await this.reportQueue.add("generate", {
-      type,
-      params,
-      requestedAt: new Date().toISOString(),
-    });
-
-    return {
-      jobId: job.id,
-      message: `Generation du rapport "${type}" en cours...`,
-      statusUrl: `/reports/status/${job.id}`,
-    };
+  async enqueueInvite(data: InviteJobData): Promise<{ jobId: string }> {
+    const job = await this.invitationQueue.add(INVITE_JOB, data, {
+      attempts: 3,
+      backoff: { type: 'exponential', delay: 1000 },
+      removeOnComplete: { count: 100 },
+      removeOnFail: { count: 200 },
+    })
+    return { jobId: String(job.id) }
   }
 
-  async getStatus(jobId: string) {
-    const job = await this.reportQueue.getJob(jobId);
-    if (!job) return null;
-
-    const state = await job.getState();
-    return {
-      id: job.id,
-      status: state,
-      progress: job.progress(),
-      result: state === "completed" ? job.returnvalue : undefined,
-      error: state === "failed" ? job.failedReason : undefined,
-    };
+  async enqueueWelcome(email: string): Promise<{ jobId: string }> {
+    // job différé — email de bienvenue envoyé 10 minutes après l'inscription
+    const job = await this.invitationQueue.add(
+      WELCOME_JOB,
+      { email },
+      { delay: 10 * 60 * 1000, attempts: 2 },
+    )
+    return { jobId: String(job.id) }
   }
 }
 ```
 
-```typescript
-// reports/reports.processor.ts
-import { Processor, Process } from "@nestjs/bull";
-import { Logger } from "@nestjs/common";
-import { Job } from "bull";
+```ts
+// src/invitation/invitation.processor.ts
+import { Processor, WorkerHost } from '@nestjs/bullmq'
+import { Logger } from '@nestjs/common'
+import { Job } from 'bullmq'
+import { INVITE_JOB, WELCOME_JOB } from './invitation.jobs'
+import type { InviteJobData } from './invitation.service'
 
-@Processor("report")
-export class ReportsProcessor {
-  private readonly logger = new Logger("ReportsProcessor");
+@Processor('invitation')
+export class InvitationProcessor extends WorkerHost {
+  private readonly logger = new Logger(InvitationProcessor.name)
 
-  @Process("generate")
-  async handleGenerate(job: Job) {
-    const { type, params } = job.data;
-    this.logger.log(`Generation du rapport "${type}" (Job #${job.id})`);
-
-    await job.progress(10);
-
-    // Simulation de la generation (remplacer par la vraie logique)
-    let data: any;
-    switch (type) {
-      case "ventes":
-        data = await this.generateSalesReport(params);
-        break;
-      case "utilisateurs":
-        data = await this.generateUsersReport(params);
-        break;
-      case "produits":
-        data = await this.generateProductsReport(params);
-        break;
+  async process(job: Job): Promise<void> {
+    switch (job.name) {
+      case INVITE_JOB: {
+        const { familyId, email, invitedBy } = job.data as InviteJobData
+        this.logger.log(`[job #${job.id}] invitation → ${email} (famille ${familyId}, par ${invitedBy})`)
+        await job.updateProgress(30)
+        await this.dispatchInviteEmail(email, familyId)
+        await job.updateProgress(100)
+        return
+      }
+      case WELCOME_JOB: {
+        const { email } = job.data as { email: string }
+        this.logger.log(`[job #${job.id}] email de bienvenue → ${email}`)
+        await this.dispatchWelcomeEmail(email)
+        return
+      }
+      default:
+        this.logger.warn(`[job #${job.id}] type de job inconnu : ${job.name}`)
     }
-
-    await job.progress(90);
-
-    // Sauvegarder le fichier PDF/Excel
-    const filePath = `/reports/${type}-${job.id}.pdf`;
-    // await this.pdfService.generate(data, filePath);
-
-    await job.progress(100);
-
-    return {
-      type,
-      filePath,
-      generatedAt: new Date().toISOString(),
-      rowCount: data?.length || 0,
-    };
   }
 
-  private async generateSalesReport(params: any) {
-    await new Promise((r) => setTimeout(r, 5000));
-    return [{ mois: "Janvier", total: 15000 }];
+  private async dispatchInviteEmail(email: string, familyId: string): Promise<void> {
+    // Appel réel : MailerService, Resend, SendGrid…
+    this.logger.log(`[SMTP] invitation envoyée à ${email} pour famille ${familyId}`)
   }
 
-  private async generateUsersReport(params: any) {
-    await new Promise((r) => setTimeout(r, 3000));
-    return [{ total: 150, actifs: 120 }];
-  }
-
-  private async generateProductsReport(params: any) {
-    await new Promise((r) => setTimeout(r, 4000));
-    return [{ categorie: "Tech", count: 45 }];
+  private async dispatchWelcomeEmail(email: string): Promise<void> {
+    this.logger.log(`[SMTP] email de bienvenue envoyé à ${email}`)
   }
 }
 ```
 
-```typescript
-// reports/reports.controller.ts
-import { Controller, Post, Get, Body, Param } from "@nestjs/common";
+```ts
+// src/invitation/invitation.controller.ts
+import { Controller, Post, Body } from '@nestjs/common'
+import { InvitationService } from './invitation.service'
 
-@Controller("reports")
-export class ReportsController {
-  constructor(private readonly reportsService: ReportsService) {}
+@Controller('invitation')
+export class InvitationController {
+  constructor(private readonly invitationService: InvitationService) {}
 
-  @Post("generate")
-  generate(@Body() body: { type: string; params: any }) {
-    return this.reportsService.generateReport(body.type as any, body.params);
-  }
-
-  @Get("status/:jobId")
-  getStatus(@Param("jobId") jobId: string) {
-    return this.reportsService.getStatus(jobId);
+  @Post()
+  async invite(@Body() dto: { familyId: string; email: string; invitedBy: string }) {
+    // Retourne immédiatement — l'envoi SMTP se fait en arrière-plan
+    return this.invitationService.enqueueInvite(dto)
   }
 }
 ```
 
----
+**Pas-à-pas :** (1) `BullModule.registerQueue({ name: 'invitation' })` dans `imports` crée le token — sans lui, `@InjectQueue('invitation')` lève `No provider` ; (2) `Queue` est importée depuis `bullmq` (pas `@nestjs/bullmq`) — le package NestJS fournit les décorateurs, le package `bullmq` fournit les types ; (3) `INVITE_JOB` et `WELCOME_JOB` sont des constantes partagées — une typo côté producteur ou processor causerait un job jamais traité, sans erreur visible ; (4) `InvitationProcessor extends WorkerHost` + `@Processor('invitation')` — NestJS crée le `Worker` BullMQ sous le capot au démarrage du module ; (5) `updateProgress(n)` permet de suivre l'avancement d'un job depuis l'extérieur (Bull Board, API de statut).
 
-## 7. Exercices pratiques
+### Exemple B — GazetteModule avec @Cron et @Interval
 
-### Exercice 1 : Taches planifiees
+```ts
+// src/gazette/gazette.module.ts
+import { Module } from '@nestjs/common'
+import { GazetteScheduler } from './gazette.scheduler'
+import { GazetteService } from './gazette.service'
 
-Implementez :
+@Module({
+  providers: [GazetteScheduler, GazetteService],
+})
+export class GazetteModule {}
+```
 
-1. Un nettoyage quotidien des tokens de refresh expires
-2. Un rapport hebdomadaire par email du nombre de nouveaux utilisateurs
-3. Une vérification toutes les 5 minutes de la connectivite à la base de donnees
+```ts
+// src/gazette/gazette.scheduler.ts
+import { Injectable, Logger } from '@nestjs/common'
+import { Cron, CronExpression, Interval } from '@nestjs/schedule'
+import { GazetteService } from './gazette.service'
 
-### Exercice 2 : Queue d'emails
+@Injectable()
+export class GazetteScheduler {
+  private readonly logger = new Logger(GazetteScheduler.name)
 
-Implementez un système complet d'envoi d'emails avec :
+  constructor(private readonly gazetteService: GazetteService) {}
 
-1. Queue pour les emails individuels
-2. Queue pour les emails en masse
-3. Retry avec backoff exponentiel
-4. Monitoring avec Bull Board
-5. Dead letter queue pour les echecs definitifs
+  // Chaque lundi à 8h00 — gazette hebdomadaire TribuZen
+  @Cron('0 8 * * 1')
+  async handleWeeklyGazette(): Promise<void> {
+    this.logger.log('Lancement génération gazette hebdomadaire')
+    try {
+      const count = await this.gazetteService.generateAndSend()
+      this.logger.log(`Gazette envoyée à ${count} familles`)
+    } catch (err) {
+      // @Cron ne retry pas automatiquement — try/catch obligatoire
+      this.logger.error(`Échec gazette : ${(err as Error).message}`)
+    }
+  }
 
-### Exercice 3 : Traitement d'images
+  // Chaque nuit à minuit — purge des tokens expirés
+  @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
+  async handleDailyCleanup(): Promise<void> {
+    this.logger.log('Nettoyage quotidien des tokens expirés')
+    await this.gazetteService.purgeExpiredTokens()
+  }
 
-Creez une queue de traitement d'images qui :
+  // Toutes les 5 minutes — monitoring health Redis/BullMQ
+  @Interval(5 * 60 * 1000)
+  handleHealthCheck(): void {
+    this.logger.debug('Health check planificateur : OK')
+  }
+}
+```
 
-1. Recoit une image uploadee
-2. Genere 3 tailles (thumbnail 100x100, medium 400x400, large 800x800)
-3. Met a jour la base de donnees avec les chemins des images
-4. Rapporte la progression du traitement
+```ts
+// src/gazette/gazette.service.ts
+import { Injectable, Logger } from '@nestjs/common'
 
----
+@Injectable()
+export class GazetteService {
+  private readonly logger = new Logger(GazetteService.name)
 
-## Liens
+  async generateAndSend(): Promise<number> {
+    this.logger.log('Agrégation des événements familles de la semaine')
+    // const families = await this.familyRepo.findAllActive()
+    // for (const family of families) { await this.mailer.sendGazette(family) }
+    return 42 // simulation — nombre de familles notifiées
+  }
 
-| Ressource            | Lien                                                                   |
-| -------------------- | ---------------------------------------------------------------------- |
-| Quiz Module 22       | `quiz/22-quiz.md`                                                      |
-| Lab Module 22        | `labs/22-lab-jobs-queues.md`                                           |
-| Screencast           | `screencasts/22-screencast.md`                                         |
-| Module précédent     | [Module 21 — WebSockets & Fichiers](21-nestjs-websockets-fichiers.md)  |
-| Module suivant       | [Module 23 — Performance & Déploiement](23-performance-deploiement.md) |
-| @nestjs/schedule     | https://docs.nestjs.com/techniques/task-scheduling                     |
-| @nestjs/bull         | https://docs.nestjs.com/techniques/queues                              |
-| Bull Documentation   | https://optimalbits.github.io/bull/                                    |
-| BullMQ Documentation | https://docs.bullmq.io/                                                |
-| Bull Board           | https://github.com/felixmosh/bull-board                                |
+  async purgeExpiredTokens(): Promise<void> {
+    this.logger.log("Purge des tokens d'invitation expirés")
+    // await this.tokenRepo.deleteExpired()
+  }
+}
+```
 
----
+**Pas-à-pas :** (1) `ScheduleModule.forRoot()` dans `AppModule` est la condition sine qua non — sans lui, `@Cron` et `@Interval` sont silencieusement ignorés ; (2) `@Cron('0 8 * * 1')` = lundi à 8h00, syntaxe 5 champs (minute heure jour-mois mois jour-semaine) ; (3) `@Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)` utilise la constante prédéfinie — plus lisible qu'une string brute ; (4) `@Interval(5 * 60 * 1000)` déclenche toutes les 5 minutes sans drift (pas un `setTimeout` récursif) ; (5) le try/catch dans `handleWeeklyGazette` est obligatoire — `@Cron` ne gère pas les erreurs automatiquement, une exception non capturée passe silencieusement.
 
-<!-- parcours-recommande -->
+## 4. Pièges & misconceptions
 
-::: tip Parcours recommandé
+- **`@Process()` n'existe pas dans `@nestjs/bullmq`.** Le décorateur `@Process('send-invite')` appartient à l'ancien package `@nestjs/bull`. Dans `@nestjs/bullmq`, le bon pattern est `WorkerHost` + `process(job)` + switch sur `job.name`. Importer `@Process` depuis `@nestjs/bullmq` échoue à la compilation. Si tu migres d'un projet `@nestjs/bull`, tout le processor est à réécrire.
 
-1. **Screencast** : [screencast 22 queues](../screencasts/screencast-22-queues.md)
-2. **Lab** : [lab-22-queues](../labs/lab-22-queues/README)
-3. **Quiz** : [quiz 22 queues](../quizzes/quiz-22-queues.html)
-   :::
+- **Oublier `registerQueue` dans le module consommateur.** `@InjectQueue('invitation')` dans `InvitationService` suppose que `BullModule.registerQueue({ name: 'invitation' })` est dans `imports` du même module (ou d'un module importé). Sans lui, NestJS lève `Nest can't resolve dependencies`. Le `forRootAsync` dans `AppModule` configure Redis globalement mais ne crée pas les tokens de queue.
+
+- **Processor absent de `providers`.** `@Processor('invitation')` est un décorateur, pas une déclaration implicite. Si `InvitationProcessor` n'est pas dans `providers: [InvitationProcessor]` du module, NestJS ne l'instancie pas — la queue se remplit dans Redis mais aucun worker ne consomme. Les jobs restent bloqués en `WAITING` indéfiniment.
+
+- **Noms de job divergents.** `queue.add('send-invite', ...)` côté producteur et `case 'send-invite':` dans le processor doivent être strictement identiques. Une typo (`'sendInvite'` vs `'send-invite'`) entraîne un job qui tombe dans `default:` sans traitement visible — aucune erreur, aucun log d'alerte. Solution : constantes partagées `export const INVITE_JOB = 'send-invite'` importées des deux côtés.
+
+- **`@Cron` sans `@Injectable()`.** Un scheduler sans `@Injectable()` ne peut pas être géré par le conteneur IoC. NestJS ne découvre pas ses méthodes `@Cron`. Symptôme : l'app démarre sans erreur, mais aucune tâche ne se déclenche jamais. Même piège si le service n'est pas dans `providers` du module.
+
+- **`ScheduleModule.forRoot()` absent d'`AppModule`.** Sans lui, tous les `@Cron` et `@Interval` de l'application sont silencieusement ignorés — aucune erreur au démarrage, aucune tâche ne s'exécute. C'est le piège le plus difficile à diagnostiquer car rien dans les logs ne signale le problème.
+
+- **`@Cron` n'est pas fault-tolerant.** Si l'application est down au moment du déclenchement prévu (redémarrage, déploiement), le job est perdu. Pour une gazette envoyée à 8h00 pendant un déploiement à 7h58, elle ne sera jamais envoyée ce jour-là. Pour les tâches critiques, utiliser BullMQ avec `repeat: { pattern: '0 8 * * 1' }` — le job est persisté dans Redis et peut être rattrapé.
+
+## 5. Ancrage TribuZen
+
+Couche fil-rouge : **jobs TribuZen (envoi async des emails d'invitation, génération de la gazette hebdomadaire)** (`smaurier/tribuzen`).
+
+- `InvitationService.enqueueInvite()` retourne `{ jobId }` en quelques millisecondes. L'utilisateur n'attend plus l'envoi SMTP. Le job est persisté dans Redis — si l'API redémarre entre le `POST /invitation` et le traitement, le job est conservé et retraité automatiquement au redémarrage.
+- `InvitationProcessor` gère deux types via switch : `'send-invite'` (3 retries expo) et `'welcome'` (différé 10 min). Un seul processor par queue — cohérence et traçabilité centralisées.
+- `GazetteScheduler` planifie `'0 8 * * 1'` (lundi 8h00) et la purge quotidienne à minuit. Il injecte `GazetteService` par DI — le scheduler orchestre, le service concentre la logique métier.
+- `backoff: { type: 'exponential', delay: 1000 }` protège le serveur mail externe : si Resend est momentanément surchargé, les retries ne pilonnent pas (1 s, 2 s, 4 s). L'API TribuZen reste disponible pendant ce temps.
+- `removeOnComplete: { count: 100 }` + `removeOnFail: { count: 200 }` évitent l'accumulation illimitée dans Redis — les 200 derniers jobs échoués restent accessibles pour audit sans saturer la mémoire.
+
+Structure cible dans `smaurier/tribuzen` :
+
+```
+apps/api/src/
+  invitation/
+    invitation.module.ts      ← BullModule.registerQueue + providers
+    invitation.service.ts     ← producteur — enqueueInvite(), enqueueWelcome()
+    invitation.processor.ts   ← WorkerHost — process() avec switch(job.name)
+    invitation.controller.ts  ← POST /invitation
+    invitation.jobs.ts        ← INVITE_JOB, WELCOME_JOB (constantes partagées)
+  gazette/
+    gazette.module.ts
+    gazette.scheduler.ts      ← @Cron lundi 8h + @Cron minuit + @Interval 5 min
+    gazette.service.ts        ← generateAndSend(), purgeExpiredTokens()
+```
+
+## 6. Points clés
+
+1. BullMQ persiste les jobs dans Redis — ils survivent au redémarrage de l'API, contrairement à un `setTimeout` ou `setInterval` en mémoire.
+2. `BullModule.forRootAsync()` dans `AppModule` = connexion Redis globale ; `BullModule.registerQueue()` dans le module consommateur = déclaration d'une queue individuelle.
+3. Producteur : `@InjectQueue('nom') private queue: Queue` (`Queue` depuis `bullmq`) + `queue.add('job-name', data, options)`.
+4. Processor `@nestjs/bullmq` : `@Processor('nom') export class X extends WorkerHost` + `async process(job: Job)` — le `@Process()` de l'ancien `@nestjs/bull` n'existe pas dans cette version.
+5. Switch sur `job.name` dans `process()` pour router plusieurs types de jobs dans un même processor — extraire les noms dans des constantes partagées pour éviter les divergences.
+6. `attempts` + `backoff: { type: 'exponential', delay }` = protection automatique contre les pannes transitoires ; relancer l'erreur dans `process()` déclenche le retry BullMQ.
+7. `ScheduleModule.forRoot()` dans `AppModule` est obligatoire pour activer `@Cron` et `@Interval` — sans lui, aucun déclenchement, aucune erreur visible.
+8. `@Cron` perd les déclenchements si l'app est down ; BullMQ avec `repeat` les persiste dans Redis — choisir selon la criticité de la tâche.
+
+## 7. Seeds Anki
+
+```
+Quelle classe doit étendre un processor dans @nestjs/bullmq ?|WorkerHost — @Processor('nom') export class X extends WorkerHost { async process(job: Job) { ... } }
+Comment router plusieurs types de jobs dans un même processor @nestjs/bullmq ?|Switch sur job.name dans process() — case 'send-invite' / case 'welcome' — sans décorateur supplémentaire
+Différence BullModule.forRootAsync vs BullModule.registerQueue ?|forRootAsync = connexion Redis globale (une fois dans AppModule) ; registerQueue = déclare une queue nommée dans le module consommateur
+Que se passe-t-il si process() lève une erreur dans BullMQ ?|BullMQ marque le job FAILED et le re-planifie selon backoff/attempts — si attempts épuisées le job reste FAILED dans Redis pour audit
+Pourquoi backoff exponential plutôt que fixed pour un envoi email ?|Exponentiel laisse croître les délais (1s, 2s, 4s) — si le serveur SMTP est surchargé on ne le pilonne pas ; fixed enverrait au même rythme
+Que fait ScheduleModule.forRoot() et où le placer ?|Active le planificateur global de @nestjs/schedule — doit être dans AppModule, sans lui @Cron et @Interval sont silencieusement ignorés
+@Cron vs BullMQ repeat — quand choisir quoi ?|@Cron = simple, perte si app down au déclenchement ; BullMQ repeat = persisté dans Redis, tolère les redémarrages — préférer BullMQ pour les tâches critiques
+Comment éviter la divergence entre queue.add('send-invite') et le switch du processor ?|Extraire dans une constante partagée — export const INVITE_JOB = 'send-invite' — importée par InvitationService ET InvitationProcessor
+```
+
+## Pont vers le lab
+
+> Lab associé : `09-nestjs/labs/lab-22-queues/README.md`. Tu y implémentes `InvitationModule` avec BullMQ (producteur + processor + retries) et `GazetteScheduler` avec `@Cron` — corrigé complet commenté + variante J+30 dans le README.
+
+← [Module 21 — NestJS WebSockets et fichiers](21-nestjs-websockets-fichiers.md) | [Module 23 — NestJS performance et déploiement](23-nestjs-performance-deploiement.md) →

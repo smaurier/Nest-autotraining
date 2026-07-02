@@ -1,865 +1,646 @@
-# Module 20 — NestJS — Configuration & Swagger
-
-> **Objectif** : Maîtriser la gestion de configuration par environnement avec @nestjs/config et documenter automatiquement votre API REST avec Swagger/OpenAPI dans NestJS.
-> **Difficulte** : ⭐⭐⭐ (avance)
-> **Prérequis** : Module 10 (Controllers), Module 11 (Services), Module 12 (Modules)
-> **Duree estimee** : 4 heures
-
+---
+titre: NestJS config et Swagger
+cours: 09-nestjs
+notions: [ConfigModule et variables d'environnement, validation du schéma de config, injection de ConfigService, Swagger et OpenAPI, décorateurs ApiTags ApiProperty ApiResponse, génération auto de la doc, DocumentBuilder, sécurité de la doc]
+outcomes: [charger et valider la configuration via ConfigModule, injecter ConfigService, générer une doc OpenAPI avec @nestjs/swagger, documenter DTOs et endpoints]
+prerequis: [19-nestjs-auth]
+next: 21-nestjs-websockets-fichiers
+libs: [{ name: "@nestjs/config", version: "^11" }, { name: "@nestjs/swagger", version: "^11" }]
+tribuzen: configuration typée + documentation OpenAPI de l'API TribuZen
+last-reviewed: 2026-07
 ---
 
-## 1. Gestion de la configuration
+# NestJS config et Swagger
 
-### 1.1 Le problème
+> **Outcomes — tu sauras FAIRE :** charger et valider la configuration via `ConfigModule`, injecter `ConfigService` dans n'importe quel service, générer une doc OpenAPI avec `@nestjs/swagger`, documenter DTOs et endpoints avec les décorateurs `Api*`.
+> **Difficulté :** :star::star::star:
 
-Une application a des paramètres qui changent selon l'environnement : base de donnees, secrets, ports, URLs d'API tierces, etc. Il ne faut **jamais** coder ces valeurs en dur dans le code.
+## 1. Cas concret d'abord
 
-> **Analogie** : Imaginez que votre application est un formulaire papier a remplir. La configuration est le crayon avec lequel vous remplissez les cases. En développement, vous utilisez un crayon (valeurs de dev). En production, vous utilisez un stylo (valeurs de prod). Le formulaire est le même, seules les réponses changent.
+L'API TribuZen vient d'être déployée en staging. Deux problèmes arrivent le même jour.
 
-### 1.2 Installation
+**Problème 1 — config éparpillée sans validation.** `process.env.DATABASE_URL` apparaît à sept endroits différents. `GroupService` le lit directement, `AuthService` aussi, `main.ts` aussi. L'app démarre en staging sans erreur — mais `JWT_SECRET` n'est pas défini et la première requête `/auth/login` renvoie un 500 opaque. Aucune validation au démarrage.
 
-```bash
-npm install @nestjs/config
-# @nestjs/config utilise dotenv en interne
-```
-
-### 1.3 Configuration basique
-
-```typescript
-// app.module.ts
-import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
-
-@Module({
-  imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,  // Disponible dans tous les modules sans reimport
-    }),
-  ],
-})
-export class AppModule {}
-```
-
-Fichier `.env` :
-
-```env
-# .env
-NODE_ENV=development
-PORT=3000
-
-# Base de donnees
-DB_HOST=localhost
-DB_PORT=5432
-DB_USERNAME=postgres
-DB_PASSWORD=monMotDePasse
-DB_DATABASE=nest_course
-
-# JWT
-JWT_ACCESS_SECRET=superSecretAccess123!longEnough
-JWT_REFRESH_SECRET=superSecretRefresh456!longEnough
-JWT_ACCESS_EXPIRATION=15m
-JWT_REFRESH_EXPIRATION=7d
-
-# Redis
-REDIS_HOST=localhost
-REDIS_PORT=6379
-
-# API externes
-MAIL_HOST=smtp.example.com
-MAIL_PORT=587
-MAIL_USER=noreply@example.com
-MAIL_PASS=motDePasseMail
-```
-
-> **Piege classique** : Ajoutez toujours `.env` dans votre `.gitignore`. Ne commitez **jamais** vos secrets. Fournissez un fichier `.env.example` avec des valeurs vides comme référence.
-
-```env
-# .env.example (a commiter dans Git)
-NODE_ENV=development
-PORT=3000
-DB_HOST=localhost
-DB_PORT=5432
-DB_USERNAME=
-DB_PASSWORD=
-DB_DATABASE=
-JWT_ACCESS_SECRET=
-JWT_REFRESH_SECRET=
-```
-
-### 1.4 Utilisation du ConfigService
-
-```typescript
-// users/users.service.ts
-import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-
+```ts
+// ❌ anti-pattern — process.env brut, sans validation, sans type
 @Injectable()
-export class UsersService {
+export class GroupService {
+  async create(dto: CreateGroupDto) {
+    // Si DATABASE_URL est undefined → crash à l'exécution, pas au démarrage
+    const db = new PrismaClient({ datasources: { db: { url: process.env.DATABASE_URL } } })
+  }
+}
+```
+
+**Problème 2 — zéro doc API.** Le dev frontend ouvre `POST /groups` et demande : « il attend quoi en body exactement ? il retourne quoi ? il peut renvoyer 401 ? ». Tu réponds dans Slack. Le lendemain, un autre dev pose la même question.
+
+`@nestjs/config` et `@nestjs/swagger` résolvent les deux.
+
+```ts
+// ✅ après ce module — config validée, doc générée
+@Injectable()
+export class GroupService {
   constructor(private readonly configService: ConfigService) {}
 
-  getDbHost(): string {
-    // get<Type>(cle, valeurParDefaut?)
-    return this.configService.get<string>('DB_HOST', 'localhost');
-  }
-
-  getPort(): number {
-    return this.configService.get<number>('PORT', 3000);
-  }
-
-  isDevelopment(): boolean {
-    return this.configService.get<string>('NODE_ENV') === 'development';
-  }
-
-  // getOrThrow lance une erreur si la variable n'existe pas
-  getJwtSecret(): string {
-    return this.configService.getOrThrow<string>('JWT_ACCESS_SECRET');
-    // Lance une erreur si JWT_ACCESS_SECRET n'est pas defini
+  // ConfigService est injecté — validé au démarrage, typé, testable
+  getDatabaseUrl(): string {
+    return this.configService.getOrThrow<string>('DATABASE_URL')
   }
 }
 ```
 
-### 1.5 Options avancees de ConfigModule
+Et la documentation Swagger est générée automatiquement à partir des décorateurs placés sur controllers et DTOs.
 
-```typescript
+## 2. Théorie complète, concise
+
+### 2.1 ConfigModule — chargement du `.env`
+
+`ConfigModule` (de `@nestjs/config`) encapsule `dotenv` et expose les variables d'environnement via `ConfigService`.
+
+```ts
+// app.module.ts
+import { Module } from '@nestjs/common'
+import { ConfigModule } from '@nestjs/config'
+
+@Module({
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,    // ConfigService injectable partout, sans re-import dans chaque module
+      envFilePath: '.env',
+    }),
+  ],
+})
+export class AppModule {}
+```
+
+Sans `isGlobal: true`, chaque module qui veut utiliser `ConfigService` doit importer `ConfigModule` explicitement — bruit dans chaque `@Module()`. Avec `isGlobal: true`, un seul import dans `AppModule` suffit.
+
+### 2.2 Validation du schéma avec Joi
+
+La validation au démarrage est non négociable : l'app doit refuser de démarrer plutôt que de crasher en production à 3h du matin sur une variable manquante.
+
+```ts
+import * as Joi from 'joi'
+
 ConfigModule.forRoot({
   isGlobal: true,
-
-  // Specifier le chemin du fichier .env
-  envFilePath: '.env',
-  // Ou plusieurs fichiers (le premier trouve gagne)
-  envFilePath: ['.env.local', '.env'],
-
-  // Ignorer si le fichier .env n'existe pas (utile en production)
-  ignoreEnvFile: process.env.NODE_ENV === 'production',
-
-  // Expansion des variables (utiliser des variables dans les variables)
-  expandVariables: true,
-  // Permet dans .env :
-  // BASE_URL=http://localhost
-  // API_URL=${BASE_URL}:${PORT}/api
-
-  // Cache (ameliore les performances)
-  cache: true,
+  validationSchema: Joi.object({
+    NODE_ENV: Joi.string()
+      .valid('development', 'staging', 'production', 'test')
+      .default('development'),
+    PORT: Joi.number().port().default(3000),
+    DATABASE_URL: Joi.string().required(),
+    JWT_SECRET:   Joi.string().min(32).required(),
+    JWT_EXPIRY:   Joi.string().default('15m'),
+  }),
+  validationOptions: {
+    allowUnknown: true,  // tolère les variables non déclarées dans le schéma
+    abortEarly:   false, // affiche toutes les erreurs, pas seulement la première
+  },
 })
 ```
 
-### 1.6 Validation du schema avec Joi
-
-Il est crucial de valider que toutes les variables d'environnement requises sont presentes et valides au démarrage de l'application.
-
-```bash
-npm install joi
-```
-
-```typescript
-// app.module.ts
-import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
-import * as Joi from 'joi';
-
-@Module({
-  imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-      validationSchema: Joi.object({
-        // Environnement
-        NODE_ENV: Joi.string()
-          .valid('development', 'staging', 'production', 'test')
-          .default('development'),
-        PORT: Joi.number().default(3000),
-
-        // Base de donnees
-        DB_HOST: Joi.string().required(),
-        DB_PORT: Joi.number().default(5432),
-        DB_USERNAME: Joi.string().required(),
-        DB_PASSWORD: Joi.string().required(),
-        DB_DATABASE: Joi.string().required(),
-
-        // JWT
-        JWT_ACCESS_SECRET: Joi.string().min(32).required(),
-        JWT_REFRESH_SECRET: Joi.string().min(32).required(),
-        JWT_ACCESS_EXPIRATION: Joi.string().default('15m'),
-        JWT_REFRESH_EXPIRATION: Joi.string().default('7d'),
-
-        // Redis (optionnel)
-        REDIS_HOST: Joi.string().default('localhost'),
-        REDIS_PORT: Joi.number().default(6379),
-      }),
-      validationOptions: {
-        allowUnknown: true,   // Permet les variables non declarees dans le schema
-        abortEarly: false,     // Affiche TOUTES les erreurs, pas seulement la premiere
-      },
-    }),
-  ],
-})
-export class AppModule {}
-```
-
-Si une variable requise manque, l'application refuse de démarrer :
+Si `DATABASE_URL` ou `JWT_SECRET` manquent, NestJS refuse de démarrer avec un message lisible :
 
 ```
-Error: Config validation error:
-"DB_USERNAME" is required
-"DB_PASSWORD" is required
-"JWT_ACCESS_SECRET" length must be at least 32 characters long
+Config validation error: "DATABASE_URL" is required. "JWT_SECRET" is required.
 ```
 
-> **Bonne pratique** : Validez toujours votre configuration au démarrage. Il vaut mieux une erreur claire au lancement qu'un bug mystérieux en production a 3h du matin.
+### 2.3 ConfigService — `get` et `getOrThrow`
 
-### 1.7 Configuration par namespace (registerAs)
+```ts
+@Injectable()
+export class GroupService {
+  constructor(private readonly configService: ConfigService) {}
 
-Pour organiser la configuration en groupes logiques :
+  // get<T>(key, valeurParDéfaut?) — retourne undefined si absent
+  getAppName(): string {
+    return this.configService.get<string>('APP_NAME', 'TribuZen')
+  }
 
-```typescript
-// config/database.config.ts
-import { registerAs } from '@nestjs/config';
+  // getOrThrow<T>(key) — lève une erreur si absent
+  // À préférer pour les variables critiques déjà validées par Joi
+  getDatabaseUrl(): string {
+    return this.configService.getOrThrow<string>('DATABASE_URL')
+  }
 
-export default registerAs('database', () => ({
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT, 10) || 5432,
-  username: process.env.DB_USERNAME || 'postgres',
-  password: process.env.DB_PASSWORD || 'postgres',
-  name: process.env.DB_DATABASE || 'nest_course',
-  synchronize: process.env.NODE_ENV !== 'production',
-}));
+  isProduction(): boolean {
+    return this.configService.get<string>('NODE_ENV') === 'production'
+  }
+}
 ```
 
-```typescript
-// config/jwt.config.ts
-import { registerAs } from '@nestjs/config';
+| Méthode | Comportement si absent | Cas d'usage |
+|---------|----------------------|-------------|
+| `get<T>(key)` | retourne `undefined` | variables optionnelles avec logique de fallback |
+| `get<T>(key, default)` | retourne la valeur par défaut | variables avec valeur défaut connue |
+| `getOrThrow<T>(key)` | lève `InternalServerErrorException` | variables critiques déjà validées par Joi |
+
+### 2.4 `registerAs` — namespaces typés
+
+Pour organiser la configuration en groupes cohérents et éviter la prolifération de clés plates :
+
+```ts
+// src/config/jwt.config.ts
+import { registerAs } from '@nestjs/config'
 
 export default registerAs('jwt', () => ({
-  accessSecret: process.env.JWT_ACCESS_SECRET,
-  refreshSecret: process.env.JWT_REFRESH_SECRET,
-  accessExpiration: process.env.JWT_ACCESS_EXPIRATION || '15m',
-  refreshExpiration: process.env.JWT_REFRESH_EXPIRATION || '7d',
-}));
+  secret:        process.env.JWT_SECRET,
+  expiry:        process.env.JWT_EXPIRY        ?? '15m',
+  refreshExpiry: process.env.JWT_REFRESH_EXPIRY ?? '7d',
+}))
 ```
 
-```typescript
-// config/mail.config.ts
-import { registerAs } from '@nestjs/config';
+```ts
+// src/config/database.config.ts
+import { registerAs } from '@nestjs/config'
 
-export default registerAs('mail', () => ({
-  host: process.env.MAIL_HOST,
-  port: parseInt(process.env.MAIL_PORT, 10) || 587,
-  user: process.env.MAIL_USER,
-  password: process.env.MAIL_PASS,
-  from: process.env.MAIL_FROM || 'noreply@example.com',
-}));
+export default registerAs('database', () => ({
+  url:      process.env.DATABASE_URL,
+  poolSize: parseInt(process.env.DB_POOL_SIZE ?? '10', 10),
+}))
 ```
 
-Charger les configurations :
+```ts
+// app.module.ts — charger les namespaces
+import databaseConfig from './config/database.config'
+import jwtConfig from './config/jwt.config'
 
-```typescript
-// app.module.ts
-import { ConfigModule } from '@nestjs/config';
-import databaseConfig from './config/database.config';
-import jwtConfig from './config/jwt.config';
-import mailConfig from './config/mail.config';
+ConfigModule.forRoot({
+  isGlobal: true,
+  load: [databaseConfig, jwtConfig], // factories enregistrées dans le conteneur
+})
+```
+
+Accès par clé pointée avec `ConfigService` (retour non typé) :
+
+```ts
+this.configService.get<string>('database.url')
+this.configService.get<string>('jwt.secret')
+```
+
+### 2.5 Injection typée avec `ConfigType`
+
+Pour un accès pleinement typé, injecter le namespace directement via `@Inject` et `ConfigType` :
+
+```ts
+import { Inject, Injectable } from '@nestjs/common'
+import { ConfigType } from '@nestjs/config'
+import jwtConfig from '../config/jwt.config'
+
+@Injectable()
+export class AuthService {
+  constructor(
+    // jwtConfig.KEY = token généré automatiquement par registerAs
+    @Inject(jwtConfig.KEY)
+    private readonly jwt: ConfigType<typeof jwtConfig>,
+  ) {}
+
+  getSignOptions() {
+    // Accès entièrement typé — TypeScript connaît .secret, .expiry, .refreshExpiry
+    return { secret: this.jwt.secret, expiresIn: this.jwt.expiry }
+  }
+}
+```
+
+`ConfigType<typeof jwtConfig>` infère le type de retour de la factory — TypeScript connaît `.secret`, `.expiry`, `.refreshExpiry` sans casting. Pas de `get<string>('jwt.secret')` qui peut silencieusement retourner `undefined`.
+
+### 2.6 DocumentBuilder et SwaggerModule
+
+`@nestjs/swagger` génère une spec OpenAPI 3 à partir des décorateurs placés sur les controllers et DTOs.
+
+```ts
+// main.ts
+import { NestFactory } from '@nestjs/core'
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger'
+import { ConfigService } from '@nestjs/config'
+import { AppModule } from './app.module'
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule)
+
+  const configService = app.get(ConfigService) // accès hors DI — uniquement valide dans main.ts
+
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('TribuZen API')
+    .setDescription('API de gestion des groupes et membres TribuZen')
+    .setVersion('1.0')
+    .addBearerAuth(
+      { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
+      'JWT-auth', // référence réutilisée dans @ApiBearerAuth('JWT-auth')
+    )
+    .addTag('groups', 'Gestion des groupes TribuZen')
+    .addTag('members', 'Gestion des membres')
+    .build()
+
+  // createDocument inspecte tous les controllers et lit leurs décorateurs Api*
+  const document = SwaggerModule.createDocument(app, swaggerConfig)
+
+  // setup monte l'interface Swagger UI à /api/docs
+  SwaggerModule.setup('api/docs', app, document, {
+    swaggerOptions: { persistAuthorization: true },
+  })
+
+  await app.listen(configService.get<number>('PORT', 3000))
+}
+bootstrap()
+```
+
+`SwaggerModule.createDocument` inspecte tous les controllers enregistrés, lit leurs décorateurs, et produit un objet JSON conforme à la spec OpenAPI 3. `SwaggerModule.setup` monte l'interface Swagger UI à l'URL fournie.
+
+### 2.7 Décorateurs `Api*` sur les controllers
+
+```ts
+import {
+  ApiTags, ApiBearerAuth, ApiOperation,
+  ApiCreatedResponse, ApiOkResponse,
+  ApiNotFoundResponse, ApiUnauthorizedResponse,
+  ApiParam,
+} from '@nestjs/swagger'
+
+@ApiTags('groups')           // groupe dans Swagger UI sous l'onglet "groups"
+@ApiBearerAuth('JWT-auth')  // toutes les routes de ce controller requièrent un JWT
+@Controller('groups')
+export class GroupController {
+  @Post()
+  @ApiOperation({ summary: 'Créer un groupe TribuZen' })
+  @ApiCreatedResponse({ description: 'Groupe créé', type: GroupResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Token JWT absent ou invalide' })
+  create(@Body() dto: CreateGroupDto) { /* ... */ }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Récupérer un groupe par ID' })
+  @ApiParam({ name: 'id', type: String, example: 'group-abc' })
+  @ApiOkResponse({ description: 'Groupe trouvé', type: GroupResponseDto })
+  @ApiNotFoundResponse({ description: 'Groupe introuvable' })
+  findOne(@Param('id') id: string) { /* ... */ }
+}
+```
+
+| Décorateur | Cible | Effet |
+|------------|-------|-------|
+| `@ApiTags('nom')` | controller | groupe les routes sous un tag dans Swagger UI |
+| `@ApiBearerAuth('ref')` | controller ou méthode | indique qu'un JWT est requis |
+| `@ApiOperation({ summary })` | méthode | description courte de l'opération |
+| `@ApiCreatedResponse({ type })` | méthode | documente la réponse 201 avec schéma |
+| `@ApiOkResponse({ type })` | méthode | documente la réponse 200 avec schéma |
+| `@ApiNotFoundResponse()` | méthode | documente la réponse 404 |
+| `@ApiUnauthorizedResponse()` | méthode | documente la réponse 401 |
+| `@ApiParam({ name })` | méthode | documente un paramètre de route |
+| `@ApiBody({ type })` | méthode | documente le corps de la requête |
+
+### 2.8 `@ApiProperty` sur les DTOs
+
+TypeScript n'est pas disponible à l'exécution — Swagger ne voit pas les types. Chaque propriété doit être déclarée explicitement.
+
+```ts
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
+import { IsString, MinLength, MaxLength, IsOptional, IsEnum } from 'class-validator'
+
+export class CreateGroupDto {
+  @ApiProperty({
+    description: 'Nom du groupe TribuZen',
+    example: 'Famille Martin',
+    minLength: 2,
+    maxLength: 60,
+  })
+  @IsString()
+  @MinLength(2)
+  @MaxLength(60)
+  name: string
+
+  @ApiPropertyOptional({
+    description: 'Description courte du groupe',
+    example: 'Groupe de la famille Martin — réunions mensuelles',
+  })
+  @IsString()
+  @IsOptional()
+  description?: string
+
+  @ApiPropertyOptional({
+    description: 'Visibilité du groupe',
+    enum: ['public', 'private'],
+    default: 'private',
+  })
+  @IsEnum(['public', 'private'])
+  @IsOptional()
+  visibility?: 'public' | 'private'
+}
+```
+
+`@ApiProperty` = champ requis dans la doc. `@ApiPropertyOptional` = champ optionnel (Swagger UI l'affiche avec un `?`). Sans ces décorateurs, le body est documenté comme `{}` — le consommateur de la doc ne voit rien.
+
+### 2.9 Désactiver Swagger en production
+
+L'interface Swagger ne doit jamais être exposée en production : elle révèle la structure complète de l'API et consomme des ressources inutilement.
+
+```ts
+// main.ts — guard NODE_ENV
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule)
+  const configService = app.get(ConfigService)
+  const nodeEnv = configService.get<string>('NODE_ENV', 'development')
+
+  if (nodeEnv !== 'production') {
+    const config = new DocumentBuilder()
+      .setTitle('TribuZen API')
+      .setVersion('1.0')
+      .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }, 'JWT-auth')
+      .build()
+    const document = SwaggerModule.createDocument(app, config)
+    SwaggerModule.setup('api/docs', app, document)
+    console.log(`Swagger → http://localhost:${configService.get('PORT', 3000)}/api/docs`)
+  }
+
+  await app.listen(configService.get<number>('PORT', 3000))
+}
+```
+
+## 3. Worked examples
+
+### Exemple A — Configuration TribuZen avec Joi et namespace jwt
+
+```ts
+// src/config/jwt.config.ts
+import { registerAs } from '@nestjs/config'
+
+// registerAs crée un namespace 'jwt' — les clés sont isolées, la factory est typée
+export default registerAs('jwt', () => ({
+  secret:        process.env.JWT_SECRET,
+  expiry:        process.env.JWT_EXPIRY        ?? '15m',
+  refreshExpiry: process.env.JWT_REFRESH_EXPIRY ?? '7d',
+}))
+```
+
+```ts
+// src/app.module.ts
+import { Module } from '@nestjs/common'
+import { ConfigModule } from '@nestjs/config'
+import * as Joi from 'joi'
+import jwtConfig from './config/jwt.config'
+import { GroupModule } from './group/group.module'
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [databaseConfig, jwtConfig, mailConfig],
+      load: [jwtConfig],
+      validationSchema: Joi.object({
+        NODE_ENV:         Joi.string().valid('development', 'staging', 'production', 'test').default('development'),
+        PORT:             Joi.number().port().default(3000),
+        DATABASE_URL:     Joi.string().required(),
+        JWT_SECRET:       Joi.string().min(32).required(),
+        JWT_EXPIRY:       Joi.string().default('15m'),
+        JWT_REFRESH_EXPIRY: Joi.string().default('7d'),
+      }),
+      validationOptions: { allowUnknown: true, abortEarly: false },
     }),
+    GroupModule,
   ],
 })
 export class AppModule {}
 ```
 
-Utilisation avec les namespaces :
-
-```typescript
-@Injectable()
-export class SomeService {
-  constructor(private configService: ConfigService) {}
-
-  getDatabaseHost(): string {
-    // Acces avec le prefix du namespace
-    return this.configService.get<string>('database.host');
-  }
-
-  getJwtAccessSecret(): string {
-    return this.configService.get<string>('jwt.accessSecret');
-  }
-
-  // Ou recuperer tout le namespace d'un coup
-  getMailConfig() {
-    return this.configService.get('mail');
-    // { host: '...', port: 587, user: '...', password: '...', from: '...' }
-  }
-}
-```
-
-### 1.8 Injection typee avec @Inject
-
-```typescript
-import { Inject, Injectable } from '@nestjs/common';
-import { ConfigType } from '@nestjs/config';
-import databaseConfig from '../config/database.config';
+```ts
+// src/group/group.service.ts
+import { Inject, Injectable } from '@nestjs/common'
+import { ConfigType } from '@nestjs/config'
+import jwtConfig from '../config/jwt.config'
 
 @Injectable()
-export class DatabaseService {
+export class GroupService {
   constructor(
-    @Inject(databaseConfig.KEY)
-    private dbConfig: ConfigType<typeof databaseConfig>,
+    // Injection typée — jwtConfig.KEY est le token généré par registerAs
+    @Inject(jwtConfig.KEY)
+    private readonly jwt: ConfigType<typeof jwtConfig>,
   ) {}
 
-  getConnectionString(): string {
-    // Acces entierement type !
-    return `postgresql://${this.dbConfig.username}:${this.dbConfig.password}@${this.dbConfig.host}:${this.dbConfig.port}/${this.dbConfig.name}`;
+  getJwtMeta(): { expiry: string; refreshExpiry: string } {
+    // TypeScript connaît .expiry et .refreshExpiry — pas de get<string>('jwt.expiry')
+    return { expiry: this.jwt.expiry, refreshExpiry: this.jwt.refreshExpiry }
   }
 }
 ```
 
----
+```ts
+// src/group/group.module.ts
+import { Module } from '@nestjs/common'
+import { ConfigModule } from '@nestjs/config'
+import jwtConfig from '../config/jwt.config'
+import { GroupService } from './group.service'
+import { GroupController } from './group.controller'
 
-## 2. Swagger / OpenAPI
-
-### 2.1 Qu'est-ce que Swagger ?
-
-Swagger (maintenant OpenAPI) est un standard pour documenter les API REST. Il généré automatiquement une interface web interactive pour explorer et tester votre API.
-
-> **Analogie** : Swagger est comme le menu d'un restaurant avec photos. Au lieu de deviner ce que l'API propose, vous avez une belle interface avec tous les plats (endpoints), les ingredients (paramètres), et vous pouvez même gouter (tester) directement.
-
-### 2.2 Installation
-
-```bash
-npm install @nestjs/swagger
+@Module({
+  // Le namespace doit être importé dans le module consommateur même avec isGlobal: true
+  imports: [ConfigModule.forFeature(jwtConfig)],
+  controllers: [GroupController],
+  providers: [GroupService],
+})
+export class GroupModule {}
 ```
 
-### 2.3 Configuration de base
+**Pas-à-pas :** (1) `registerAs('jwt', ...)` crée un namespace — les variables env sont encapsulées dans une factory qui retourne un objet typé ; (2) `load: [jwtConfig]` dans `ConfigModule.forRoot` enregistre la factory dans le conteneur global ; (3) `validationSchema: Joi.object(...)` valide au démarrage — `JWT_SECRET` requis et `>= 32 chars`, refus de démarrer sinon ; (4) `ConfigModule.forFeature(jwtConfig)` dans `GroupModule` — nécessaire pour que NestJS résolve le token `jwtConfig.KEY` dans le module consommateur ; (5) `@Inject(jwtConfig.KEY)` + `ConfigType<typeof jwtConfig>` — accès typé sans `get<string>()` qui peut retourner `undefined`.
 
-```typescript
-// main.ts
-import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
-import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
-import { AppModule } from './app.module';
+### Exemple B — GroupController documenté avec @nestjs/swagger
 
-async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+```ts
+// src/group/dto/create-group.dto.ts
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
+import { IsString, MinLength, MaxLength, IsOptional, IsEnum } from 'class-validator'
 
-  // Configuration de Swagger
-  const config = new DocumentBuilder()
-    .setTitle('NestJS Course API')
-    .setDescription('API REST du cours NestJS — Modules 13 a 24')
-    .setVersion('1.0')
-    .setContact(
-      'Equipe Pedagogique',
-      'https://example.com',
-      'contact@example.com',
-    )
-    .setLicense('MIT', 'https://opensource.org/licenses/MIT')
-    .addBearerAuth(
-      {
-        type: 'http',
-        scheme: 'bearer',
-        bearerFormat: 'JWT',
-        description: 'Entrez votre token JWT',
-      },
-      'JWT-auth', // Nom de reference pour le schema de securite
-    )
-    .addTag('auth', 'Authentification et autorisation')
-    .addTag('users', 'Gestion des utilisateurs')
-    .addTag('articles', 'Gestion des articles')
-    .addTag('products', 'Gestion des produits')
-    .addServer('http://localhost:3000', 'Developpement local')
-    .addServer('https://api.staging.example.com', 'Staging')
-    .build();
+export class CreateGroupDto {
+  @ApiProperty({ description: 'Nom du groupe', example: 'Famille Martin', minLength: 2, maxLength: 60 })
+  @IsString()
+  @MinLength(2)
+  @MaxLength(60)
+  name: string
 
-  // Creer le document OpenAPI
-  const document = SwaggerModule.createDocument(app, config);
+  @ApiPropertyOptional({ description: 'Description courte', example: 'Réunions mensuelles' })
+  @IsString()
+  @IsOptional()
+  description?: string
 
-  // Monter l'interface Swagger sur /api/docs
-  SwaggerModule.setup('api/docs', app, document, {
-    swaggerOptions: {
-      persistAuthorization: true, // Garde le token entre les recharges
-      tagsSorter: 'alpha',
-      operationsSorter: 'alpha',
-    },
-    customSiteTitle: 'NestJS Course — API Documentation',
-  });
-
-  app.useGlobalPipes(
-    new ValidationPipe({ whitelist: true, transform: true }),
-  );
-
-  await app.listen(3000);
-  console.log('Swagger disponible sur http://localhost:3000/api/docs');
+  @ApiPropertyOptional({ enum: ['public', 'private'], default: 'private' })
+  @IsEnum(['public', 'private'])
+  @IsOptional()
+  visibility?: 'public' | 'private'
 }
-bootstrap();
 ```
 
-### 2.4 Les decorateurs Swagger pour les controllers
+```ts
+// src/group/dto/group-response.dto.ts
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
 
-```typescript
-// articles/articles.controller.ts
+export class GroupResponseDto {
+  @ApiProperty({ example: 'group-abc123' })
+  id: string
+
+  @ApiProperty({ example: 'Famille Martin' })
+  name: string
+
+  @ApiPropertyOptional({ example: 'Réunions mensuelles' })
+  description?: string
+
+  @ApiProperty({ enum: ['public', 'private'], example: 'private' })
+  visibility: 'public' | 'private'
+
+  @ApiProperty({ example: '2026-01-15T10:30:00.000Z' })
+  createdAt: Date
+}
+```
+
+```ts
+// src/group/group.controller.ts
+import { Body, Controller, Get, Param, Post } from '@nestjs/common'
 import {
-  Controller,
-  Get,
-  Post,
-  Put,
-  Delete,
-  Body,
-  Param,
-  Query,
-  ParseIntPipe,
-  HttpStatus,
-} from '@nestjs/common';
-import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiBearerAuth,
-  ApiQuery,
+  ApiTags, ApiBearerAuth, ApiOperation,
+  ApiCreatedResponse, ApiOkResponse,
+  ApiNotFoundResponse, ApiUnauthorizedResponse,
   ApiParam,
-  ApiBody,
-  ApiCreatedResponse,
-  ApiOkResponse,
-  ApiNotFoundResponse,
-  ApiBadRequestResponse,
-  ApiUnauthorizedResponse,
-  ApiForbiddenResponse,
-} from '@nestjs/swagger';
-import { CreateArticleDto } from './dto/create-article.dto';
-import { UpdateArticleDto } from './dto/update-article.dto';
-import { ArticleResponseDto } from './dto/article-response.dto';
+} from '@nestjs/swagger'
+import { GroupService } from './group.service'
+import { CreateGroupDto } from './dto/create-group.dto'
+import { GroupResponseDto } from './dto/group-response.dto'
 
-@ApiTags('articles')                // Groupe dans l'interface Swagger
-@ApiBearerAuth('JWT-auth')         // Indique que ce controller necessite un JWT
-@Controller('articles')
-export class ArticlesController {
-  constructor(private readonly articlesService: ArticlesService) {}
+@ApiTags('groups')
+@ApiBearerAuth('JWT-auth')   // référence définie dans DocumentBuilder.addBearerAuth(...)
+@Controller('groups')
+export class GroupController {
+  constructor(private readonly groupService: GroupService) {}
 
-  @Get()
-  @ApiOperation({
-    summary: 'Lister tous les articles',
-    description: 'Retourne une liste paginee d\'articles publies avec filtres optionnels.',
-  })
-  @ApiQuery({
-    name: 'page',
-    required: false,
-    type: Number,
-    description: 'Numero de page (defaut: 1)',
-    example: 1,
-  })
-  @ApiQuery({
-    name: 'limit',
-    required: false,
-    type: Number,
-    description: 'Nombre de resultats par page (defaut: 10, max: 100)',
-    example: 10,
-  })
-  @ApiQuery({
-    name: 'statut',
-    required: false,
-    enum: ['brouillon', 'publie', 'archive'],
-    description: 'Filtrer par statut',
-  })
-  @ApiQuery({
-    name: 'search',
-    required: false,
-    type: String,
-    description: 'Recherche dans le titre et le contenu',
-  })
-  @ApiOkResponse({
-    description: 'Liste des articles retournee avec succes',
-    type: [ArticleResponseDto],
-  })
-  findAll(
-    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
-    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
-    @Query('statut') statut?: string,
-    @Query('search') search?: string,
-  ) {
-    return this.articlesService.findAll(page, limit, statut, search);
+  @Post()
+  @ApiOperation({ summary: 'Créer un groupe TribuZen' })
+  @ApiCreatedResponse({ description: 'Groupe créé avec succès', type: GroupResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Token JWT absent ou invalide' })
+  create(@Body() dto: CreateGroupDto): GroupResponseDto {
+    return this.groupService.create(dto)
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Recuperer un article par ID' })
-  @ApiParam({
-    name: 'id',
-    type: Number,
-    description: 'ID de l\'article',
-    example: 1,
-  })
-  @ApiOkResponse({
-    description: 'Article trouve',
-    type: ArticleResponseDto,
-  })
-  @ApiNotFoundResponse({ description: 'Article introuvable' })
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.articlesService.findOne(id);
-  }
-
-  @Post()
-  @ApiOperation({ summary: 'Creer un nouvel article' })
-  @ApiBody({ type: CreateArticleDto })
-  @ApiCreatedResponse({
-    description: 'Article cree avec succes',
-    type: ArticleResponseDto,
-  })
-  @ApiBadRequestResponse({ description: 'Donnees de creation invalides' })
-  @ApiUnauthorizedResponse({ description: 'Token JWT manquant ou invalide' })
-  @ApiForbiddenResponse({ description: 'Role insuffisant' })
-  create(@Body() createArticleDto: CreateArticleDto) {
-    return this.articlesService.create(createArticleDto);
-  }
-
-  @Put(':id')
-  @ApiOperation({ summary: 'Mettre a jour un article' })
-  @ApiParam({ name: 'id', type: Number })
-  @ApiOkResponse({
-    description: 'Article mis a jour avec succes',
-    type: ArticleResponseDto,
-  })
-  @ApiNotFoundResponse({ description: 'Article introuvable' })
-  update(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() updateArticleDto: UpdateArticleDto,
-  ) {
-    return this.articlesService.update(id, updateArticleDto);
-  }
-
-  @Delete(':id')
-  @ApiOperation({ summary: 'Supprimer un article' })
-  @ApiParam({ name: 'id', type: Number })
-  @ApiResponse({ status: 200, description: 'Article supprime avec succes' })
-  @ApiNotFoundResponse({ description: 'Article introuvable' })
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.articlesService.remove(id);
+  @ApiOperation({ summary: 'Récupérer un groupe par son ID' })
+  @ApiParam({ name: 'id', type: String, example: 'group-abc123' })
+  @ApiOkResponse({ description: 'Groupe trouvé', type: GroupResponseDto })
+  @ApiNotFoundResponse({ description: 'Groupe introuvable' })
+  findOne(@Param('id') id: string): GroupResponseDto {
+    return this.groupService.findOne(id)
   }
 }
 ```
 
-### 2.5 Les decorateurs Swagger pour les DTOs
+```ts
+// main.ts — Swagger conditionnel + ConfigService pour le PORT
+import { NestFactory } from '@nestjs/core'
+import { ValidationPipe } from '@nestjs/common'
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger'
+import { ConfigService } from '@nestjs/config'
+import { AppModule } from './app.module'
 
-```typescript
-// dto/create-article.dto.ts
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, MinLength, MaxLength, IsOptional, IsEnum, IsArray, IsInt } from 'class-validator';
-
-export class CreateArticleDto {
-  @ApiProperty({
-    description: 'Titre de l\'article',
-    example: 'Introduction a NestJS',
-    minLength: 3,
-    maxLength: 200,
-  })
-  @IsString()
-  @MinLength(3)
-  @MaxLength(200)
-  titre: string;
-
-  @ApiProperty({
-    description: 'Contenu de l\'article en HTML ou Markdown',
-    example: 'NestJS est un framework progressif pour Node.js...',
-  })
-  @IsString()
-  @MinLength(10)
-  contenu: string;
-
-  @ApiPropertyOptional({
-    description: 'Resume court de l\'article',
-    example: 'Decouvrez NestJS, le framework Node.js inspire par Angular',
-    maxLength: 500,
-  })
-  @IsString()
-  @IsOptional()
-  @MaxLength(500)
-  resume?: string;
-
-  @ApiPropertyOptional({
-    description: 'Statut de l\'article',
-    enum: ['brouillon', 'publie'],
-    default: 'brouillon',
-  })
-  @IsEnum(['brouillon', 'publie'])
-  @IsOptional()
-  statut?: string;
-
-  @ApiPropertyOptional({
-    description: 'IDs des tags a associer',
-    type: [Number],
-    example: [1, 3, 5],
-  })
-  @IsArray()
-  @IsInt({ each: true })
-  @IsOptional()
-  tagIds?: number[];
-}
-```
-
-```typescript
-// dto/article-response.dto.ts
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-
-class AuthorDto {
-  @ApiProperty({ example: 1 })
-  id: number;
-
-  @ApiProperty({ example: 'Alice Dupont' })
-  nom: string;
-}
-
-class TagDto {
-  @ApiProperty({ example: 1 })
-  id: number;
-
-  @ApiProperty({ example: 'NestJS' })
-  nom: string;
-
-  @ApiPropertyOptional({ example: '#E0234E' })
-  couleur?: string;
-}
-
-export class ArticleResponseDto {
-  @ApiProperty({ example: 1, description: 'ID unique de l\'article' })
-  id: number;
-
-  @ApiProperty({ example: 'Introduction a NestJS' })
-  titre: string;
-
-  @ApiProperty({ example: 'introduction-nestjs' })
-  slug: string;
-
-  @ApiProperty({ example: 'NestJS est un framework...' })
-  contenu: string;
-
-  @ApiPropertyOptional({ example: 'Decouvrez NestJS...' })
-  resume?: string;
-
-  @ApiProperty({ example: 'publie', enum: ['brouillon', 'publie', 'archive'] })
-  statut: string;
-
-  @ApiProperty({ example: 42 })
-  nombreVues: number;
-
-  @ApiProperty({ type: AuthorDto })
-  auteur: AuthorDto;
-
-  @ApiProperty({ type: [TagDto] })
-  tags: TagDto[];
-
-  @ApiProperty({ example: '2024-01-15T10:30:00.000Z' })
-  createdAt: Date;
-
-  @ApiProperty({ example: '2024-01-20T14:15:00.000Z' })
-  updatedAt: Date;
-}
-```
-
-### 2.6 Tableau des decorateurs Swagger
-
-| Decorateur | Cible | Description |
-|-----------|-------|-------------|
-| `@ApiTags('nom')` | Controller | Groupe les routes sous un tag |
-| `@ApiOperation({ summary })` | Méthode | Description de l'operation |
-| `@ApiResponse({ status, description })` | Méthode | Reponse possible |
-| `@ApiOkResponse()` | Méthode | Reponse 200 |
-| `@ApiCreatedResponse()` | Méthode | Reponse 201 |
-| `@ApiNotFoundResponse()` | Méthode | Reponse 404 |
-| `@ApiBadRequestResponse()` | Méthode | Reponse 400 |
-| `@ApiUnauthorizedResponse()` | Méthode | Reponse 401 |
-| `@ApiForbiddenResponse()` | Méthode | Reponse 403 |
-| `@ApiBearerAuth()` | Controller/Méthode | Authentification Bearer |
-| `@ApiQuery({ name })` | Méthode | Paramètre de query string |
-| `@ApiParam({ name })` | Méthode | Paramètre de route |
-| `@ApiBody({ type })` | Méthode | Corps de la requête |
-| `@ApiProperty()` | Propriété DTO | Propriété requise |
-| `@ApiPropertyOptional()` | Propriété DTO | Propriété optionnelle |
-| `@ApiExcludeEndpoint()` | Méthode | Exclut la route de Swagger |
-| `@ApiExcludeController()` | Controller | Exclut le controller de Swagger |
-
-### 2.7 Le plugin CLI pour la génération automatique
-
-Au lieu de decorer manuellement chaque propriété avec `@ApiProperty()`, le plugin CLI de NestJS Swagger peut les générer automatiquement à partir des types TypeScript et des decorateurs class-validator.
-
-```json
-// nest-cli.json
-{
-  "collection": "@nestjs/schematics",
-  "sourceRoot": "src",
-  "compilerOptions": {
-    "plugins": [
-      {
-        "name": "@nestjs/swagger",
-        "options": {
-          "classValidatorShim": true,  // Lit les decorateurs class-validator
-          "introspectComments": true,   // Utilise les commentaires JSDoc
-          "dtoFileNameSuffix": [".dto.ts", ".entity.ts"],
-          "controllerFileNameSuffix": ".controller.ts",
-          "dtoKeyOfComment": "description",
-          "controllerKeyOfComment": "summary"
-        }
-      }
-    ]
-  }
-}
-```
-
-Avec le plugin active, ce DTO :
-
-```typescript
-export class CreateUserDto {
-  /** Nom complet de l'utilisateur */
-  @IsString()
-  @MinLength(2)
-  nom: string;
-
-  /** Email de l'utilisateur */
-  @IsEmail()
-  email: string;
-
-  /** Mot de passe (min 8 caracteres) */
-  @IsString()
-  @MinLength(8)
-  motDePasse: string;
-
-  /** Role (optionnel, defaut: user) */
-  @IsEnum(UserRole)
-  @IsOptional()
-  role?: UserRole;
-}
-```
-
-Genere automatiquement la documentation Swagger equivalente a ajouter `@ApiProperty()` sur chaque champ.
-
-> **Bonne pratique** : Utilisez le plugin CLI pour les DTOs simples et ajoutez `@ApiProperty()` manuellement seulement quand vous avez besoin de personnaliser les exemples ou descriptions.
-
-### 2.8 Exporter la spécification OpenAPI
-
-```typescript
-// main.ts (apres la creation du document)
-import { writeFileSync } from 'fs';
-
-const document = SwaggerModule.createDocument(app, config);
-
-// Exporter en JSON
-writeFileSync('./openapi.json', JSON.stringify(document, null, 2));
-
-// Exporter en YAML
-import * as yaml from 'yaml';
-writeFileSync('./openapi.yaml', yaml.stringify(document));
-```
-
-Le fichier OpenAPI exporte peut etre importe dans :
-- Postman
-- Insomnia
-- Des generateurs de SDK client
-- Des outils de documentation comme ReadMe, Redoc, etc.
-
----
-
-## 3. Patterns de configuration par environnement
-
-### 3.1 Configuration multi-environnement
-
-```
-projet/
-├── .env                  ← Defaut (developpement)
-├── .env.staging          ← Staging
-├── .env.production       ← Production (ne pas commiter !)
-├── .env.test             ← Tests
-├── .env.example          ← Exemple (a commiter)
-```
-
-```typescript
-// app.module.ts
-ConfigModule.forRoot({
-  isGlobal: true,
-  envFilePath: [
-    `.env.${process.env.NODE_ENV || 'development'}`,
-    '.env',
-  ],
-})
-```
-
-### 3.2 Configuration par type
-
-| Environnement | Swagger | Logging | Synchronize DB | Debug |
-|--------------|---------|---------|----------------|-------|
-| development | Oui | Verbose | Oui | Oui |
-| staging | Oui | Info | Non | Non |
-| production | Non | Warn/Error | Non | Non |
-| test | Non | Error | Oui (SQLite) | Non |
-
-```typescript
-// main.ts
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-  const configService = app.get(ConfigService);
-  const nodeEnv = configService.get<string>('NODE_ENV', 'development');
+  const app = await NestFactory.create(AppModule)
+  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }))
 
-  // Swagger uniquement en dev et staging
+  const configService = app.get(ConfigService) // hors DI — valide uniquement dans main.ts
+  const nodeEnv = configService.get<string>('NODE_ENV', 'development')
+
   if (nodeEnv !== 'production') {
     const config = new DocumentBuilder()
-      .setTitle('API')
+      .setTitle('TribuZen API')
+      .setDescription('API de gestion des groupes et membres TribuZen')
       .setVersion('1.0')
-      .addBearerAuth()
-      .build();
+      .addBearerAuth(
+        { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
+        'JWT-auth', // doit correspondre exactement à @ApiBearerAuth('JWT-auth')
+      )
+      .addTag('groups', 'Gestion des groupes TribuZen')
+      .addTag('members', 'Gestion des membres')
+      .build()
 
-    const document = SwaggerModule.createDocument(app, config);
-    SwaggerModule.setup('api/docs', app, document);
+    const document = SwaggerModule.createDocument(app, config)
+    SwaggerModule.setup('api/docs', app, document, {
+      swaggerOptions: { persistAuthorization: true },
+    })
+    console.log(`Swagger UI → http://localhost:${configService.get('PORT', 3000)}/api/docs`)
   }
 
-  const port = configService.get<number>('PORT', 3000);
-  await app.listen(port);
-
-  console.log(`Application lancee sur le port ${port} (env: ${nodeEnv})`);
-  if (nodeEnv !== 'production') {
-    console.log(`Swagger : http://localhost:${port}/api/docs`);
-  }
+  await app.listen(configService.get<number>('PORT', 3000))
 }
+bootstrap()
 ```
 
----
+**Pas-à-pas :** (1) `@ApiTags('groups')` sur le controller — toutes les routes apparaissent sous l'onglet "groups" dans Swagger UI ; (2) `@ApiBearerAuth('JWT-auth')` correspond à la référence déclarée dans `addBearerAuth(...)` du `DocumentBuilder` — le slot "Authorize" est activé pour ce controller, le token JWT est inclus dans tous les appels test ; (3) `@ApiCreatedResponse({ type: GroupResponseDto })` — Swagger génère le schéma de réponse 201 à partir des `@ApiProperty` de `GroupResponseDto` ; (4) `@ApiParam({ name: 'id' })` documente le paramètre de route `:id` dans Swagger UI ; (5) `app.get(ConfigService)` dans `main.ts` est la seule façon d'accéder au conteneur DI avant `app.listen()` — dans les services, le constructeur reste la bonne approche.
 
-## 4. Exercices pratiques
+## 4. Pièges & misconceptions
 
-### Exercice 1 : Configuration complete
+- **`isGlobal: true` oublié.** Sans lui, chaque module qui injecte `ConfigService` doit importer `ConfigModule`. NestJS lève `Nest can't resolve dependencies of GroupService (?). Please make sure that the argument ConfigService at index [0] is available in the GroupModule context`. Correction : `ConfigModule.forRoot({ isGlobal: true })` dans `AppModule` — une seule fois, partout disponible.
 
-Mettez en place une configuration avec :
-1. Validation Joi de toutes les variables d'environnement
-2. Trois namespaces (database, jwt, mail)
-3. Fichiers .env pour dev et test
+- **Validation Joi absente.** Sans `validationSchema`, un `.env` incomplet laisse l'app démarrer avec des variables `undefined`. Le crash arrive sur la première requête qui utilise la variable manquante — message d'erreur opaque en prod. Correction : toujours définir un `validationSchema` avec `required()` sur les variables critiques et `abortEarly: false` pour voir toutes les erreurs d'un coup.
 
-### Exercice 2 : Documentation Swagger
+- **`get<T>()` pour les variables critiques.** `configService.get<string>('JWT_SECRET')` retourne `string | undefined`. Une variable validée par Joi est garantie présente — utiliser `getOrThrow` qui documente l'intention et évite de propager un `| undefined` dans le typage.
 
-Documentez un CRUD complet de produits avec :
-1. Tous les decorateurs Swagger sur le controller
-2. DTOs avec @ApiProperty détaillés (exemples, descriptions)
-3. Reponses d'erreur documentees
-4. Authentification Bearer configuree
+- **`ConfigModule.forFeature` oublié avec `registerAs`.** `isGlobal: true` ne suffit pas pour les namespaces chargés avec `registerAs` — le module consommateur doit importer `ConfigModule.forFeature(jwtConfig)` pour que NestJS résolve le token `jwtConfig.KEY`. Correction : ajouter `imports: [ConfigModule.forFeature(jwtConfig)]` dans chaque module qui utilise ce namespace.
 
-### Exercice 3 : Plugin CLI
+- **`@ApiProperty` absent d'un champ DTO.** Swagger UI affiche un body vide `{}` pour l'endpoint concerné. Les consommateurs de la doc ne voient pas les champs attendus. Correction : décorer chaque propriété publique d'un DTO avec `@ApiProperty` (requis) ou `@ApiPropertyOptional` (optionnel).
 
-Activez le plugin CLI Swagger et comparez avec la documentation manuelle. Quelles propriétés sont generees automatiquement ? Lesquelles necessitent toujours une configuration manuelle ?
+- **Référence `@ApiBearerAuth` incorrecte.** `@ApiBearerAuth('wrong-ref')` sans correspondance dans `addBearerAuth('JWT-auth', ...)` affiche un cadenas dans Swagger UI mais le champ "Authorize" n'est pas connecté — les appels test n'incluent pas le token. Correction : la string dans `@ApiBearerAuth(...)` doit être identique au deuxième argument de `addBearerAuth(...)`.
 
----
+- **Swagger activé en production.** L'interface expose la structure complète de l'API (routes, schémas, DTOs) — surface d'attaque non négligeable. Entourer `SwaggerModule.setup` d'un `if (nodeEnv !== 'production')`. En CI/CD, la variable `NODE_ENV=production` garantit que la doc n'est jamais montée en prod.
 
-## Liens
+## 5. Ancrage TribuZen
 
-| Ressource | Lien |
-|-----------|------|
-| Quiz Module 20 | `quiz/20-quiz.md` |
-| Lab Module 20 | `labs/20-lab-config-swagger.md` |
-| Screencast | `screencasts/20-screencast.md` |
-| Module précédent | [Module 19 — Authentification & Autorisation](19-nestjs-auth.md) |
-| Module suivant | [Module 21 — WebSockets & Fichiers](21-nestjs-websockets-fichiers.md) |
-| @nestjs/config | https://docs.nestjs.com/techniques/configuration |
-| @nestjs/swagger | https://docs.nestjs.com/openapi/introduction |
-| OpenAPI Specification | https://swagger.io/spécification/ |
-| Joi | https://joi.dev/api/ |
+Couche fil-rouge : **configuration typée + documentation OpenAPI de l'API TribuZen** (`smaurier/tribuzen`).
 
----
+- `ConfigModule.forRoot({ isGlobal: true, validationSchema: Joi.object({...}) })` dans `AppModule` — `DATABASE_URL`, `JWT_SECRET`, `PORT` validés au démarrage. L'app refuse de démarrer avec une config incomplète en staging ou prod.
+- Namespace `jwtConfig` via `registerAs` — `AuthService` et `GroupService` injectent `ConfigType<typeof jwtConfig>` avec un typage complet de `.secret`, `.expiry`, `.refreshExpiry`. Pas de magic strings `'jwt.secret'` dispersés dans la codebase.
+- `GroupController` documenté avec `@ApiTags('groups')`, `@ApiBearerAuth('JWT-auth')`, `@ApiCreatedResponse({ type: GroupResponseDto })` — le dev frontend ouvre `/api/docs` et voit le contrat exact sans Slack.
+- `CreateGroupDto` et `GroupResponseDto` avec `@ApiProperty` complets — Swagger UI génère un formulaire interactif pour tester `POST /groups` directement depuis le navigateur.
+- Swagger désactivé via `if (nodeEnv !== 'production')` — la doc n'est visible qu'en dev et staging.
+- `app.get(ConfigService)` dans `main.ts` pour lire `PORT` avant `listen()` — seul endroit où ce pattern est légitime.
 
-<!-- parcours-recommande -->
+Structure cible dans `smaurier/tribuzen` :
 
-::: tip Parcours recommandé
-1. **Screencast** : [screencast 20 config swagger](../screencasts/screencast-20-config-swagger.md)
-2. **Lab** : [lab-20-config-swagger](../labs/lab-20-config-swagger/README)
-3. **Quiz** : [quiz 20 config swagger](../quizzes/quiz-20-config-swagger.html)
-:::
+```
+apps/api/src/
+  config/
+    jwt.config.ts          ← registerAs('jwt', ...) — secret + expiry
+    database.config.ts     ← registerAs('database', ...) — url + poolSize
+  group/
+    dto/
+      create-group.dto.ts  ← @ApiProperty sur chaque champ + class-validator
+      group-response.dto.ts
+    group.controller.ts    ← @ApiTags + @ApiBearerAuth + @ApiOperation + @ApiOkResponse
+    group.service.ts       ← @Inject(jwtConfig.KEY) ConfigType typé
+    group.module.ts        ← ConfigModule.forFeature(jwtConfig)
+  app.module.ts            ← ConfigModule.forRoot + Joi validationSchema
+  main.ts                  ← DocumentBuilder + SwaggerModule + guard NODE_ENV
+```
+
+## 6. Points clés
+
+1. `ConfigModule.forRoot({ isGlobal: true })` dans `AppModule` — une fois, partout disponible sans re-import.
+2. `validationSchema: Joi.object({...})` avec `required()` sur les variables critiques — l'app refuse de démarrer avec une config invalide, jamais en silence.
+3. `get<T>(key, default?)` pour les variables optionnelles ; `getOrThrow<T>(key)` pour les critiques déjà validées par Joi.
+4. `registerAs('namespace', factory)` + `load: [config]` — encapsule les variables en objet typé par domaine (jwt, database, mail…).
+5. `@Inject(config.KEY)` + `ConfigType<typeof config>` — injection typée inférant le type de retour de la factory, sans `get<string>()` qui peut retourner `undefined`.
+6. `ConfigModule.forFeature(config)` dans le module consommateur — obligatoire pour résoudre le token d'un namespace même avec `isGlobal: true`.
+7. `new DocumentBuilder().setTitle(...).addBearerAuth(...).addTag(...).build()` — construit la spec de base ; `SwaggerModule.createDocument` + `SwaggerModule.setup` la montent.
+8. `@ApiTags` et `@ApiBearerAuth` sur le controller, `@ApiOperation` + `@ApiCreatedResponse`/`@ApiOkResponse` sur chaque méthode — chaîne de décorateurs complète pour documenter un endpoint.
+9. `@ApiProperty` sur chaque propriété de DTO — sans lui, Swagger UI voit un body `{}` et ne génère aucun schéma.
+
+## 7. Seeds Anki
+
+```
+Que fait isGlobal dans ConfigModule.forRoot ?|Rend ConfigService injectable dans toute l'app sans importer ConfigModule dans chaque module — un seul import dans AppModule suffit
+Différence get vs getOrThrow dans ConfigService ?|get retourne T | undefined (avec ou sans valeur par défaut) ; getOrThrow lève une erreur si la clé est absente — à utiliser pour les variables critiques déjà validées par Joi
+Comment valider les variables env au démarrage avec ConfigModule ?|validationSchema: Joi.object({ CLE: Joi.string().required() }) dans ConfigModule.forRoot — l'app refuse de démarrer si la validation échoue avec un message lisible
+Pourquoi utiliser registerAs et ConfigType plutôt que ConfigService.get ?|registerAs encapsule les variables en objet typé par namespace ; ConfigType infère le type de retour de la factory — accès typé sans get<string>() qui peut retourner undefined
+Quel import supplémentaire faut-il dans le module qui consomme un namespace registerAs ?|ConfigModule.forFeature(maConfig) dans imports du module consommateur — isGlobal ne suffit pas pour résoudre le token du namespace
+Comment accéder à ConfigService dans main.ts avant app.listen() ?|app.get(ConfigService) — seul contexte où ce pattern est valide, hors du système DI classique par constructeur
+Que produit SwaggerModule.createDocument(app, config) ?|Un objet JSON conforme à la spec OpenAPI 3 construit à partir des décorateurs Api* des controllers et DTOs enregistrés dans l'app
+Pourquoi @ApiProperty est-il obligatoire sur les propriétés de DTO ?|TypeScript n'est pas disponible à l'exécution — Swagger ne peut pas inférer les types sans les métadonnées des décorateurs @ApiProperty ; sans eux le body est documenté comme {}
+Comment s'assure-t-on que @ApiBearerAuth fonctionne dans Swagger UI ?|La string passée à @ApiBearerAuth('ref') doit être identique au deuxième argument de addBearerAuth({...}, 'ref') dans DocumentBuilder
+Pourquoi désactiver Swagger en production ?|La doc expose la structure complète de l'API (routes, schémas, DTOs) — surface d'attaque et consommation de ressources inutiles ; guard if (nodeEnv !== 'production') autour de SwaggerModule.setup
+```
+
+## Pont vers le lab
+
+> Lab associé : `09-nestjs/labs/lab-20-config-swagger/README.md`. Tu y configures `ConfigModule` avec validation Joi et namespace `jwtConfig`, injectes `ConfigService` de façon typée dans `GroupService`, et documentes `GroupController` complet avec `@nestjs/swagger` — corrigé complet commenté + variante J+30 dans le README.
