@@ -1,815 +1,560 @@
-# Module 11 — NestJS — Providers & Injection de Dependances
-
-> **Objectif** : Comprendre en profondeur l'injection de dépendances (DI) de NestJS, maîtriser les différents types de providers (useClass, useValue, useFactory, useExisting), les scopes, les tokens d'injection, et comprendre pourquoi la DI est essentielle pour les applications maintenables et testables.
->
-> **Difficulte** : ⭐⭐⭐ (avance)
-
+---
+titre: NestJS providers et DI
+cours: 09-nestjs
+notions: [provider et décorateur Injectable, injection de dépendances et conteneur IoC, injection par constructeur, providers custom useClass useValue useFactory, tokens d'injection, scopes singleton request transient, exports entre modules]
+outcomes: [créer un service Injectable et l'injecter dans un controller, définir un provider custom (useValue/useFactory), comprendre les scopes, partager un provider entre modules]
+prerequis: [10-nestjs-controllers]
+next: 12-nestjs-modules
+libs: [{ name: "@nestjs/common", version: "^11" }]
+tribuzen: FamilyService injecté dans FamilyController (logique métier TribuZen découplée)
+last-reviewed: 2026-07
 ---
 
-## 1. Qu'est-ce que l'Injection de Dependances
+# NestJS providers et DI
 
-### 1.1 Le problème sans DI
+> **Outcomes — tu sauras FAIRE :** créer un service `@Injectable()` et l'injecter dans un controller, définir un provider custom avec `useValue` ou `useFactory`, choisir le bon scope, partager un provider entre modules via `exports`.
+> **Difficulté :** :star::star::star:
 
-Sans injection de dépendances, chaque classe créé elle-même ses dépendances :
+## 1. Cas concret d'abord
 
-```typescript
-// SANS DI — couplage fort
-class BooksController {
-  private booksService: BooksService;
-  private logger: Logger;
+TribuZen doit décider si un utilisateur peut rejoindre une famille. La règle métier — vérifier que la famille n'est pas pleine, que l'invitation est valide — ne doit pas vivre dans le controller. Tu essaies d'écrire `FamilyController` et tu bloques immédiatement :
 
-  constructor() {
-    // Le controller cree ses propres dependances
-    this.booksService = new BooksService();
-    this.logger = new Logger();
-    // Et si BooksService a besoin d'une base de donnees ?
-    // this.booksService = new BooksService(new Database(new Config()));
-    // Ca devient vite ingerable...
-  }
+```ts
+// ❌ tentative naïve — couplage fort
+@Controller('families')
+export class FamilyController {
+  private familyService = new FamilyService() // impossible : FamilyService dépend de la DB
+  // Et si FamilyService change de constructeur ? → tout casse ici
 }
 ```
 
-**Problemes** :
-- **Couplage fort** : Le controller est lie à une implementation spécifique
-- **Pas testable** : Impossible de remplacer BooksService par un mock
-- **Pas flexible** : Si tu veux changer l'implementation, tu modifies le controller
-- **Cascade** : Si BooksService change de constructeur, tous les consommateurs cassent
+NestJS résout ça avec un conteneur IoC. Tu déclares ce dont tu as besoin ; NestJS instancie et injecte :
 
-### 1.2 La solution : Injection de Dependances
-
-Avec la DI, les dépendances sont **fournies de l'exterieur** par un conteneur :
-
-```typescript
-// AVEC DI — couplage faible
-@Controller('books')
-class BooksController {
-  // Le constructeur DECLARE ses dependances
-  // NestJS les FOURNIT automatiquement
-  constructor(
-    private readonly booksService: BooksService,
-    private readonly logger: Logger,
-  ) {}
-  // Le controller ne sait PAS comment BooksService est cree
-  // Il sait juste qu'il en a besoin
+```ts
+// ✅ avec DI — découplé
+@Controller('families')
+export class FamilyController {
+  constructor(private readonly familyService: FamilyService) {} // NestJS fournit l'instance
 }
 ```
 
-> **Analogie** : Sans DI, c'est comme si chaque employe d'une entreprise devait fabriquer lui-même ses outils. Avec DI, il y à un service d'approvisionnement (le conteneur DI) qui fournit les outils nécessaires à chaque employe. L'employe dit "j'ai besoin d'une perceuse" et le service lui en donne une — sans qu'il sache d'où elle vient ni comment elle est fabriquee.
+Ce module explique le mécanisme complet : `@Injectable()`, conteneur IoC, providers custom, tokens, scopes, partage entre modules.
 
-### 1.3 Les 3 acteurs de la DI
+## 2. Théorie complète, concise
 
-| Acteur | Role | En NestJS |
-|---|---|---|
-| **Consumer** (consommateur) | La classe qui a besoin d'une dépendance | Controller, Service |
-| **Provider** (fournisseur) | La classe ou valeur qui est injectee | `@Injectable()` service |
-| **Container** (conteneur) | Le système qui géré les dépendances | Le conteneur IoC de NestJS |
+### 2.1 `@Injectable()` et le conteneur IoC
 
-```
-  Container DI (NestJS IoC)
-  ┌──────────────────────────────────────────────┐
-  │                                              │
-  │  Registre des providers :                    │
-  │  ┌──────────────────────────────────┐        │
-  │  │ BooksService  → instance unique  │        │
-  │  │ UsersService  → instance unique  │        │
-  │  │ Logger        → instance unique  │        │
-  │  │ ConfigService → instance unique  │        │
-  │  └──────────────────────────────────┘        │
-  │                                              │
-  │  Quand BooksController a besoin de           │
-  │  BooksService, le container lui fournit      │
-  │  l'instance existante (singleton)            │
-  │                                              │
-  └──────────────────────────────────────────────┘
-```
+`@Injectable()` est un décorateur de classe qui dit au conteneur NestJS : « gère cette classe pour moi ». Sans lui, la classe ne peut pas être injectée ni recevoir des dépendances via DI.
 
----
-
-## 2. Le decorateur @Injectable
-
-### 2.1 Definition
-
-`@Injectable()` marque une classe comme pouvant etre **gérée par le conteneur DI** de NestJS. Sans ce decorateur, NestJS ne peut pas injecter ni fournir la classe.
-
-```typescript
-import { Injectable } from '@nestjs/common';
+```ts
+import { Injectable } from '@nestjs/common'
 
 @Injectable()
-export class BooksService {
-  private books = [];
+export class FamilyService {
+  private families: string[] = []
 
-  findAll() {
-    return this.books;
+  findAll(): string[] {
+    return this.families
   }
 
-  create(data) {
-    this.books.push(data);
-    return data;
-  }
-}
-```
-
-### 2.2 Un service peut injecter d'autres services
-
-```typescript
-@Injectable()
-export class BooksService {
-  // BooksService depend de DatabaseService et LoggerService
-  constructor(
-    private readonly db: DatabaseService,
-    private readonly logger: LoggerService,
-  ) {}
-
-  async findAll() {
-    this.logger.log('Recuperation de tous les livres');
-    return this.db.query('SELECT * FROM books');
+  canJoin(familyId: string): boolean {
+    // règle métier TribuZen — isolée ici, testable séparément
+    return this.families.includes(familyId)
   }
 }
 ```
 
-> **A retenir** : Toute classe qui a besoin d'etre injectee OU qui a des dépendances a injecter doit avoir `@Injectable()`. C'est le decorateur qui dit a NestJS "géré cette classe pour moi".
+Le conteneur IoC (Inversion of Control) de NestJS maintient un registre des providers. Au démarrage, il résout les dépendances dans le bon ordre, instancie les singletons une seule fois, et les distribue à ceux qui en ont besoin.
 
----
+Les trois acteurs :
 
-## 3. Injection par constructeur
+| Acteur | Rôle | Exemple |
+|--------|------|---------|
+| Provider | La classe ou valeur injectée | `FamilyService` |
+| Consumer | La classe qui déclare un besoin | `FamilyController` |
+| Conteneur | Instancie et distribue | Géré par NestJS |
 
-### 3.1 Le mécanisme standard
+Pour que NestJS sache qu'un provider existe, il doit être déclaré dans le tableau `providers` du `@Module()` :
 
-```typescript
-@Controller('books')
-export class BooksController {
-  // NestJS voit le type BooksService dans le constructeur
-  // Il cherche un provider de ce type dans le module
-  // Il l'injecte automatiquement
-  constructor(private readonly booksService: BooksService) {}
+```ts
+@Module({
+  controllers: [FamilyController],
+  providers: [FamilyService], // enregistrement obligatoire
+})
+export class FamilyModule {}
+```
+
+### 2.2 Injection par constructeur
+
+C'est le mécanisme standard. NestJS lit les métadonnées TypeScript du constructeur (via `emitDecoratorMetadata: true` dans `tsconfig.json`) et résout les types comme tokens d'injection.
+
+```ts
+@Controller('families')
+export class FamilyController {
+  // Le type FamilyService sert de token — NestJS cherche ce provider dans le module
+  constructor(private readonly familyService: FamilyService) {}
 
   @Get()
   findAll() {
-    return this.booksService.findAll();
+    return this.familyService.findAll()
   }
 }
 ```
 
-**Comment ça fonctionne en interne** :
+`private readonly` : `private` empêche l'accès depuis l'extérieur, `readonly` empêche la réassignation. Ce pattern est la norme dans tout code NestJS.
 
-1. NestJS lit les metadonnees TypeScript du constructeur (grâce à `emitDecoratorMetadata` dans tsconfig)
-2. Il voit que `BooksController` a besoin de `BooksService`
-3. Il cherche un provider de type `BooksService` dans le module
-4. Il créé l'instance (où reutilise l'existante) et l'injecte
+Un service peut lui-même injecter d'autres services — NestJS résout la chaîne de dépendances automatiquement :
 
-### 3.2 Le mot-clé private readonly
-
-```typescript
-// Raccourci TypeScript : declare ET initialise en une seule ligne
-constructor(private readonly booksService: BooksService) {}
-
-// Equivalent long
-private readonly booksService: BooksService;
-constructor(booksService: BooksService) {
-  this.booksService = booksService;
-}
-```
-
-> **Bonne pratique** : Utilise TOUJOURS `private readonly` pour les dépendances injectees. `private` empeche l'acces depuis l'exterieur, et `readonly` empeche la reassignation accidentelle.
-
----
-
-## 4. Custom Providers
-
-Par defaut, quand tu mets une classe dans le tableau `providers`, NestJS utilise la classe elle-même comme token ET comme implementation. Mais tu peux personnaliser cela.
-
-### 4.1 Le provider standard (syntaxe courte)
-
-```typescript
-@Module({
-  providers: [BooksService],
-  // Equivalent de :
-  // providers: [{ provide: BooksService, useClass: BooksService }],
-})
-```
-
-### 4.2 useClass — Remplacer l'implementation
-
-```typescript
-// Interface (ou classe abstraite)
-export abstract class PaymentService {
-  abstract processPayment(amount: number): Promise<boolean>;
-}
-
-// Implementation Stripe
+```ts
 @Injectable()
-export class StripePaymentService extends PaymentService {
-  async processPayment(amount: number) {
-    console.log(`Paiement Stripe de ${amount}EUR`);
-    return true;
-  }
+export class FamilyService {
+  constructor(
+    private readonly notificationService: NotificationService,
+    private readonly configService: ConfigService,
+  ) {}
+}
+```
+
+### 2.3 Custom providers
+
+Par défaut, `providers: [FamilyService]` est un raccourci pour `{ provide: FamilyService, useClass: FamilyService }`. NestJS propose quatre formes longues.
+
+#### `useClass` — remplacer l'implémentation
+
+```ts
+// Classe abstraite = contrat
+export abstract class NotificationService {
+  abstract send(to: string, message: string): Promise<void>
 }
 
-// Implementation PayPal
 @Injectable()
-export class PaypalPaymentService extends PaymentService {
-  async processPayment(amount: number) {
-    console.log(`Paiement PayPal de ${amount}EUR`);
-    return true;
-  }
+export class EmailNotificationService extends NotificationService {
+  async send(to: string, message: string) { /* envoi email */ }
 }
 
-// Dans le module
 @Module({
   providers: [
     {
-      provide: PaymentService,       // Le token (ce que les consommateurs demandent)
-      useClass: StripePaymentService, // L'implementation fournie
+      provide: NotificationService,       // token = la classe abstraite
+      useClass: EmailNotificationService, // implémentation concrète
     },
   ],
 })
-export class PaymentModule {}
-
-// Dans le controller
-@Controller('orders')
-export class OrdersController {
-  // Injecte StripePaymentService, mais le controller ne le sait pas
-  constructor(private readonly paymentService: PaymentService) {}
-
-  @Post()
-  async createOrder() {
-    await this.paymentService.processPayment(99.99);
-  }
-}
+export class NotificationModule {}
 ```
 
-> **Analogie** : `useClass` c'est comme dire au service d'approvisionnement : "Quand quelqu'un demandé une voiture, donne-lui une Tesla". Le demandeur sait conduire une voiture, il se fiche de la marque.
+Les consommateurs dépendent du contrat (`NotificationService`), pas de l'implémentation. Changer l'implémentation ne touche aucun consumer.
 
-### 4.3 useValue — Injecter une valeur fixe
+#### `useValue` — valeur fixe ou mock
 
-```typescript
-// Injecter un objet de configuration
-const databaseConfig = {
-  host: 'localhost',
-  port: 5432,
-  database: 'mydb',
-};
-
+```ts
 @Module({
   providers: [
     {
-      provide: 'DATABASE_CONFIG', // Token string
-      useValue: databaseConfig,
+      provide: 'APP_CONFIG',
+      useValue: { maxFamilySize: 12, inviteExpiryDays: 7 },
     },
   ],
 })
 export class AppModule {}
 
-// Pour l'injecter, il faut utiliser @Inject() avec le token string
 @Injectable()
-export class DatabaseService {
-  constructor(@Inject('DATABASE_CONFIG') private config: any) {
-    console.log(this.config.host); // 'localhost'
-  }
+export class FamilyService {
+  // @Inject() obligatoire pour les tokens non-classe
+  constructor(@Inject('APP_CONFIG') private config: { maxFamilySize: number }) {}
 }
 ```
 
-```typescript
-// Utile pour les mocks en tests
-@Module({
-  providers: [
-    {
-      provide: BooksService,
-      useValue: {
-        findAll: () => [{ id: '1', title: 'Mock Book' }],
-        findOne: (id: string) => ({ id, title: 'Mock Book' }),
-      },
-    },
-  ],
-})
-export class TestModule {}
-```
+`useValue` est aussi la forme idiomatique pour remplacer un service par un mock dans les tests unitaires (`Test.createTestingModule`).
 
-### 4.4 useFactory — Création dynamique
+#### `useFactory` — création dynamique ou asynchrone
 
-```typescript
-// useFactory permet de creer un provider avec une logique complexe
-// et d'injecter d'autres providers dans la factory
-
+```ts
 @Module({
   providers: [
     ConfigService,
     {
       provide: 'DATABASE_CONNECTION',
-      useFactory: async (configService: ConfigService) => {
-        const config = configService.get('database');
-        const connection = await createConnection({
-          host: config.host,
-          port: config.port,
-          database: config.database,
-        });
-        return connection;
+      useFactory: async (config: ConfigService) => {
+        const url = config.get('DATABASE_URL')
+        return await createDatabaseConnection(url) // opération async réelle
       },
-      inject: [ConfigService], // Dependances de la factory
+      inject: [ConfigService], // tokens résolus par NestJS, passés à la factory dans l'ordre
     },
   ],
 })
 export class DatabaseModule {}
-
-// La factory est appelee avec les services listes dans inject
-// Elle peut etre async (retourner une Promise)
 ```
 
-```typescript
-// Factory conditionnelle
-@Module({
-  providers: [
-    {
-      provide: PaymentService,
-      useFactory: (config: ConfigService) => {
-        const provider = config.get('PAYMENT_PROVIDER');
-        if (provider === 'stripe') {
-          return new StripePaymentService(config.get('STRIPE_KEY'));
-        }
-        return new PaypalPaymentService(config.get('PAYPAL_KEY'));
-      },
-      inject: [ConfigService],
-    },
-  ],
-})
-export class PaymentModule {}
+La factory peut être `async` — NestJS attend la Promise avant de continuer le démarrage. La propriété `inject` peut inclure des tokens optionnels : `{ token: 'SomeProvider', optional: true }`.
+
+#### Récapitulatif des formes
+
+| Forme | Valeur produite | Cas type |
+|-------|-----------------|----------|
+| `useClass` | nouvelle instance de la classe | swap d'implémentation, pattern Strategy |
+| `useValue` | valeur telle quelle | config, constantes, mocks de test |
+| `useFactory` | retour de la factory (peut être async) | connexion DB, sélection conditionnelle |
+| `useExisting` | alias vers une instance existante du conteneur | rétro-compatibilité |
+
+### 2.4 Tokens d'injection
+
+Le token est l'identifiant qu'utilise NestJS pour retrouver un provider dans son registre.
+
+**Token par type de classe (défaut) — aucun `@Inject()` nécessaire**
+
+```ts
+constructor(private readonly service: FamilyService) {}
 ```
 
-> **A retenir** : `useFactory` est la façon la plus flexible de créer des providers. Tu l'utilises quand la création nécessité de la logique, des operations async (connexion DB), ou des decisions conditionnelles.
+**Token par string — `@Inject()` obligatoire**
 
-### 4.5 useExisting — Alias de provider
-
-```typescript
-// useExisting cree un alias pour un provider existant
+```ts
 @Module({
-  providers: [
-    LoggerService,
-    {
-      provide: 'AliasedLogger',       // Token alias
-      useExisting: LoggerService,      // Pointe vers le meme provider
-    },
-  ],
+  providers: [{ provide: 'MAX_FAMILY_SIZE', useValue: 12 }],
 })
 export class AppModule {}
 
-// Les deux tokens referent a la MEME instance
+constructor(@Inject('MAX_FAMILY_SIZE') private maxSize: number) {}
 ```
 
-### 4.6 Tableau récapitulatif
+**Token par Symbol — recommandé pour les tokens non-classe**
 
-| Type | Utilisation | Quand l'utiliser |
-|---|---|---|
-| **useClass** | `{ provide: Token, useClass: Impl }` | Remplacer une implementation (patterns Strategy, tests) |
-| **useValue** | `{ provide: Token, useValue: value }` | Constantes, configurations, mocks |
-| **useFactory** | `{ provide: Token, useFactory: fn, inject: [...] }` | Création dynamique, async, conditionnelle |
-| **useExisting** | `{ provide: Token, useExisting: ExistingToken }` | Alias, retro-compatibilite |
+```ts
+// family.tokens.ts
+export const FAMILY_CONFIG = Symbol('FAMILY_CONFIG')
 
----
-
-## 5. Tokens d'injection
-
-### 5.1 Token par classe (defaut)
-
-```typescript
-// Le type de la classe sert de token
-constructor(private readonly service: BooksService) {}
-// NestJS utilise BooksService comme token pour trouver le provider
-```
-
-### 5.2 Token par string
-
-```typescript
-// Quand le provider n'est pas une classe
 @Module({
-  providers: [
-    { provide: 'API_KEY', useValue: 'ma-cle-secrete' },
-  ],
+  providers: [{ provide: FAMILY_CONFIG, useValue: { maxSize: 12 } }],
 })
-export class AppModule {}
+export class FamilyModule {}
 
-// Injection avec @Inject
-constructor(@Inject('API_KEY') private apiKey: string) {}
+constructor(@Inject(FAMILY_CONFIG) private config: FamilyConfig) {}
 ```
 
-### 5.3 Token par Symbol (recommande pour les strings)
+Les Symbols évitent les collisions de noms entre modules. Deux modules ne peuvent pas se retrouver avec le même `Symbol('FAMILY_CONFIG')` — contrairement aux strings `'FAMILY_CONFIG'` qui sont globales et peuvent entrer en conflit.
 
-```typescript
-// constants.ts
-export const DATABASE_CONFIG = Symbol('DATABASE_CONFIG');
-export const LOGGER_TOKEN = Symbol('LOGGER_TOKEN');
+### 2.5 Scopes des providers
 
-// Module
-@Module({
-  providers: [
-    { provide: DATABASE_CONFIG, useValue: { host: 'localhost' } },
-  ],
-})
-export class AppModule {}
-
-// Injection
-constructor(@Inject(DATABASE_CONFIG) private config: any) {}
-```
-
-> **Bonne pratique** : Utilise des `Symbol` plutot que des strings pour les tokens personnalises. Les Symbols sont uniques — deux modules ne peuvent pas avoir de collision de noms. Les strings `'DATABASE_CONFIG'` pourraient entrer en conflit.
-
----
-
-## 6. Les decorateurs @Optional et @Inject
-
-### 6.1 @Optional — Dependance facultative
-
-```typescript
-import { Optional, Inject } from '@nestjs/common';
-
-@Injectable()
-export class NotificationService {
-  constructor(
-    @Optional() @Inject('SMS_SERVICE') private smsService?: SmsService,
-    @Optional() @Inject('EMAIL_SERVICE') private emailService?: EmailService,
-  ) {}
-
-  async notify(message: string) {
-    if (this.emailService) {
-      await this.emailService.send(message);
-    }
-    if (this.smsService) {
-      await this.smsService.send(message);
-    }
-    // Si aucun service n'est configure, on ne fait rien
-    // Au lieu de lancer une erreur au demarrage
-  }
-}
-```
-
-### 6.2 @Inject — Injection explicite
-
-```typescript
-// @Inject est necessaire quand le token n'est pas un type de classe
-constructor(
-  @Inject('API_KEY') private apiKey: string,
-  @Inject(DATABASE_CONFIG) private dbConfig: object,
-  @Inject(LoggerService) private logger: LoggerService, // Explicite (inutile ici)
-) {}
-```
-
----
-
-## 7. Scopes des providers
-
-### 7.1 Les trois scopes
-
-Par defaut, tous les providers sont des **singletons** (une seule instance pour toute l'application). NestJS propose trois scopes :
+Par défaut, tout provider est un singleton. NestJS offre trois scopes :
 
 | Scope | Comportement | Cas d'usage |
-|---|---|---|
-| **DEFAULT** (singleton) | Une instance pour toute l'application | 95% des cas |
-| **REQUEST** | Une nouvelle instance par requête HTTP | Logger avec request ID, tenant multi-client |
-| **TRANSIENT** | Une nouvelle instance à chaque injection | Objets avec état mutable |
+|-------|-------------|-------------|
+| `DEFAULT` (singleton) | Une instance partagée par toute l'app | 95 % des cas — services, repositories |
+| `REQUEST` | Une nouvelle instance par requête HTTP | Logger avec request ID, contexte multi-tenant |
+| `TRANSIENT` | Une nouvelle instance par consumer | Objets avec état local par consommateur |
 
-### 7.2 Scope DEFAULT (singleton)
+```ts
+import { Injectable, Scope } from '@nestjs/common'
 
-```typescript
-// C'est le comportement par defaut — pas besoin de le specifier
+// Singleton — par défaut, pas besoin de le déclarer
 @Injectable()
-export class BooksService {
-  private books = []; // ATTENTION : cet etat est partage entre toutes les requetes !
+export class FamilyService {}
 
-  // Si la requete A ajoute un livre,
-  // la requete B le verra aussi
-}
-```
-
-> **Piege classique** : Avec le scope singleton, l'état du service est partage entre TOUTES les requêtes. Ne stocke pas de donnees spécifiques à une requête dans un service singleton. Pour des donnees par requête (comme l'utilisateur courant), utilise le scope REQUEST.
-
-### 7.3 Scope REQUEST
-
-```typescript
-import { Injectable, Scope } from '@nestjs/common';
-
+// Request-scoped — nouvelle instance par requête HTTP
 @Injectable({ scope: Scope.REQUEST })
-export class RequestLoggerService {
-  private requestId: string;
-
-  setRequestId(id: string) {
-    this.requestId = id;
-  }
-
-  log(message: string) {
-    console.log(`[${this.requestId}] ${message}`);
-  }
+export class RequestContextService {
+  private requestId: string
+  setId(id: string) { this.requestId = id }
+  getId() { return this.requestId }
 }
-```
 
-### 7.4 Scope TRANSIENT
-
-```typescript
+// Transient — nouvelle instance par consumer
 @Injectable({ scope: Scope.TRANSIENT })
-export class CounterService {
-  private count = 0;
-
-  increment() {
-    this.count++;
-    return this.count;
-  }
-}
-
-// Chaque consommateur qui injecte CounterService
-// recoit sa propre instance avec son propre compteur
-```
-
-> **Bonne pratique** : Utilise le scope DEFAULT (singleton) pour presque tout. Les scopes REQUEST et TRANSIENT ont un impact sur les performances car NestJS doit créer de nouvelles instances. N'utilise REQUEST que quand tu as vraiment besoin de donnees par requête (multi-tenant, request logging).
-
----
-
-## 8. Cycle de vie des providers
-
-```
-  Application NestJS demarre
-       │
-       ▼
-  ┌──────────────────────────┐
-  │  Resolution des modules   │  NestJS analyse les @Module
-  └────────────┬─────────────┘
-               │
-  ┌────────────▼─────────────┐
-  │  Creation des providers   │  NestJS cree les singletons
-  │  (ordre de dependance)    │  dans le bon ordre
-  └────────────┬─────────────┘
-               │
-  ┌────────────▼─────────────┐
-  │  onModuleInit()           │  Hook optionnel
-  └────────────┬─────────────┘
-               │
-  ┌────────────▼─────────────┐
-  │  onApplicationBootstrap() │  Hook optionnel
-  └────────────┬─────────────┘
-               │
-  ┌────────────▼─────────────┐
-  │  Application prete        │  app.listen()
-  └────────────┬─────────────┘
-               │
-  ... (application tourne) ...
-               │
-  ┌────────────▼─────────────┐
-  │  onModuleDestroy()        │  Hook optionnel (avant la fermeture)
-  └────────────┬─────────────┘
-               │
-  ┌────────────▼─────────────┐
-  │  beforeApplicationShutdown() │  Hook optionnel
-  └────────────┬─────────────┘
-               │
-  ┌────────────▼─────────────┐
-  │  onApplicationShutdown()  │  Hook optionnel
-  └──────────────────────────┘
-```
-
-```typescript
-import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-
-@Injectable()
-export class DatabaseService implements OnModuleInit, OnModuleDestroy {
-  private connection;
-
-  async onModuleInit() {
-    // Appele quand le module est initialise
-    this.connection = await createDatabaseConnection();
-    console.log('Connexion base de donnees etablie');
-  }
-
-  async onModuleDestroy() {
-    // Appele quand l'application s'arrete
-    await this.connection.close();
-    console.log('Connexion base de donnees fermee');
-  }
+export class AuditLogService {
+  private entries: string[] = []
+  add(entry: string) { this.entries.push(entry) }
 }
 ```
 
----
+Pour les providers custom, le scope se place dans l'objet de définition :
 
-## 9. Pourquoi la DI est importante
-
-### 9.1 Testabilite
-
-```typescript
-// SANS DI — difficile a tester
-class BooksController {
-  private service = new BooksService(new Database());
-
-  // Comment tester sans la vraie base de donnees ?
-  // Impossible de mocker BooksService !
+```ts
+{
+  provide: 'CACHE_MANAGER',
+  useClass: CacheManager,
+  scope: Scope.TRANSIENT,
 }
-
-// AVEC DI — facile a tester
-@Controller('books')
-class BooksController {
-  constructor(private readonly service: BooksService) {}
-}
-
-// Dans le test, on injecte un mock
-const mockService = {
-  findAll: jest.fn().mockReturnValue([{ id: '1', title: 'Mock' }]),
-};
-
-const controller = new BooksController(mockService as any);
-expect(controller.findAll()).toEqual([{ id: '1', title: 'Mock' }]);
 ```
 
-### 9.2 Decouplage
+**Propagation du scope REQUEST :** un provider `REQUEST`-scoped rend automatiquement `REQUEST`-scoped tous ses consommateurs remontant jusqu'au controller. Chaque requête crée une nouvelle instance — coût CPU/mémoire non négligeable si la chaîne est longue.
 
-```typescript
-// Le controller depend d'une ABSTRACTION, pas d'une implementation
-@Controller('orders')
-class OrdersController {
-  constructor(private readonly payment: PaymentService) {}
-}
+### 2.6 Exports entre modules
 
-// Tu peux changer l'implementation sans toucher au controller
-// Dev : MockPaymentService
-// Test : FakePaymentService
-// Prod : StripePaymentService
-```
+Un provider déclaré dans `FamilyModule` n'est accessible que dans ce module. Pour le partager, il faut l'exporter et que le module consommateur l'importe :
 
-### 9.3 Flexibilite et configuration
-
-```typescript
-// Meme code, comportement different selon l'environnement
+```ts
+// family.module.ts
 @Module({
-  providers: [
-    {
-      provide: CacheService,
-      useFactory: (config: ConfigService) => {
-        if (config.get('NODE_ENV') === 'production') {
-          return new RedisCacheService(config.get('REDIS_URL'));
-        }
-        return new InMemoryCacheService();
-      },
-      inject: [ConfigService],
-    },
-  ],
+  providers: [FamilyService],
+  exports: [FamilyService], // disponible pour tout module qui importe FamilyModule
 })
-export class CacheModule {}
-```
+export class FamilyModule {}
 
----
-
-## 10. Exemples concrets
-
-### 10.1 Service de notification multi-canal
-
-```typescript
-// Interfaces
-export interface NotificationChannel {
-  send(to: string, message: string): Promise<void>;
-}
-
-// Implementations
-@Injectable()
-export class EmailChannel implements NotificationChannel {
-  async send(to: string, message: string) {
-    console.log(`Email envoye a ${to}: ${message}`);
-  }
-}
-
-@Injectable()
-export class SmsChannel implements NotificationChannel {
-  async send(to: string, message: string) {
-    console.log(`SMS envoye a ${to}: ${message}`);
-  }
-}
-
-@Injectable()
-export class SlackChannel implements NotificationChannel {
-  async send(to: string, message: string) {
-    console.log(`Message Slack a ${to}: ${message}`);
-  }
-}
-
-// Service qui utilise tous les canaux
-@Injectable()
-export class NotificationService {
-  constructor(
-    @Inject('NOTIFICATION_CHANNELS')
-    private readonly channels: NotificationChannel[],
-  ) {}
-
-  async notifyAll(to: string, message: string) {
-    await Promise.all(
-      this.channels.map(channel => channel.send(to, message))
-    );
-  }
-}
-
-// Module avec configuration
+// notification.module.ts
 @Module({
-  providers: [
-    EmailChannel,
-    SmsChannel,
-    SlackChannel,
-    {
-      provide: 'NOTIFICATION_CHANNELS',
-      useFactory: (email: EmailChannel, sms: SmsChannel, slack: SlackChannel) => {
-        return [email, sms, slack];
-      },
-      inject: [EmailChannel, SmsChannel, SlackChannel],
-    },
-    NotificationService,
-  ],
-  exports: [NotificationService],
+  imports: [FamilyModule],         // FamilyService devient injectable dans ce module
+  providers: [NotificationService],
 })
 export class NotificationModule {}
+
+@Injectable()
+export class NotificationService {
+  constructor(private readonly familyService: FamilyService) {} // fonctionne
+}
 ```
 
-### 10.2 Service avec configuration dynamique
+L'instance partagée est la même singleton — NestJS ne la recrée pas pour chaque module importeur. Pour un provider custom, on peut exporter par token : `exports: ['CONNECTION']`.
 
-```typescript
-// Logger configurable
+## 3. Worked examples
+
+### Exemple A — FamilyService injectable dans FamilyController
+
+```ts
+// src/family/family.service.ts
+import { Injectable, Inject } from '@nestjs/common'
+
+export interface Family {
+  id: string
+  name: string
+  memberCount: number
+}
+
+export interface FamilyConfig {
+  maxFamilySize: number
+}
+
 @Injectable()
-export class LoggerService {
+export class FamilyService {
+  // Store en mémoire — remplacé par Prisma au module 14
+  private families: Family[] = [
+    { id: 'fam-1', name: 'Famille Martin', memberCount: 3 },
+    { id: 'fam-2', name: 'Famille Dupont', memberCount: 12 },
+  ]
+
   constructor(
-    @Inject('LOG_LEVEL') private readonly logLevel: string,
-    @Inject('LOG_PREFIX') private readonly prefix: string,
+    // @Inject() obligatoire pour le token string — TypeScript ne sait pas le déduire
+    @Inject('FAMILY_CONFIG') private readonly config: FamilyConfig,
   ) {}
 
-  log(message: string) {
-    if (['debug', 'info', 'warn', 'error'].indexOf(this.logLevel) <= 1) {
-      console.log(`[${this.prefix}] INFO: ${message}`);
-    }
+  findAll(): Family[] {
+    return this.families
   }
 
-  error(message: string) {
-    console.error(`[${this.prefix}] ERROR: ${message}`);
+  canJoin(familyId: string): boolean {
+    const family = this.families.find(f => f.id === familyId)
+    if (!family) return false
+    // Règle métier TribuZen — isolée dans le service, pas dans le controller
+    return family.memberCount < this.config.maxFamilySize
   }
 }
+```
+
+```ts
+// src/family/family.controller.ts
+import { Controller, Get, Param, NotFoundException } from '@nestjs/common'
+import { FamilyService } from './family.service'
+
+@Controller('families')
+export class FamilyController {
+  // NestJS lit le type FamilyService, cherche le provider dans le module, injecte le singleton
+  constructor(private readonly familyService: FamilyService) {}
+
+  @Get()
+  findAll() {
+    // Controller = orchestration uniquement, zéro logique métier
+    return this.familyService.findAll()
+  }
+
+  @Get(':id/can-join/:userId')
+  canJoin(@Param('id') id: string, @Param('userId') _userId: string) {
+    const family = this.familyService.findAll().find(f => f.id === id)
+    if (!family) throw new NotFoundException(`Famille ${id} introuvable`)
+    return { canJoin: this.familyService.canJoin(id) }
+  }
+}
+```
+
+```ts
+// src/family/family.module.ts
+import { Module } from '@nestjs/common'
+import { FamilyService } from './family.service'
+import { FamilyController } from './family.controller'
+
+@Module({
+  controllers: [FamilyController],
+  providers: [
+    FamilyService,
+    // useValue : valeur constante, aucune logique de création
+    {
+      provide: 'FAMILY_CONFIG',
+      useValue: { maxFamilySize: 12 },
+    },
+  ],
+  exports: [FamilyService], // FamilyService injectable dans tout module qui importe FamilyModule
+})
+export class FamilyModule {}
+```
+
+**Pas-à-pas :** (1) `@Injectable()` sur `FamilyService` — NestJS peut l'instancier et la gérer ; (2) `providers: [FamilyService]` dans `@Module()` — l'enregistrement est obligatoire, sans lui NestJS lève `Nest can't resolve dependencies` ; (3) le constructeur de `FamilyController` déclare `FamilyService` — NestJS résout le type comme token et injecte le singleton ; (4) `@Inject('FAMILY_CONFIG')` dans `FamilyService` — obligatoire car le token est une string, pas un type de classe ; (5) `exports: [FamilyService]` — d'autres modules peuvent importer `FamilyModule` et injecter `FamilyService`.
+
+### Exemple B — provider `useFactory` conditionnel avec token Symbol
+
+```ts
+// src/storage/storage.interface.ts
+
+export interface StorageService {
+  upload(path: string, data: Buffer): Promise<string>
+}
+
+// Symbol = token unique — deux modules déclarant Symbol('STORAGE_SERVICE')
+// obtiennent deux tokens distincts, impossible avec une string
+export const STORAGE_SERVICE = Symbol('STORAGE_SERVICE')
+```
+
+```ts
+// src/storage/local-storage.service.ts
+import { Injectable } from '@nestjs/common'
+import type { StorageService } from './storage.interface'
+
+@Injectable()
+export class LocalStorageService implements StorageService {
+  async upload(path: string, _data: Buffer): Promise<string> {
+    console.log(`[local] upload ${path}`)
+    return `file://${path}`
+  }
+}
+```
+
+```ts
+// src/storage/s3-storage.service.ts
+import { Injectable } from '@nestjs/common'
+import type { StorageService } from './storage.interface'
+
+@Injectable()
+export class S3StorageService implements StorageService {
+  async upload(path: string, _data: Buffer): Promise<string> {
+    console.log(`[s3] upload ${path}`)
+    return `s3://bucket/${path}`
+  }
+}
+```
+
+```ts
+// src/storage/storage.module.ts
+import { Module } from '@nestjs/common'
+import { ConfigService } from '@nestjs/config'
+import { LocalStorageService } from './local-storage.service'
+import { S3StorageService } from './s3-storage.service'
+import { STORAGE_SERVICE } from './storage.interface'
 
 @Module({
   providers: [
-    { provide: 'LOG_LEVEL', useValue: process.env.LOG_LEVEL || 'info' },
-    { provide: 'LOG_PREFIX', useValue: 'MonAPI' },
-    LoggerService,
+    LocalStorageService,
+    S3StorageService,
+    {
+      provide: STORAGE_SERVICE,
+      // useFactory : sélection conditionnelle à l'exécution
+      // ConfigService est injecté via inject: [ConfigService]
+      useFactory: (config: ConfigService) => {
+        return config.get('NODE_ENV') === 'production'
+          ? new S3StorageService()
+          : new LocalStorageService()
+      },
+      inject: [ConfigService], // NestJS résout ConfigService et le passe à la factory
+    },
   ],
-  exports: [LoggerService],
+  exports: [STORAGE_SERVICE], // on exporte le token, pas la classe
 })
-export class LoggerModule {}
+export class StorageModule {}
 ```
 
----
+```ts
+// src/family/family.service.ts (extrait — injection du storage via Symbol)
+import { Injectable, Inject } from '@nestjs/common'
+import { STORAGE_SERVICE, StorageService } from '../storage/storage.interface'
 
-## 11. Exercices pratiques
+@Injectable()
+export class FamilyService {
+  constructor(
+    @Inject('FAMILY_CONFIG') private readonly config: { maxFamilySize: number },
+    // @Inject() obligatoire : le token est un Symbol, pas un type de classe
+    @Inject(STORAGE_SERVICE) private readonly storage: StorageService,
+  ) {}
 
-### Exercice 1 — Provider conditionnel
+  async uploadAvatar(familyId: string, data: Buffer): Promise<string> {
+    // FamilyService ne sait pas si le storage est local ou S3
+    return this.storage.upload(`families/${familyId}/avatar`, data)
+  }
+}
+```
 
-Cree un `StorageService` avec deux implementations : `LocalStorageService` (fichiers) et `S3StorageService` (AWS S3). Utilise `useFactory` pour choisir l'implementation selon une variable d'environnement.
+**Pas-à-pas :** (1) `STORAGE_SERVICE = Symbol(...)` — token unique, pas de collision ; (2) `useFactory` reçoit `ConfigService` via `inject: [ConfigService]` — NestJS le résout et le passe en premier paramètre ; (3) la factory retourne `LocalStorageService` ou `S3StorageService` selon l'environnement — `FamilyService` n'en sait rien ; (4) `exports: [STORAGE_SERVICE]` — on exporte le token Symbol pour que les modules importeurs puissent injecter via le même Symbol ; (5) `@Inject(STORAGE_SERVICE)` dans `FamilyService` — obligatoire pour les tokens Symbol.
 
-### Exercice 2 — Service avec hooks de cycle de vie
+## 4. Pièges & misconceptions
 
-Cree un `CacheService` qui initialise un cache en mémoire dans `onModuleInit` et le nettoie dans `onModuleDestroy`.
+- **Provider absent du tableau `providers`.** `@Injectable()` ne suffit pas. Si `FamilyService` n'est pas dans `providers: [FamilyService]` du module, NestJS lève `Nest can't resolve dependencies of FamilyController (?). Please make sure that the argument FamilyService at index [0] is available in the FamilyModule context`. Correction : toujours déclarer le provider dans le module qui le possède.
 
-### Exercice 3 — Tester avec des mocks DI
+- **Token string sans `@Inject()`.** `constructor(private config: 'APP_CONFIG')` est du TypeScript invalide et NestJS ne peut pas résoudre un token string depuis le type du paramètre. Seuls les types de classe fonctionnent sans `@Inject()`. Correction : `constructor(@Inject('APP_CONFIG') private config: AppConfig)` systématiquement pour les tokens string et Symbol.
 
-Ecris un test unitaire pour un `BooksController` en mockant le `BooksService` via l'injection de dépendances de NestJS (`Test.createTestingModule`).
+- **État mutable dans un singleton.** Un service `DEFAULT`-scoped est partagé par toutes les requêtes simultanées. Un tableau `private items = []` dans un singleton est partagé : la requête A voit les données ajoutées par la requête B. Correction : ne pas stocker d'état par-requête dans un singleton — utiliser `Scope.REQUEST` ou externaliser l'état dans une couche persistance (Prisma, Redis).
 
----
+- **`useClass` et `useExisting` confondus.** `useClass: SomeService` crée une nouvelle instance de `SomeService` distincte de celle déjà dans le conteneur. `useExisting: SomeService` pointe vers l'instance déjà existante — aucune nouvelle instance. Si tu veux un alias vers la même instance singleton, c'est `useExisting`.
 
-## 12. Résumé — Les concepts clés
+- **Scope `REQUEST` cascade invisible.** Rendre un provider `REQUEST`-scoped rend automatiquement `REQUEST`-scoped tous ses consommateurs remontant jusqu'au controller. Un seul service `REQUEST`-scoped injecté dans un service partagé peut désoptimiser toute une sous-arborescence. Vérifier la portée avant d'ajouter `Scope.REQUEST`.
 
-| Concept | Definition |
-|---|---|
-| **DI** | Les dépendances sont fournies par un conteneur, pas creees manuellement |
-| **@Injectable** | Marque une classe comme gérée par le conteneur DI |
-| **Provider** | Tout ce qui peut etre injecte (classe, valeur, factory) |
-| **useClass** | Remplacer l'implementation d'un token |
-| **useValue** | Injecter une valeur constante |
-| **useFactory** | Créer un provider dynamiquement |
-| **useExisting** | Créer un alias pour un provider |
-| **Token** | Identifiant unique d'un provider (classe, string, Symbol) |
-| **@Inject** | Injection explicite avec un token personnalise |
-| **@Optional** | Dependance facultative (pas d'erreur si absente) |
-| **Scope** | DEFAULT (singleton), REQUEST, TRANSIENT |
+- **Oublier `exports` pour partager entre modules.** Un provider défini dans `FamilyModule` sans `exports: [FamilyService]` est privé à ce module. Un module qui importe `FamilyModule` sans cet export obtiendra `Nest can't resolve dependencies`. Correction : ajouter le provider à `exports` dès qu'il doit être accessible depuis l'extérieur du module.
 
-> **A retenir** : L'injection de dépendances est le mécanisme central de NestJS. Elle rend ton code testable (mocks faciles), decouple (changement d'implementation transparent) et flexible (configuration par environnement). Maîtrise les custom providers (useClass, useValue, useFactory) — ils sont la clé pour des architectures propres et modulaires.
+## 5. Ancrage TribuZen
 
----
+Couche fil-rouge : **FamilyService injecté dans FamilyController (logique métier TribuZen découplée)** (`smaurier/tribuzen`).
 
-## Navigation
+- `FamilyService` concentre toutes les règles métier familles : `canJoin()`, `canInvite()`, `canKick()`. Le controller orchestre sans logique — il appelle le service et traduit en réponse HTTP.
+- `'FAMILY_CONFIG'` (puis `FAMILY_CONFIG` Symbol) injecte la configuration métier sans hard-code dans le service — `maxFamilySize`, `inviteExpiryDays` configurables par environnement.
+- `STORAGE_SERVICE` sélectionne `LocalStorageService` en dev et `S3StorageService` en prod via `useFactory` + `ConfigService` — le controller de photo de profil reste identique dans les deux environnements.
+- `FamilyService` est exporté depuis `FamilyModule` et réutilisé dans `NotificationModule`, `InvitationModule` — même instance singleton distribuée, zéro recréation.
+- `RequestContextService` (`Scope.REQUEST`) pourra tenir le `userId` extrait du JWT sans polluer `FamilyService` singleton.
 
-| | Lien |
-|---|---|
-| Module précédent | [Module 10 — NestJS — Controllers & Routing](./10-nestjs-controllers.md) |
-| Module suivant | [Module 12 — NestJS — Modules & Architecture](./12-nestjs-modules.md) |
-| Quiz | [Quiz Module 11](../quizzes/11-nestjs-providers-di.quiz.md) |
-| Lab | [Lab 11 — Providers et DI](../labs/11-nestjs-providers-di.lab.md) |
+Structure cible dans `smaurier/tribuzen` :
 
----
+```
+apps/api/src/
+  family/
+    family.service.ts        ← FamilyService @Injectable(), logique métier
+    family.controller.ts     ← FamilyController injecte FamilyService
+    family.module.ts         ← providers + useValue config + exports
+    family.tokens.ts         ← FAMILY_CONFIG = Symbol(...)
+  storage/
+    storage.interface.ts     ← STORAGE_SERVICE Symbol + interface StorageService
+    local-storage.service.ts
+    s3-storage.service.ts
+    storage.module.ts        ← useFactory conditionnel
+```
 
-> **A retenir** : L'injection de dépendances n'est pas qu'un outil technique — c'est une philosophie de conception. En declarant tes dépendances dans le constructeur plutot qu'en les creant toi-même, tu respectes le principe d'Inversion de Dependance (le D de SOLID) : tes modules de haut niveau ne dependent pas de modules de bas niveau, les deux dependent d'abstractions. C'est la base d'une architecture propre et evolutive.
+## 6. Points clés
 
----
+1. `@Injectable()` rend une classe gérable par le conteneur IoC — sans lui, pas d'injection possible.
+2. Déclaration obligatoire dans `providers: [...]` du `@Module()` — le décorateur seul ne suffit pas.
+3. Injection par constructeur = type TypeScript comme token ; `@Inject(token)` obligatoire pour les tokens string ou Symbol.
+4. `useClass` remplace l'implémentation d'un token ; `useValue` injecte une constante ; `useFactory` crée dynamiquement (peut être `async`) avec `inject: [...]`.
+5. `useExisting` crée un alias vers une instance déjà dans le conteneur — distinct de `useClass` qui crée une nouvelle instance.
+6. `DEFAULT` (singleton) = une instance pour toute l'app ; `REQUEST` = une par requête HTTP ; `TRANSIENT` = une par consumer.
+7. Scope `REQUEST` est contagieux : il propage automatiquement à tous les consommateurs remontants.
+8. `exports: [FamilyService]` dans le module propriétaire + `imports: [FamilyModule]` dans le module consommateur — les deux sont nécessaires.
 
-<!-- parcours-recommande -->
+## 7. Seeds Anki
 
-::: tip Parcours recommandé
-1. **Screencast** : [screencast 11 providers di](../screencasts/screencast-11-providers-di.md)
-2. **Lab** : [lab-11-providers-di](../labs/lab-11-providers-di/README)
-3. **Visualisation** : [Dependency Injection](../visualizations/dependency-injection.html)
-4. **Quiz** : [quiz 11 providers di](../quizzes/quiz-11-providers-di.html)
-:::
+```
+Que fait @Injectable() et pourquoi est-il insuffisant seul ?|Il marque la classe comme gérable par le conteneur IoC mais NestJS ne l'enregistre que si elle est aussi dans providers: [...] du @Module()
+Quel token NestJS utilise-t-il pour l'injection par constructeur ?|Le type TypeScript de la classe déclarée dans le constructeur — NestJS lit les métadonnées via emitDecoratorMetadata
+Quand @Inject() est-il obligatoire ?|Toujours pour les tokens string et Symbol — NestJS ne peut pas déduire un token non-classe depuis le type du paramètre
+Différence useClass vs useExisting ?|useClass crée une nouvelle instance de la classe cible ; useExisting pointe vers l'instance déjà existante dans le conteneur (alias sans création)
+Comment useFactory reçoit-il ses dépendances ?|Via la propriété inject: [...] dans l'objet provider — NestJS résout les tokens listés et les passe en ordre à la fonction factory
+Pourquoi préférer Symbol à string pour un token d'injection ?|Un Symbol est unique par définition — deux modules qui déclarent Symbol('CONFIG') obtiennent deux tokens distincts, impossible avec des strings globales
+Qu'est-ce que la propagation du scope REQUEST ?|Un provider REQUEST-scoped rend automatiquement REQUEST-scoped tous ses consommateurs jusqu'au controller — nouvelle instance à chaque requête
+Comment partager FamilyService entre FamilyModule et NotificationModule ?|exports: [FamilyService] dans FamilyModule + imports: [FamilyModule] dans NotificationModule — les deux sont nécessaires
+```
+
+## Pont vers le lab
+
+> Lab associé : `09-nestjs/labs/lab-11-providers-di/README.md`. Tu y implémentes `FamilyService` injectable, un provider `useValue` de configuration, et un provider `useFactory` conditionnel — corrigé complet commenté + variante J+30 dans le README.

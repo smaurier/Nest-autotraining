@@ -1,850 +1,614 @@
-# Module 08 — Express — Authentification & Sécurité
-
-> **Objectif** : Implementer un système d'authentification complet avec bcrypt et JWT, gérer les roles et permissions, configurer les cookies sécurisés, et appliquer les bonnes pratiques de sécurité (helmet, CORS, rate limiting).
->
-> **Difficulte** : ⭐⭐⭐ (avance)
-
-> **Auth cross-cours** : l'authentification JWT est aussi couverte dans 03-Vue (module 11), 08-React (module 10), 09-Angular (module 11). Ici l'angle est cote serveur (Express). Le module 19 couvrira l'implementation NestJS complete.
-
+---
+titre: Express auth et sécurité
+cours: 09-nestjs
+notions: [authentification vs autorisation, hachage de mot de passe bcrypt, JWT structure et signature, access token et refresh token, stockage du token httpOnly cookie vs localStorage, helmet et en-têtes de sécurité, CORS, rate limiting, bases OWASP]
+outcomes: [hacher un mot de passe avec bcrypt, émettre et vérifier un JWT, choisir le bon stockage de token (cookie httpOnly), durcir une API Express (helmet, CORS, rate limit)]
+prerequis: [07-express-validation-erreurs]
+next: 09-nestjs-introduction
+libs: [{ name: express, version: "^5" }, { name: jsonwebtoken, version: "^9" }, { name: bcrypt, version: "^5" }]
+tribuzen: authentification JWT de l'API TribuZen (login parent, protection des routes famille)
+last-reviewed: 2026-07
 ---
 
-## 1. Authentification vs Autorisation
+# Express auth et sécurité
 
-### 1.1 Definitions
+> **Outcomes — tu sauras FAIRE :** hacher un mot de passe avec bcrypt, émettre et vérifier un JWT, choisir le bon stockage de token (cookie httpOnly), durcir une API Express (helmet, CORS, rate limit).
+> **Difficulté :** :star::star::star:
 
-| Concept                      | Question                       | Exemple                                             |
-| ---------------------------- | ------------------------------ | --------------------------------------------------- |
-| **Authentification** (AuthN) | "Qui es-tu ?"                  | Login avec email + mot de passe                     |
-| **Autorisation** (AuthZ)     | "As-tu le droit de faire ça ?" | Seuls les admins peuvent supprimer des utilisateurs |
+## 1. Cas concret d'abord
 
-> **Analogie** : L'authentification, c'est montrer ta carte d'identite a l'entree d'un immeuble. L'autorisation, c'est le badge qui te donne acces au 3e etage mais pas au 5e. Tu peux etre identifie sans avoir tous les droits.
+TribuZen permet à un parent de créer un compte, de se connecter, et d'accéder aux routes de sa famille — mais pas aux familles des autres. Voici la tâche concrète avant la théorie :
 
 ```
-  Client                          Serveur
-    │                               │
-    │  1. POST /auth/login          │
-    │  { email, password }          │
-    │──────────────────────────────▶│  ← Authentification
-    │                               │  (verifier qui tu es)
-    │  2. { token: "eyJhb..." }     │
-    │◀──────────────────────────────│
-    │                               │
-    │  3. GET /api/admin/dashboard  │
-    │  Authorization: Bearer eyJ... │
-    │──────────────────────────────▶│  ← Autorisation
-    │                               │  (verifier tes droits)
-    │  4. 200 OK / 403 Forbidden    │
-    │◀──────────────────────────────│
+POST /auth/register   → créer un compte (email + mot de passe)
+POST /auth/login      → s'authentifier, recevoir un token
+GET  /familles/:id    → route protégée — seulement si token valide + rôle owner/admin
 ```
 
----
+Tu essaies de l'écrire et tu bloques immédiatement sur plusieurs problèmes :
 
-## 2. Hachage de mots de passe avec bcrypt
+- Comment stocker le mot de passe sans le mettre en clair en base ?
+- Comment prouver à la requête suivante que l'utilisateur est bien connecté, sans stocker une session côté serveur ?
+- Où placer le token côté client sans qu'un script malveillant puisse le voler ?
+- Comment empêcher un attaquant de tester 10 000 mots de passe par seconde ?
 
-### 2.1 Pourquoi hacher
+Ce module répond exactement à ça.
 
-**JAMAIS** stocker les mots de passe en clair. Si ta base de donnees est compromise, tous les mots de passe sont exposes.
+## 2. Théorie complète, concise
 
-| Méthode    | Sécurité       | Explication                                     |
-| ---------- | -------------- | ----------------------------------------------- |
-| En clair   | Catastrophique | Un vol de BDD = tous les mots de passe          |
-| MD5/SHA256 | Faible         | Vulnerable aux rainbow tables et au brute force |
-| bcrypt     | Forte          | Lent par design, salt intégré, resistant au GPU |
-| argon2     | Très forte     | Le plus moderne, vainqueur du PHC               |
+### 2.1 Authentification vs autorisation
 
-### 2.2 Comment fonctionne bcrypt
+| Concept | Question | Exemple TribuZen |
+|---------|---------|-----------------|
+| **Authentification** (AuthN) | "Qui es-tu ?" | Login avec email + mot de passe |
+| **Autorisation** (AuthZ) | "As-tu le droit ?" | Seul un `owner` ou `admin` de la famille peut en inviter d'autres |
 
-```
-  Mot de passe     Salt              Hash bcrypt
-  "MyP@ss123"  + "abc123xyz"  →  "$2b$10$K4YjdG7..."
-                                      │  │
-                                      │  └─ Cost factor (10 rounds = 2^10 iterations)
-                                      └─ Version de bcrypt
-```
+L'ordre est immuable : authentifier d'abord, autoriser ensuite. Un middleware `authenticate` vérifie l'identité ; un middleware `authorize(roles)` vérifie les droits. Les confondre — ou sauter l'un d'eux — crée des failles OWASP A01 (Broken Access Control).
 
-> **Analogie** : bcrypt c'est comme mettre ton mot de passe dans un mixeur industriel. Le salt (sel) rend chaque mixage unique — même si deux personnes ont le même mot de passe, le résultat est différent. Le "cost factor" (10) c'est la puissance du mixeur — plus c'est eleve, plus c'est lent a casser.
+### 2.2 Hachage de mot de passe avec bcrypt
 
-### 2.3 Implementation avec bcrypt
+**Règle absolue : ne jamais stocker un mot de passe en clair.** Si la base de données est compromise, tous les comptes le sont instantanément. bcrypt est l'algorithme recommandé pour le hachage de mots de passe dans Node.js : il est intentionnellement lent (résistant au brute-force GPU), intègre un salt aléatoire par défaut, et produit un hash de 60 caractères incluant le salt et le cost factor.
 
 ```bash
 npm install bcrypt
+npm install -D @types/bcrypt
 ```
 
-```typescript
-import bcrypt from "bcrypt";
+```ts
+import bcrypt from 'bcrypt'
 
-// === Hacher un mot de passe ===
-const SALT_ROUNDS = 10; // 10-12 est recommande (plus = plus lent = plus sur)
+const SALT_ROUNDS = 12
+// 10 = ~10 hashes/sec sur CPU moderne, 12 = ~2.5 hashes/sec — 12 recommandé en 2026
 
-async function hashPassword(plainPassword) {
-  const hash = await bcrypt.hash(plainPassword, SALT_ROUNDS);
-  return hash;
-  // '$2b$10$K4YjdG7WxKN6tIFhgXOcMeSGzD5Z9oJ3V2zzqH8jvPNJ7Q5YRXwGS'
-}
+// Hacher un mot de passe — toujours async pour ne pas bloquer l'event loop
+const hash = await bcrypt.hash('MotDePasseSecret42!', SALT_ROUNDS)
+// → '$2b$12$K4YjdG7WxKN6tIFhgXOcMe...' (60 chars, jamais le même deux fois grâce au salt)
 
-// === Verifier un mot de passe ===
-async function verifyPassword(plainPassword, hashedPassword) {
-  const isMatch = await bcrypt.compare(plainPassword, hashedPassword);
-  return isMatch; // true ou false
-}
-
-// === Exemple ===
-const hash = await hashPassword("MonMotDePasse123");
-console.log(hash); // '$2b$10$...' (60 caracteres, different a chaque fois)
-
-console.log(await verifyPassword("MonMotDePasse123", hash)); // true
-console.log(await verifyPassword("MauvaisMotDePasse", hash)); // false
+// Vérifier un mot de passe — bcrypt.compare() rehache avec le salt extrait du hash stocké
+const isMatch = await bcrypt.compare('MotDePasseSecret42!', hash) // true
+const isWrong = await bcrypt.compare('mauvais', hash)             // false
 ```
 
-> **Piege classique** : Ne compare JAMAIS les hashes directement (`hash1 === hash2`). Utilise TOUJOURS `bcrypt.compare()`. A cause du salt aleatoire, le même mot de passe produit un hash différent à chaque fois.
+`bcrypt.compare()` ne compare **jamais** deux chaînes de hash directement : il extrait le salt intégré dans `hash`, rehache le mot de passe en clair, et compare les résultats. Un même mot de passe produit un hash différent à chaque appel à `bcrypt.hash()` — c'est le but du salt aléatoire.
 
----
+**OWASP A02 — Cryptographic Failures** : stocker des mots de passe avec MD5, SHA-256 seul ou en clair est une vulnérabilité critique. bcrypt (ou argon2) sont les seules options acceptables.
 
-## 3. JWT — JSON Web Tokens
+### 2.3 JWT — structure et signature
 
-### 3.1 Qu'est-ce qu'un JWT
-
-Un **JWT** (prononce "jot") est un token d'authentification au format JSON, signe cryptographiquement. Il contient des informations (claims) sur l'utilisateur, lisibles sans base de donnees.
+Un JWT (JSON Web Token) est un jeton au format `header.payload.signature`, chaque partie encodée en Base64url et séparée par un point.
 
 ```
-  eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI0MiIsImVtYWlsIjoiYWxpY2VAZXhhbXBsZS5jb20iLCJyb2xlIjoiYWRtaW4iLCJpYXQiOjE3MDk4MjAwMDAsImV4cCI6MTcwOTgyMzYwMH0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c
-  └──────── Header ────────┘└──────────────────────── Payload ─────────────────────────┘└──────── Signature ──────┘
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9          ← Header  (algo HS256, type JWT)
+.
+eyJ1c2VySWQiOiJ1c3ItMSIsInJvbGUiOiJvd25lciIsImV4cCI6MTc1MTQ4MDAwMH0
+                                                ← Payload (userId, role, exp)
+.
+SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c   ← Signature HMAC-SHA256
 ```
 
-| Partie        | Contenu                               | Encode en |
-| ------------- | ------------------------------------- | --------- |
-| **Header**    | Algorithme (HS256) et type (JWT)      | Base64url |
-| **Payload**   | Claims (userId, email, role, exp...)  | Base64url |
-| **Signature** | HMAC-SHA256(header + payload, secret) | Base64url |
+| Partie | Contenu | Encodage |
+|--------|---------|---------|
+| Header | algorithme (HS256) et type (JWT) | Base64url |
+| Payload | claims — userId, role, iat, exp | Base64url |
+| Signature | HMAC-SHA256(header + "." + payload, secret) | Base64url |
 
-### 3.2 Implementation avec jsonwebtoken
+**Point critique : Base64url ≠ chiffrement.** Le payload est lisible par n'importe qui qui décode la chaîne — aucun secret requis pour lire, seulement pour vérifier. La signature garantit l'**intégrité** (le payload n'a pas été modifié) mais pas la **confidentialité**. Ne jamais mettre de données sensibles dans le payload (mot de passe, hash, numéro de carte).
 
-```bash
-npm install jsonwebtoken
+```ts
+import jwt from 'jsonwebtoken'
+
+// jwt.decode() retourne le payload SANS vérifier la signature — ne jamais faire confiance
+const raw = jwt.decode('eyJhbGci...')   // lisible, mais PAS sûr
 ```
 
-```typescript
-import jwt from "jsonwebtoken";
+### 2.4 Émettre et vérifier un JWT
 
-const JWT_SECRET =
-  process.env.JWT_SECRET || "mon-secret-ultra-long-minimum-32-caracteres";
-const JWT_EXPIRES_IN = "1h"; // Duree de validite
+```ts
+import jwt from 'jsonwebtoken'
 
-// === Creer un token ===
-function generateToken(user) {
-  const payload = {
-    userId: user.id,
-    email: user.email,
-    role: user.role,
-  };
+// JWT_SECRET : chaîne aléatoire d'au moins 32 chars, stockée en variable d'env
+// Générer : node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
+// JAMAIS de valeur fallback en prod : process.env.JWT_SECRET || 'secret' est dangereux
+const JWT_SECRET = process.env.JWT_SECRET!
 
-  return jwt.sign(payload, JWT_SECRET, {
-    expiresIn: JWT_EXPIRES_IN,
-    issuer: "mon-api", // Qui a cree le token
-    audience: "mon-frontend", // A qui il est destine
-  });
-}
-
-// === Verifier et decoder un token ===
-function verifyToken(token) {
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    return decoded;
-    // {
-    //   userId: '42',
-    //   email: 'alice@example.com',
-    //   role: 'admin',
-    //   iat: 1709820000,    ← Issued At (timestamp)
-    //   exp: 1709823600,    ← Expiration (timestamp)
-    //   iss: 'mon-api',
-    //   aud: 'mon-frontend'
-    // }
-  } catch (err) {
-    if (err.name === "TokenExpiredError") {
-      throw new Error("Token expire");
-    }
-    if (err.name === "JsonWebTokenError") {
-      throw new Error("Token invalide");
-    }
-    throw err;
-  }
-}
-
-// === Decoder sans verifier (pour debug) ===
-const decoded = jwt.decode(token);
-// Retourne le payload SANS verifier la signature
-// ATTENTION : ne jamais faire confiance a un token non verifie !
-```
-
-> **Piege classique** : Le payload d'un JWT est encode en Base64, PAS chiffre. N'importe qui peut decoder et lire le contenu. Ne mets JAMAIS de donnees sensibles (mot de passe, numéro de carte) dans un JWT. Le JWT garantit l'integrite (pas modifie) mais PAS la confidentialite.
-
----
-
-## 4. Flux d'authentification complet
-
-### 4.1 Register (inscription)
-
-```typescript
-// services/auth.service.js
-import bcrypt from "bcrypt";
-import jwt from "jsonwebtoken";
-import crypto from "crypto";
-import { ConflictError, ValidationError } from "../utils/errors.js";
-
-const SALT_ROUNDS = 10;
-const JWT_SECRET = process.env.JWT_SECRET;
-
-// Simuler une base de donnees
-let users = [];
-
-export async function register({ email, password, nom }) {
-  // Verifier si l'email est deja pris
-  const existing = users.find((u) => u.email === email);
-  if (existing) {
-    throw new ConflictError("Cet email est deja utilise");
-  }
-
-  // Hacher le mot de passe
-  const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
-
-  // Creer l'utilisateur
-  const user = {
-    id: crypto.randomUUID(),
-    email,
-    nom,
-    password: hashedPassword,
-    role: "user",
-    createdAt: new Date().toISOString(),
-  };
-
-  users.push(user);
-
-  // Generer le token
-  const token = generateToken(user);
-
-  // Retourner l'utilisateur SANS le mot de passe
-  const { password: _, ...userWithoutPassword } = user;
-  return { user: userWithoutPassword, token };
-}
-
-function generateToken(user) {
+// Émettre un access token — expiresIn OBLIGATOIRE
+// Sans expiration, un token volé est valide pour toujours
+function signAccessToken(userId: string, role: string): string {
   return jwt.sign(
-    { userId: user.id, email: user.email, role: user.role },
+    { userId, role },                              // payload — identifiants uniquement
     JWT_SECRET,
-    { expiresIn: "1h" },
-  );
+    { expiresIn: '15m', algorithm: 'HS256' }
+  )
 }
-```
 
-### 4.2 Login (connexion)
-
-```typescript
-// services/auth.service.js (suite)
-import { UnauthorizedError } from "../utils/errors.js";
-
-export async function login({ email, password }) {
-  // Trouver l'utilisateur
-  const user = users.find((u) => u.email === email);
-  if (!user) {
-    // Message generique pour ne pas reveler si l'email existe
-    throw new UnauthorizedError("Email ou mot de passe incorrect");
-  }
-
-  // Verifier le mot de passe
-  const isMatch = await bcrypt.compare(password, user.password);
-  if (!isMatch) {
-    throw new UnauthorizedError("Email ou mot de passe incorrect");
-  }
-
-  // Generer le token
-  const token = generateToken(user);
-
-  const { password: _, ...userWithoutPassword } = user;
-  return { user: userWithoutPassword, token };
-}
-```
-
-> **Bonne pratique** : Renvoie TOUJOURS le même message d'erreur pour "email introuvable" et "mot de passe incorrect". Sinon, un attaquant peut deviner quels emails sont inscrits en observant les messages d'erreur.
-
-### 4.3 Routes et controller
-
-```typescript
-// routes/auth.routes.js
-import { Router } from "express";
-import { z } from "zod";
-import { validate } from "../middleware/validate.js";
-import { asyncHandler } from "../utils/async-handler.js";
-import * as authService from "../services/auth.service.js";
-
-const router = Router();
-
-const registerSchema = z.object({
-  email: z.string().email().toLowerCase().trim(),
-  password: z.string().min(8).max(72),
-  nom: z.string().min(2).max(50).trim(),
-});
-
-const loginSchema = z.object({
-  email: z.string().email().toLowerCase().trim(),
-  password: z.string().min(1, "Mot de passe requis"),
-});
-
-router.post(
-  "/register",
-  validate(registerSchema),
-  asyncHandler(async (req, res) => {
-    const result = await authService.register(req.body);
-    res.status(201).json(result);
-  }),
-);
-
-router.post(
-  "/login",
-  validate(loginSchema),
-  asyncHandler(async (req, res) => {
-    const result = await authService.login(req.body);
-    res.json(result);
-  }),
-);
-
-export default router;
-```
-
----
-
-## 5. Middleware d'authentification
-
-### 5.1 Extraire et vérifier le token
-
-```typescript
-// middleware/auth.js
-import jwt from "jsonwebtoken";
-import { UnauthorizedError } from "../utils/errors.js";
-
-const JWT_SECRET = process.env.JWT_SECRET;
-
-export function authenticate(req, res, next) {
-  // 1. Extraire le token du header Authorization
-  const authHeader = req.get("Authorization");
-
-  if (!authHeader) {
-    throw new UnauthorizedError("Token d'authentification manquant");
-  }
-
-  if (!authHeader.startsWith("Bearer ")) {
-    throw new UnauthorizedError(
-      "Format de token invalide (attendu: Bearer <token>)",
-    );
-  }
-
-  const token = authHeader.slice(7);
-
-  // 2. Verifier le token
+// Vérifier un token — jwt.verify() contrôle la signature ET le claim exp
+function verifyToken(token: string): jwt.JwtPayload {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-
-    // 3. Attacher l'utilisateur a la requete
-    req.user = {
-      userId: decoded.userId,
-      email: decoded.email,
-      role: decoded.role,
-    };
-
-    next();
+    // Lève une exception si la signature est invalide OU si le token est expiré
+    return jwt.verify(token, JWT_SECRET) as jwt.JwtPayload
   } catch (err) {
-    if (err.name === "TokenExpiredError") {
-      throw new UnauthorizedError("Token expire — reconnectez-vous");
+    if (err instanceof jwt.TokenExpiredError) {
+      throw new Error('TOKEN_EXPIRED')   // access token expiré → demander un refresh
     }
-    throw new UnauthorizedError("Token invalide");
+    if (err instanceof jwt.JsonWebTokenError) {
+      throw new Error('TOKEN_INVALID')   // signature invalide ou token malformé
+    }
+    throw err
   }
 }
 ```
 
-### 5.2 Utilisation dans les routes
+`jwt.verify()` valide simultanément la signature HMAC-SHA256 et la date d'expiration (`exp`). Il lève `TokenExpiredError` ou `JsonWebTokenError` selon l'échec — toujours distinguer les deux pour donner un message client adapté.
 
-```typescript
-import { authenticate } from "../middleware/auth.js";
+### 2.5 Access token et refresh token
 
-// Route protegee — necessite un token valide
-app.get("/api/profile", authenticate, (req, res) => {
-  res.json({ user: req.user });
-});
+Un access token de courte durée (15 min) limite la fenêtre d'exploitation en cas de vol. Mais obliger l'utilisateur à se reconnecter toutes les 15 min est inacceptable en UX. La solution : deux tokens.
 
-// Proteger un groupe de routes
-app.use("/api/admin", authenticate);
+```
+POST /auth/login
+  → access token  (15 min)  — envoyé avec chaque requête API protégée
+  → refresh token (7 jours)  — utilisé uniquement sur POST /auth/refresh
 ```
 
----
-
-## 6. Les Cookies
-
-### 6.1 Stocker le token dans un cookie
-
-Au lieu d'envoyer le token dans le body JSON et de le stocker dans le localStorage (vulnerable au XSS), tu peux utiliser un **cookie httpOnly** :
-
-```typescript
-// A la connexion
-router.post(
-  "/login",
-  asyncHandler(async (req, res) => {
-    const { user, token } = await authService.login(req.body);
-
-    // Stocker le token dans un cookie securise
-    res.cookie("token", token, {
-      httpOnly: true, // Inaccessible depuis JavaScript (anti-XSS)
-      secure: true, // Envoye uniquement en HTTPS
-      sameSite: "strict", // Protection CSRF
-      maxAge: 3600000, // 1 heure en ms
-      path: "/", // Envoye sur toutes les routes
-    });
-
-    res.json({ user }); // Le token n'est PAS dans le body
-  }),
-);
-
-// A la deconnexion
-router.post("/logout", (req, res) => {
-  res.clearCookie("token", {
-    httpOnly: true,
-    secure: true,
-    sameSite: "strict",
-  });
-  res.json({ message: "Deconnecte" });
-});
+```ts
+function signTokens(userId: string, role: string) {
+  const accessToken = jwt.sign(
+    { userId, role },
+    process.env.JWT_SECRET!,
+    { expiresIn: '15m' }
+  )
+  // Secret DIFFÉRENT pour le refresh token — compromission d'un secret n'affecte pas l'autre
+  const refreshToken = jwt.sign(
+    { userId, tokenType: 'refresh' },
+    process.env.REFRESH_TOKEN_SECRET!,
+    { expiresIn: '7d' }
+  )
+  return { accessToken, refreshToken }
+}
 ```
 
-### 6.2 Lire le token depuis le cookie
+**Rotation des refresh tokens :** à chaque `POST /auth/refresh`, émettre un nouveau refresh token et invalider l'ancien. Stocker les refresh tokens en base de données (table `refresh_tokens`) pour pouvoir les révoquer lors d'un logout, d'un changement de mot de passe ou d'une compromission détectée.
+
+### 2.6 Stockage du token — cookie httpOnly vs localStorage
+
+C'est le choix de sécurité le plus impactant côté client.
+
+| Stockage | Accessible via JS | Vulnérable XSS | Vulnérable CSRF | Recommandé |
+|---------|------------------|----------------|-----------------|-----------|
+| `localStorage` | `window.localStorage.getItem(...)` | **Oui** | Non | Non |
+| `sessionStorage` | `window.sessionStorage.getItem(...)` | **Oui** | Non | Non |
+| Cookie sans `httpOnly` | `document.cookie` | **Oui** | Oui | Non |
+| Cookie `httpOnly` | Inaccessible depuis JS | **Non** | Oui* | **Oui** |
+
+*Le cookie `httpOnly` est protégé du CSRF par `sameSite: 'strict'` ou un token CSRF explicite.
+
+**XSS + localStorage = vol de token garanti.** Si une page charge un script compromis (CDN piraté, XSS réfléchi, dépendance tierce malveillante), ce script peut appeler `localStorage.getItem('token')` et exfiltrer le token. Avec `httpOnly: true`, le cookie est **invisible** depuis JavaScript — `document.cookie` ne le retourne pas. Le vol devient impossible par ce vecteur.
+
+```ts
+import cookieParser from 'cookie-parser'
+app.use(cookieParser())   // requis pour que req.cookies soit peuplé
+
+// Envoyer le token dans un cookie httpOnly — jamais dans le body JSON
+res.cookie('access_token', accessToken, {
+  httpOnly: true,     // inaccessible via document.cookie → protège du XSS
+  secure: true,       // envoyé uniquement en HTTPS (obligatoire en production)
+  sameSite: 'strict', // bloque l'envoi cross-site → protège du CSRF
+  maxAge: 15 * 60 * 1000,   // 15 minutes en ms
+  path: '/',
+})
+
+// Lire le token dans le middleware d'authentification
+const token = req.cookies['access_token']   // string | undefined
+```
+
+### 2.7 Helmet — en-têtes de sécurité
+
+`helmet` configure automatiquement une douzaine d'en-têtes HTTP de sécurité pour durcir l'API contre les attaques navigateur courantes.
 
 ```bash
-npm install cookie-parser
+npm install helmet
 ```
 
-```typescript
-import cookieParser from "cookie-parser";
-app.use(cookieParser());
+```ts
+import helmet from 'helmet'
 
-// Middleware auth qui lit le cookie
-export function authenticate(req, res, next) {
-  // Chercher le token dans le header OU dans le cookie
-  let token = null;
-
-  const authHeader = req.get("Authorization");
-  if (authHeader && authHeader.startsWith("Bearer ")) {
-    token = authHeader.slice(7);
-  } else if (req.cookies && req.cookies.token) {
-    token = req.cookies.token;
-  }
-
-  if (!token) {
-    throw new UnauthorizedError("Authentification requise");
-  }
-
-  // ... verifier le token (meme code qu'avant)
-}
+// Déclaré EN PREMIER dans la chaîne middleware — chaque réponse reçoit les en-têtes
+app.use(helmet())
 ```
 
-### 6.3 Attributs de sécurité des cookies
+En-têtes configurés par défaut :
 
-| Attribut   | Valeur           | Protection                                                         |
-| ---------- | ---------------- | ------------------------------------------------------------------ |
-| `httpOnly` | `true`           | Le cookie est inaccessible via `document.cookie` (anti-XSS)        |
-| `secure`   | `true`           | Le cookie est envoye uniquement en HTTPS                           |
-| `sameSite` | `'strict'`       | Le cookie n'est pas envoye sur les requêtes cross-site (anti-CSRF) |
-| `maxAge`   | Millisecondes    | Duree de vie du cookie                                             |
-| `path`     | `'/'`            | Chemin sur lequel le cookie est envoye                             |
-| `domain`   | `'.example.com'` | Domaine(s) sur lesquels le cookie est valide                       |
-| `signed`   | `true`           | Le cookie est signe avec un secret (anti-tampering)                |
+| En-tête | Protection |
+|---------|-----------|
+| `Content-Security-Policy` | Limite les sources de contenu — réduit la surface XSS |
+| `X-Content-Type-Options: nosniff` | Empêche le MIME sniffing |
+| `X-Frame-Options: SAMEORIGIN` | Protège du clickjacking |
+| `Strict-Transport-Security` | Force HTTPS dans le navigateur |
+| `X-XSS-Protection: 0` | Désactive le filtre XSS natif des anciens navigateurs (obsolète et lui-même source de vulnérabilités) |
 
-> **Bonne pratique** : Pour les tokens d'authentification, utilise TOUJOURS `httpOnly: true` et `secure: true` (en production). Le `sameSite: 'strict'` empeche les attaques CSRF. C'est plus sur que le localStorage.
+**OWASP A05 — Security Misconfiguration** : une API sans ces en-têtes expose ses utilisateurs aux attaques de navigateur les plus basiques et documentées.
 
----
+### 2.8 CORS
 
-## 7. Refresh Tokens
+CORS contrôle quelles origines peuvent appeler l'API depuis un navigateur. Sans configuration, les navigateurs bloquent les appels cross-origin (Same-Origin Policy).
 
-### 7.1 Le problème des tokens courts
-
-Un access token avec une duree de vie courte (15 min) est plus sur — s'il est vole, il expire rapidement. Mais l'utilisateur doit se reconnecter toutes les 15 minutes.
-
-### 7.2 La solution : deux tokens
-
-```
-  Client                          Serveur
-    │                               │
-    │  POST /auth/login             │
-    │──────────────────────────────▶│
-    │                               │
-    │  accessToken (15 min)         │
-    │  refreshToken (7 jours)       │
-    │◀──────────────────────────────│
-    │                               │
-    │  GET /api/data                │
-    │  Authorization: Bearer access │  ← Access token (valide 15 min)
-    │──────────────────────────────▶│
-    │  200 OK                       │
-    │◀──────────────────────────────│
-    │                               │
-    │  ... 15 minutes plus tard ... │
-    │                               │
-    │  GET /api/data                │
-    │  Authorization: Bearer access │  ← Access token expire !
-    │──────────────────────────────▶│
-    │  401 Token expire             │
-    │◀──────────────────────────────│
-    │                               │
-    │  POST /auth/refresh           │
-    │  { refreshToken: "..." }      │  ← Utiliser le refresh token
-    │──────────────────────────────▶│
-    │                               │
-    │  Nouveau accessToken (15 min) │
-    │◀──────────────────────────────│
+```bash
+npm install cors
+npm install -D @types/cors
 ```
 
-```typescript
-// services/auth.service.js
-const ACCESS_TOKEN_EXPIRY = "15m";
-const REFRESH_TOKEN_EXPIRY = "7d";
+```ts
+import cors from 'cors'
 
-// Stocker les refresh tokens (en production → base de donnees)
-const refreshTokens = new Set();
-
-export function generateTokens(user) {
-  const accessToken = jwt.sign(
-    { userId: user.id, email: user.email, role: user.role },
-    JWT_SECRET,
-    { expiresIn: ACCESS_TOKEN_EXPIRY },
-  );
-
-  const refreshToken = jwt.sign(
-    { userId: user.id, type: "refresh" },
-    JWT_SECRET,
-    { expiresIn: REFRESH_TOKEN_EXPIRY },
-  );
-
-  refreshTokens.add(refreshToken);
-
-  return { accessToken, refreshToken };
-}
-
-export function refreshAccessToken(refreshToken) {
-  // Verifier que le refresh token est dans notre liste
-  if (!refreshTokens.has(refreshToken)) {
-    throw new UnauthorizedError("Refresh token invalide ou revoque");
-  }
-
-  try {
-    const decoded = jwt.verify(refreshToken, JWT_SECRET);
-
-    if (decoded.type !== "refresh") {
-      throw new UnauthorizedError("Ce n'est pas un refresh token");
-    }
-
-    // Trouver l'utilisateur
-    const user = users.find((u) => u.id === decoded.userId);
-    if (!user) {
-      throw new UnauthorizedError("Utilisateur introuvable");
-    }
-
-    // Generer un nouveau access token
-    const accessToken = jwt.sign(
-      { userId: user.id, email: user.email, role: user.role },
-      JWT_SECRET,
-      { expiresIn: ACCESS_TOKEN_EXPIRY },
-    );
-
-    return { accessToken };
-  } catch (err) {
-    // Si le refresh token est expire ou invalide, le supprimer
-    refreshTokens.delete(refreshToken);
-    throw new UnauthorizedError("Refresh token expire ou invalide");
-  }
-}
-
-export function revokeRefreshToken(refreshToken) {
-  refreshTokens.delete(refreshToken);
-}
+app.use(cors({
+  // Origines explicites — jamais '*' en production
+  origin: process.env.NODE_ENV === 'production'
+    ? 'https://tribuzen.app'
+    : ['http://localhost:5173', 'http://localhost:3000'],
+  credentials: true,    // OBLIGATOIRE pour que les cookies httpOnly soient envoyés cross-origin
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+  allowedHeaders: ['Content-Type'],
+}))
 ```
 
----
+**Jamais `origin: '*'` avec `credentials: true`** : le navigateur refuse la combinaison (erreur CORS explicite). De plus, `'*'` signifie que n'importe quel site web peut appeler l'API.
 
-## 8. RBAC — Controle d'acces base sur les roles
+`credentials: true` est indispensable quand des cookies sont utilisés : sans lui, le navigateur ne joint pas les cookies aux requêtes cross-origin même si le cookie existe côté client.
 
-### 8.1 Middleware d'autorisation par role
+### 2.9 Rate limiting
 
-```typescript
-// middleware/authorize.js
-import { ForbiddenError } from "../utils/errors.js";
-
-/**
- * Middleware qui verifie que l'utilisateur a un des roles autorises
- * @param  {...string} allowedRoles - Les roles autorises
- */
-export function authorize(...allowedRoles) {
-  return (req, res, next) => {
-    // L'utilisateur doit etre authentifie (middleware authenticate avant)
-    if (!req.user) {
-      throw new ForbiddenError("Utilisateur non authentifie");
-    }
-
-    if (!allowedRoles.includes(req.user.role)) {
-      throw new ForbiddenError(
-        `Role "${req.user.role}" non autorise. Roles requis : ${allowedRoles.join(", ")}`,
-      );
-    }
-
-    next();
-  };
-}
-```
-
-### 8.2 Utilisation dans les routes
-
-```typescript
-import { authenticate } from "../middleware/auth.js";
-import { authorize } from "../middleware/authorize.js";
-
-// Accessible a tous les utilisateurs authentifies
-router.get("/api/profile", authenticate, (req, res) => {
-  res.json({ user: req.user });
-});
-
-// Accessible uniquement aux admins
-router.delete(
-  "/api/users/:id",
-  authenticate,
-  authorize("admin"),
-  asyncHandler(async (req, res) => {
-    await userService.deleteUser(req.params.id);
-    res.status(204).end();
-  }),
-);
-
-// Accessible aux admins ET moderateurs
-router.patch(
-  "/api/posts/:id/moderate",
-  authenticate,
-  authorize("admin", "moderator"),
-  asyncHandler(async (req, res) => {
-    const post = await postService.moderate(req.params.id, req.body);
-    res.json({ data: post });
-  }),
-);
-```
-
----
-
-## 9. Rate Limiting
+Le rate limiting limite le nombre de requêtes par IP pour bloquer le brute-force et les attaques par déni de service.
 
 ```bash
 npm install express-rate-limit
 ```
 
-```typescript
-import rateLimit from "express-rate-limit";
+```ts
+import rateLimit from 'express-rate-limit'
 
-// Limiteur global : 100 requetes par fenetre de 15 minutes
+// Limiteur global — 100 req / 15 min par IP
 const globalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Maximum 100 requetes par IP
-  message: {
-    error: "Trop de requetes, reessayez dans 15 minutes",
-  },
-  standardHeaders: true, // Retourne les headers RateLimit-*
-  legacyHeaders: false, // Desactive les headers X-RateLimit-*
-});
+  windowMs: 15 * 60 * 1000,
+  limit: 100,                  // express-rate-limit v7+ utilise 'limit' (ex-'max')
+  standardHeaders: 'draft-7', // retourne les headers RateLimit standardisés RFC 6585
+  legacyHeaders: false,
+  message: { error: 'Trop de requêtes, réessayez dans 15 minutes' },
+})
 
-// Limiteur strict pour l'authentification : 5 tentatives par 15 minutes
+// Limiteur strict pour les routes d'auth — 5 tentatives / 15 min par IP
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 5,
-  message: {
-    error: "Trop de tentatives de connexion, reessayez dans 15 minutes",
-  },
-});
+  limit: 5,
+  message: { error: 'Trop de tentatives de connexion' },
+})
 
-// Appliquer les limiteurs
-app.use(globalLimiter);
-app.use("/auth/login", authLimiter);
-app.use("/auth/register", authLimiter);
+app.use(globalLimiter)
+app.use('/auth', authLimiter)   // montage sur le préfixe /auth uniquement
 ```
 
----
+**OWASP A07 — Identification and Authentication Failures** : sans rate limiting sur `/auth/login`, une attaque par dictionnaire peut tester des milliers de mots de passe sans être bloquée, particulièrement avec bcrypt parallélisé sur GPU.
 
-## 10. Helmet — Headers de sécurité
+### 2.10 Bases OWASP
 
-```typescript
-import helmet from "helmet";
+Le Top 10 OWASP identifie les vulnérabilités web les plus critiques. Celles couvertes par ce module :
 
-app.use(helmet());
+| Catégorie OWASP | Mesure dans ce module |
+|----------------|----------------------|
+| A02 — Cryptographic Failures | bcrypt (jamais MD5/SHA seul), HTTPS, cookie `secure` |
+| A05 — Security Misconfiguration | helmet, CORS restrictif avec liste d'origines |
+| A07 — Identification and Auth Failures | bcrypt + JWT signé + expiré, rate limiting, message d'erreur générique |
 
-// Ou configurer individuellement
-app.use(
-  helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        scriptSrc: ["'self'"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
-        imgSrc: ["'self'", "data:", "https:"],
-      },
-    },
-    crossOriginEmbedderPolicy: false, // Si tu sers des images externes
-  }),
-);
+**Règle OWASP A07 — message d'erreur générique :** retourner toujours `"Email ou mot de passe incorrect"` — jamais "email introuvable" ni "mot de passe incorrect" séparément. Un message différencié permet à un attaquant de savoir si un email est inscrit (*user enumeration attack*) et de cibler ses attaques.
+
+## 3. Worked examples
+
+### Exemple A — Register + Login avec cookie httpOnly
+
+```ts
+// src/routes/auth.ts
+import { Router, Request, Response } from 'express'
+import bcrypt from 'bcrypt'
+import jwt from 'jsonwebtoken'
+import crypto from 'node:crypto'
+
+const router = Router()
+const SALT_ROUNDS = 12
+const JWT_SECRET = process.env.JWT_SECRET ?? (() => { throw new Error('JWT_SECRET manquant') })()
+
+// Store en mémoire — remplacé par Prisma + PostgreSQL au module 10
+interface User {
+  id: string
+  email: string
+  passwordHash: string   // jamais le mot de passe en clair
+  role: 'owner' | 'member' | 'guest'
+}
+const users: User[] = []
+
+// Hash factice pré-calculé au démarrage — même coût que les vrais hashes
+// Sans ça : email inconnu → retour en < 1ms vs ~100ms (bcrypt) → timing attack possible
+const DUMMY_HASH = await bcrypt.hash('__tribuzen_dummy__', SALT_ROUNDS)
+
+// Helper : placer le token dans un cookie httpOnly
+function setAuthCookie(res: Response, token: string): void {
+  res.cookie('access_token', token, {
+    httpOnly: true,   // inaccessible depuis document.cookie → protège du XSS
+    secure: process.env.NODE_ENV === 'production',   // HTTPS uniquement en prod
+    sameSite: 'strict',   // bloque l'envoi cross-site → protège du CSRF
+    maxAge: 15 * 60 * 1000,   // 15 minutes en ms
+    path: '/',
+  })
+}
+
+// ─── POST /auth/register ───────────────────────────────────────────────────────
+router.post('/register', async (req: Request, res: Response) => {
+  const { email, password } = req.body
+
+  if (typeof email !== 'string' || typeof password !== 'string') {
+    return res.status(400).json({ error: 'email et password requis (string)' })
+  }
+  if (password.length < 8) {
+    return res.status(400).json({ error: 'password doit faire au moins 8 caractères' })
+  }
+
+  const normalizedEmail = email.toLowerCase().trim()
+  if (users.find(u => u.email === normalizedEmail)) {
+    return res.status(409).json({ error: 'Impossible de créer ce compte' })
+    // Message vague intentionnellement : ne pas confirmer si l'email est déjà pris
+  }
+
+  // bcrypt.hash() génère et intègre le salt automatiquement — jamais stocker 'password'
+  const passwordHash = await bcrypt.hash(password, SALT_ROUNDS)
+
+  const user: User = {
+    id: crypto.randomUUID(),
+    email: normalizedEmail,
+    passwordHash,       // seul le hash est persisté
+    role: 'owner',
+  }
+  users.push(user)
+
+  const accessToken = jwt.sign(
+    { userId: user.id, role: user.role },   // payload minimal — pas de passwordHash ici
+    JWT_SECRET,
+    { expiresIn: '15m', algorithm: 'HS256' }
+  )
+
+  setAuthCookie(res, accessToken)   // token dans le cookie, pas dans le body
+
+  // Réponse sans passwordHash ni token JWT dans le body JSON
+  res.status(201).json({ user: { id: user.id, email: user.email, role: user.role } })
+})
+
+// ─── POST /auth/login ──────────────────────────────────────────────────────────
+router.post('/login', async (req: Request, res: Response) => {
+  const { email, password } = req.body
+
+  if (typeof email !== 'string' || typeof password !== 'string') {
+    return res.status(400).json({ error: 'email et password requis' })
+  }
+
+  const user = users.find(u => u.email === email.toLowerCase().trim())
+
+  // Toujours appeler bcrypt.compare() — même si l'utilisateur n'existe pas
+  // Avec DUMMY_HASH, le temps de réponse reste ~100ms qu'il existe ou non
+  // Sans ça, un attaquant mesure la durée : 1ms = email absent, 100ms = email valide
+  const isMatch = await bcrypt.compare(password, user ? user.passwordHash : DUMMY_HASH)
+
+  if (!user || !isMatch) {
+    // Message IDENTIQUE pour "email absent" et "mot de passe incorrect"
+    return res.status(401).json({ error: 'Email ou mot de passe incorrect' })
+  }
+
+  const accessToken = jwt.sign(
+    { userId: user.id, role: user.role },
+    JWT_SECRET,
+    { expiresIn: '15m', algorithm: 'HS256' }
+  )
+
+  setAuthCookie(res, accessToken)
+  res.json({ user: { id: user.id, email: user.email, role: user.role } })
+})
+
+// ─── POST /auth/logout ─────────────────────────────────────────────────────────
+router.post('/logout', (_req: Request, res: Response) => {
+  // clearCookie avec les mêmes attributs que lors de la création
+  res.clearCookie('access_token', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    path: '/',
+  })
+  res.json({ message: 'Déconnecté' })
+})
+
+export default router
 ```
 
----
+**Pas-à-pas :**
+1. `bcrypt.hash(password, SALT_ROUNDS)` — salt généré automatiquement, intégré dans le hash ; `passwordHash` va en base, jamais `password`.
+2. `DUMMY_HASH` pré-calculé au démarrage (top-level `await` avec `"type": "module"`) — même coût CPU que les vrais hashes ; sans lui, la durée de réponse trahit si un email est inscrit.
+3. `isMatch = await bcrypt.compare(password, user ? user.passwordHash : DUMMY_HASH)` — puis `if (!user || !isMatch)` : les deux cas d'échec retournent le même message et la même durée.
+4. `jwt.sign({ userId, role }, JWT_SECRET, { expiresIn: '15m' })` — payload minimal, pas de `passwordHash`, expiration obligatoire.
+5. `setAuthCookie()` place le token dans un cookie `httpOnly; secure; sameSite=strict` — il n'apparaît pas dans le body JSON et ne peut pas être lu par `document.cookie`.
 
-## 11. CORS — Configuration detaillee
+### Exemple B — Middleware authenticate + route protégée
 
-```typescript
-import cors from "cors";
+```ts
+// src/middleware/authenticate.ts
+import { Request, Response, NextFunction } from 'express'
+import jwt from 'jsonwebtoken'
 
-const corsOptions = {
-  // Origines autorisees
-  origin: (origin, callback) => {
-    const allowedOrigins = [
-      "http://localhost:4200", // Angular dev
-      "http://localhost:3001", // React dev
-      "https://monapp.com", // Production
-    ];
+const JWT_SECRET = process.env.JWT_SECRET!
 
-    // Autoriser les requetes sans origin (Postman, curl, mobile)
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error(`Origine ${origin} non autorisee par CORS`));
+// Extension de l'interface Request pour y attacher l'utilisateur courant
+declare global {
+  namespace Express {
+    interface Request {
+      user?: { userId: string; role: string }
     }
-  },
+  }
+}
 
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-Request-Id"],
-  exposedHeaders: ["X-Request-Id", "X-Total-Count"],
-  credentials: true, // Autoriser les cookies cross-origin
-  maxAge: 86400, // Cache preflight 24h
-  optionsSuccessStatus: 204,
-};
+export function authenticate(req: Request, res: Response, next: NextFunction): void {
+  // Lire le token depuis le cookie httpOnly — envoyé automatiquement par le navigateur
+  const token = req.cookies['access_token']
 
-app.use(cors(corsOptions));
-```
+  if (!token) {
+    res.status(401).json({ error: 'Authentification requise' })
+    return
+  }
 
----
+  try {
+    // jwt.verify() valide la signature HS256 ET le claim exp simultanément
+    const payload = jwt.verify(token, JWT_SECRET) as jwt.JwtPayload
 
-## 12. Checklist de sécurité
-
-| Mesure                    | Implementation                     | Module      |
-| ------------------------- | ---------------------------------- | ----------- |
-| Hacher les mots de passe  | bcrypt, salt rounds 10-12          | Ce module   |
-| Tokens JWT signes         | jsonwebtoken, secret long          | Ce module   |
-| Cookies httpOnly + secure | `res.cookie()` avec les bons flags | Ce module   |
-| Rate limiting             | express-rate-limit                 | Ce module   |
-| Headers de sécurité       | helmet                             | Ce module   |
-| CORS configure            | cors avec origines explicites      | Ce module   |
-| Validation des entrees    | Zod sur body/params/query          | Module 07   |
-| Gestion d'erreurs         | Error handler centralise           | Module 07   |
-| Variables sensibles       | .env + dotenv, JAMAIS dans le code | Module 02   |
-| HTTPS en production       | Certificat SSL/TLS (Let's Encrypt) | Déploiement |
-| Dependances a jour        | `npm audit` regulierement          | Maintenance |
-| Logging                   | morgan + logs structures           | Module 06   |
-
-> **A retenir** : La sécurité n'est pas une feature optionnelle — c'est une exigence. Chaque mesure de cette checklist est un mur dans la forteresse de ton API. Un seul mur manquant et un attaquant peut entrer.
-
----
-
-## Bonus — Sécurité BFF (Angular + Express)
-
-Dans un BFF web, l'auth est souvent geree en cookie httpOnly plutot qu'en localStorage pour reduire l'exposition XSS.
-
-### 1) Pattern recommande pour SPA Angular
-
-| Sujet          | Recommandation BFF                                  |
-| -------------- | --------------------------------------------------- |
-| Access token   | Duree courte (10-15 min), stocke en cookie httpOnly |
-| Refresh token  | Rotation + revocation server-side                   |
-| CSRF           | Token anti-CSRF + verification origine              |
-| CORS           | Liste explicite d'origines autorisees               |
-| Session logout | Invalidation refresh token + clear cookie           |
-
-### 2) Endpoint BFF de refresh robuste
-
-```typescript
-router.post(
-  "/refresh",
-  asyncHandler(async (req, res) => {
-    const refreshToken = req.cookies?.refreshToken;
-    if (!refreshToken) {
-      return res.status(401).json({ error: "Refresh token manquant" });
+    req.user = {
+      userId: payload['userId'] as string,
+      role: payload['role'] as string,
     }
-
-    const { accessToken, rotatedRefreshToken } =
-      await authService.rotateRefreshToken(refreshToken);
-
-    res.cookie("accessToken", accessToken, {
-      httpOnly: true,
-      secure: true,
-      sameSite: "strict",
-      maxAge: 15 * 60 * 1000,
-    });
-
-    res.cookie("refreshToken", rotatedRefreshToken, {
-      httpOnly: true,
-      secure: true,
-      sameSite: "strict",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
-
-    res.status(204).end();
-  }),
-);
+    next()
+  } catch (err) {
+    if (err instanceof jwt.TokenExpiredError) {
+      // Access token expiré → le client appelle POST /auth/refresh
+      res.status(401).json({ error: 'Token expiré — rafraîchir la session' })
+      return
+    }
+    // Signature invalide, token malformé, algorithme inattendu → ne pas détailler
+    res.status(401).json({ error: 'Token invalide' })
+  }
+}
 ```
 
-### 3) Point d'attention BFF
+```ts
+// src/middleware/authorize.ts
+import { Request, Response, NextFunction } from 'express'
 
-Quand Angular appelle le BFF avec cookies, active `credentials: true` cote client et cote serveur. Sans ca, le flux de session parait "aleatoire" selon navigateur/environnement.
+// Middleware d'autorisation — TOUJOURS appelé après authenticate
+export function authorize(...roles: string[]) {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    if (!req.user || !roles.includes(req.user.role)) {
+      // 403 Forbidden = authentifié mais pas autorisé (distinct du 401)
+      res.status(403).json({ error: 'Droits insuffisants' })
+      return
+    }
+    next()
+  }
+}
+```
 
-> **A retenir BFF** : La maitrise BFF ne se limite pas a verifier un JWT; elle inclut la gestion complete du cycle de session (rotation, revocation, CSRF, CORS strict) en conditions reelles.
+```ts
+// src/index.ts — montage avec tous les middleware de sécurité dans le bon ordre
+import express from 'express'
+import helmet from 'helmet'
+import cors from 'cors'
+import rateLimit from 'express-rate-limit'
+import cookieParser from 'cookie-parser'
+import authRouter from './routes/auth.js'
+import { authenticate } from './middleware/authenticate.js'
+import { authorize } from './middleware/authorize.js'
 
----
+const app = express()
 
-## 13. Exercices pratiques
+// 1. helmet EN PREMIER — en-têtes de sécurité envoyés sur toutes les réponses, y compris 4xx/5xx
+app.use(helmet())
 
-### Exercice 1 — Système d'authentification complet
+// 2. CORS — avant les routes
+app.use(cors({
+  origin: process.env.NODE_ENV === 'production' ? 'https://tribuzen.app' : 'http://localhost:5173',
+  credentials: true,   // obligatoire pour les cookies cross-origin
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type'],
+}))
 
-Implemente le flux complet : register, login, logout, profile, refresh token.
+// 3. Rate limiting global
+app.use(rateLimit({ windowMs: 15 * 60 * 1000, limit: 100 }))
 
-### Exercice 2 — API multi-roles
+// 4. Parsers
+app.use(express.json())
+app.use(cookieParser())   // requis pour lire req.cookies['access_token']
 
-Cree une API de blog avec 3 roles :
+// 5. Routes auth avec limiteur strict (5 req / 15 min)
+app.use('/auth', rateLimit({ windowMs: 15 * 60 * 1000, limit: 5 }), authRouter)
 
-- `user` : peut lire et créer des posts
-- `moderator` : peut aussi editer et moderer les posts
-- `admin` : peut tout faire + gérer les utilisateurs
+// 6. Route protégée — authenticate vérifie le JWT, authorize vérifie le rôle
+app.get('/familles/:id', authenticate, authorize('owner', 'admin'), (req, res) => {
+  res.json({ familleId: req.params.id, demandeur: req.user })
+})
 
-### Exercice 3 — Protection contre le brute force
+app.listen(3000)
+```
 
-Implemente un système qui bloque un compte après 5 tentatives de login echouees, avec un deblocage après 30 minutes.
+**Pas-à-pas :**
+1. `helmet()` déclaré en premier — les en-têtes de sécurité sont présents sur toutes les réponses, y compris les erreurs CORS ou 404.
+2. `cookieParser()` est requis pour lire `req.cookies` — sans lui, `req.cookies` est `undefined`.
+3. Dans `authenticate`, `jwt.verify()` lève `TokenExpiredError` ou `JsonWebTokenError` — on distingue les deux : le client sait s'il doit rafraîchir (401 + "Token expiré") ou se reconnecter (401 + "Token invalide").
+4. `authorize('owner', 'admin')` après `authenticate` — `req.user` est garanti non-null ici ; ne jamais appeler `authorize` sans `authenticate` devant.
+5. Le rate limiter monté sur `/auth` (5 req / 15 min) ne touche pas les routes `/familles/*`.
 
----
+## 4. Pièges & misconceptions
 
-## Navigation
+- **Comparer les hashes directement.** `storedHash === bcrypt.hash(password, ...)` échoue toujours : deux appels à `bcrypt.hash()` sur le même mot de passe donnent des hashes différents (salt aléatoire). Et même sans ça, l'égalité `===` est sujette aux timing attacks. *Correct* : `await bcrypt.compare(plainPassword, storedHash)` — seule API valide, résistante aux timing attacks.
 
-|                  | Lien                                                                                       |
-| ---------------- | ------------------------------------------------------------------------------------------ |
-| Module précédent | [Module 07 — Express — Validation & Gestion d'erreurs](./07-express-validation-erreurs.md) |
-| Module suivant   | [Module 09 — NestJS — Introduction & Premiers pas](./09-nestjs-introduction.md)            |
-| Quiz             | [Quiz Module 08](../quizzes/08-express-auth-securite.quiz.md)                              |
-| Lab              | [Lab 08 — Authentification et sécurité](../labs/08-express-auth-securite.lab.md)           |
+- **Payload JWT = données privées.** Le payload est encodé en Base64url, pas chiffré. `jwt.decode(token)` le retourne sans connaître le secret. Ne jamais y mettre de hash de mot de passe, de numéro de carte, ou de donnée confidentielle. *Correct* : uniquement des identifiants de session (`userId`, `role`, `exp`).
 
----
+- **JWT sans `expiresIn`.** Un token sans expiration est valide indéfiniment. S'il est volé (interception réseau, log serveur, cache), l'attaquant dispose d'un accès permanent. *Correct* : `expiresIn: '15m'` pour les access tokens — jamais omettre l'expiration.
 
-> **A retenir** : L'authentification (bcrypt + JWT) et la sécurité (helmet, CORS, rate limiting) sont les piliers de toute API de production. Hache toujours les mots de passe, signe tes tokens avec un secret robuste, utilise des cookies httpOnly, et protege tes endpoints sensibles avec des middleware d'autorisation. Ces concepts s'appliqueront directement dans NestJS avec les Guards et les Stratégies Passport.
+- **localStorage pour le token JWT.** Tout script JS de la page peut appeler `localStorage.getItem('token')` — un XSS ou script tiers compromis vole le token instantanément. *Correct* : cookie `httpOnly: true` — `document.cookie` ne retourne pas les cookies `httpOnly`, le navigateur les envoie automatiquement.
 
----
+- **`origin: '*'` avec `credentials: true`.** Les navigateurs refusent cette combinaison (erreur CORS explicite dans la console). De plus, `'*'` en production signifie que n'importe quel site peut appeler l'API. *Correct* : liste explicite d'origines `['https://tribuzen.app']`.
 
-<!-- parcours-recommande -->
+- **Message d'erreur différencié au login.** "Email introuvable" vs "Mot de passe incorrect" permet la *user enumeration* : l'attaquant sait quels emails sont inscrits et peut cibler ses attaques. *Correct* : `"Email ou mot de passe incorrect"` dans tous les cas d'échec d'authentification — sans exception.
 
-::: tip Parcours recommandé
+- **`JWT_SECRET` avec valeur fallback.** `process.env.JWT_SECRET || 'mon-secret'` laisse un serveur démarrer sans variable d'env en utilisant une clé publiquement connue (commitée dans le code). *Correct* : `process.env.JWT_SECRET!` ou jeter une erreur au démarrage si la variable est absente — le serveur ne doit pas démarrer sans secret valide.
 
-1. **Screencast** : [screencast 08 auth sécurité](../screencasts/screencast-08-auth-securite.md)
-2. **Lab** : [lab-08-auth-jwt](../labs/lab-08-auth-jwt/README)
-3. **Quiz** : [quiz 08 auth sécurité](../quizzes/quiz-08-auth-securite.html)
-   :::
+## 5. Ancrage TribuZen
+
+Couche fil-rouge : **authentification JWT de l'API TribuZen (login parent, protection des routes famille)** (`smaurier/tribuzen`).
+
+- `POST /auth/register` — un parent crée son compte. `bcrypt.hash(password, 12)` produit le hash persisté dans `users(password_hash TEXT NOT NULL)`. La colonne `password` n'existe pas en base.
+- `POST /auth/login` — `bcrypt.compare()` vérifie le mot de passe. Si succès, access token (15 min) en cookie `httpOnly` + refresh token (7 j) en second cookie `httpOnly; Path=/auth/refresh`.
+- `GET /familles/:id` — `authenticate` lit `req.cookies['access_token']`, appelle `jwt.verify()`. `authorize('owner', 'admin')` vérifie le rôle. Si le token a expiré, le client reçoit 401 + `"Token expiré"` et appelle `POST /auth/refresh`.
+- `POST /auth/refresh` — lit le refresh token de son cookie, le vérifie avec `REFRESH_TOKEN_SECRET`, émet un nouvel access token, effectue la rotation : nouveau refresh token émis, ancien invalide en base.
+- Au module 10 (PostgreSQL + Prisma), la table `refresh_tokens(id, user_id, token_hash, expires_at, revoked_at)` remplace le `Set` en mémoire — permettant la révocation multi-device et l'audit de sessions.
+
+Structure cible dans `smaurier/tribuzen` :
+
+```
+apps/api/src/
+  routes/
+    auth.ts              ← register, login, logout, refresh
+  middleware/
+    authenticate.ts      ← jwt.verify sur req.cookies.access_token
+    authorize.ts         ← vérification de rôle sur req.user.role
+  index.ts               ← helmet, cors, rateLimit, cookieParser, montage routes
+```
+
+## 6. Points clés
+
+1. Authentification (AuthN) vérifie l'identité ; autorisation (AuthZ) vérifie les droits — toujours dans cet ordre, jamais inversé.
+2. `bcrypt.hash(password, saltRounds)` — jamais stocker le mot de passe en clair ; `bcrypt.compare(plain, hash)` — jamais comparer les hashes directement.
+3. JWT = header.payload.signature, tout en Base64url — le payload est lisible sans le secret ; jamais de données sensibles dans le payload.
+4. `jwt.sign(payload, secret, { expiresIn: '15m' })` — expiration obligatoire ; `jwt.verify()` lève `TokenExpiredError` ou `JsonWebTokenError`.
+5. Cookie `httpOnly: true` — le JS ne peut pas lire le token → protège du XSS ; `localStorage` est accessible à tout script → ne jamais y stocker un token de session.
+6. Cookie `secure: true` — HTTPS uniquement ; `sameSite: 'strict'` — bloque l'envoi cross-site → protège du CSRF.
+7. Access token court (15 min) + refresh token plus long (7 j, stocké en base pour révocation et rotation).
+8. `helmet()` en premier dans la chaîne middleware — en-têtes de sécurité sur toutes les réponses, y compris les erreurs.
+9. CORS avec `credentials: true` et liste d'origines explicites — jamais `'*'` avec `credentials: true`.
+10. Rate limiting strict sur `/auth` (5 req / 15 min) — bloque le brute-force de mots de passe ; toujours appeler `bcrypt.compare()` même si l'email n'existe pas (anti-timing).
+
+## 7. Seeds Anki
+
+```
+Différence authentification vs autorisation ?|AuthN vérifie l'identité ("qui es-tu ?") — AuthZ vérifie les droits ("as-tu le droit ?"). Middleware authenticate avant authorize, toujours dans cet ordre.
+Pourquoi bcrypt.compare() et jamais comparer les hashes directement ?|bcrypt génère un salt aléatoire à chaque hash — le même mot de passe donne un hash différent à chaque fois. compare() rehache avec le salt extrait du hash stocké. Comparer les strings serait toujours false et vulnérable aux timing attacks.
+Le payload d'un JWT est-il chiffré ?|Non — encodé en Base64url, lisible par quiconque sans le secret. jwt.decode(token) le retourne sans vérifier la signature. Ne jamais y mettre de données sensibles.
+Que lève jwt.verify() si le token est expiré ?|TokenExpiredError — distinct de JsonWebTokenError (signature invalide). Toujours distinguer les deux pour donner au client un message adapté (rafraîchir vs se reconnecter).
+Pourquoi stocker le JWT dans un cookie httpOnly plutôt que localStorage ?|localStorage est accessible par tout JS de la page — un XSS vole le token immédiatement. httpOnly rend le cookie illisible depuis JS (document.cookie ne le retourne pas) ; le navigateur l'envoie automatiquement.
+À quoi sert sameSite: strict sur un cookie d'authentification ?|Empêche le navigateur d'envoyer le cookie sur les requêtes cross-site — protège contre les attaques CSRF où un site malveillant forge une requête vers l'API.
+Pourquoi retourner "Email ou mot de passe incorrect" dans les deux cas d'échec ?|Des messages distincts permettent la user enumeration — l'attaquant sait quels emails sont inscrits et peut cibler ses attaques (OWASP A07). Un message unique ne révèle rien.
+Pourquoi appeler bcrypt.compare() même si l'email n'existe pas (avec un hash factice) ?|Sans ça, un email inconnu retourne en < 1ms vs ~100ms pour bcrypt — l'attaquant mesure la durée et sait quels emails sont inscrits (timing attack). Un hash factice de même coût efface cette différence.
+```
+
+## Pont vers le lab
+
+> Lab associé : `09-nestjs/labs/lab-08-auth-jwt/README.md`. Tu construis le flux complet register → login → route protégée avec bcrypt, JWT en cookie httpOnly, middleware `authenticate` et `authorize` — pas de gap-fill, code de A à Z, corrigé complet commenté inline.

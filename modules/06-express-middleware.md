@@ -1,925 +1,546 @@
-# Module 06 — Express — Middleware & Architecture
-
-> **Objectif** : Comprendre le concept central d'Express — les middleware — maîtriser le pipeline d'exécution, créer des middleware personnalises, organiser le code en architecture MVC avec des Router modulaires.
->
-> **Difficulte** : ⭐⭐ (intermédiaire)
-
+---
+titre: Express middleware
+cours: 09-nestjs
+notions: [concept de middleware, signature req res next, ordre d'exécution, middleware applicatif et de routeur, middleware d'erreur à 4 args, middleware intégrés json urlencoded static, middleware tiers cors helmet morgan, middleware custom réutilisable]
+outcomes: [écrire un middleware custom, chaîner des middlewares dans le bon ordre, gérer les erreurs avec un middleware à 4 arguments, brancher cors/helmet/morgan]
+prerequis: [05-express-fondamentaux]
+next: 07-express-validation-erreurs
+libs: [{ name: express, version: "^5" }, { name: node, version: "22" }]
+tribuzen: middleware de l'API TribuZen (logging des requêtes, CORS, auth à venir)
+last-reviewed: 2026-07
 ---
 
-## 1. Le concept de middleware
+# Express middleware
 
-### 1.1 Definition
+> **Outcomes — tu sauras FAIRE :** écrire un middleware custom et réutilisable, chaîner des middlewares dans le bon ordre, gérer les erreurs avec un middleware à 4 arguments, brancher cors/helmet/morgan.
+> **Difficulté :** :star::star:
 
-Un **middleware** est une fonction qui a acces a l'objet `req`, l'objet `res`, et la fonction `next()`. Les middleware forment une **chaine** (pipeline) — chaque requête traverse les middleware dans l'ordre ou ils sont declares.
+## 1. Cas concret d'abord
 
-```typescript
-function monMiddleware(req, res, next) {
-  // 1. Faire quelque chose avec req et/ou res
-  console.log(`${req.method} ${req.url}`);
+L'API TribuZen sert un front Vue/Nuxt qui tourne sur `http://localhost:5173`. Quand tu lances les deux serveurs et que le front appelle `GET /familles`, le navigateur bloque la réponse : CORS error. Ensuite, tu veux tracer chaque requête pour déboguer — timestamp, méthode, chemin, durée, status. Et plus tard, il faudra couper l'accès aux routes protégées si le header `Authorization` est absent.
 
-  // 2. Passer au middleware suivant
-  next();
+Tu essaies d'ajouter tout ça dans les handlers et tu te retrouves à dupliquer du code dans chaque route. Ce n'est pas tenable.
 
-  // OU envoyer une reponse (arrete la chaine)
-  // res.status(403).json({ error: 'Interdit' });
+Express résout ça avec les **middleware** : des fonctions qui s'exécutent avant (ou après) le handler, dans un pipeline ordonné. Un middleware branché une fois s'applique à toutes les routes correspondantes. Ce module te montre comment en écrire, comment les chaîner, et comment gérer les erreurs avec le middleware à 4 arguments d'Express 5.
+
+## 2. Théorie complète, concise
+
+### 2.1 Concept de middleware et signature `(req, res, next)`
+
+Un middleware est une fonction `(req, res, next) => void` qu'Express exécute dans l'ordre de déclaration pour chaque requête correspondante. `next()` passe la main au middleware suivant ; appeler `res.json()` ou `res.send()` termine la chaîne.
+
+```ts
+import { Request, Response, NextFunction } from 'express'
+
+function monMiddleware(req: Request, res: Response, next: NextFunction): void {
+  // 1. Lire/modifier req ou res
+  console.log(`${req.method} ${req.path}`)
+
+  // 2a. Passer la main au middleware suivant
+  next()
+
+  // 2b. OU terminer la chaîne si une condition n'est pas remplie
+  // res.status(401).json({ error: 'Non autorisé' })
 }
 ```
 
-> **Analogie** : Les middleware, c'est comme une chaine de montage en usine. Chaque poste (middleware) recoit le produit (requête), effectue une operation (logging, authentification, validation...) et le passe au poste suivant (`next()`). Si un poste détecté un defaut, il peut rejeter le produit (envoyer une erreur) sans le passer au suivant.
+Sans appel à `next()` ni envoi de réponse, la requête reste bloquée indéfiniment. C'est la cause la plus fréquente de timeout dans une API Express.
 
-### 1.2 Le pipeline de middleware
+### 2.2 Ordre d'exécution
 
-```
-  Requete HTTP entrante
-       │
-       ▼
-  ┌─────────────────┐
-  │ express.json()   │  ← Parse le body JSON
-  └────────┬────────┘
-           │ next()
-  ┌────────▼────────┐
-  │ cors()           │  ← Ajoute les headers CORS
-  └────────┬────────┘
-           │ next()
-  ┌────────▼────────┐
-  │ morgan()         │  ← Log la requete
-  └────────┬────────┘
-           │ next()
-  ┌────────▼────────┐
-  │ authMiddleware() │  ← Verifie l'authentification
-  └────────┬────────┘
-           │ next()
-  ┌────────▼────────┐
-  │ Route handler    │  ← Traite la requete et envoie la reponse
-  └────────┬────────┘
-           │
-       Reponse HTTP
-```
+Les middleware s'exécutent dans l'ordre exact de `app.use()`. Cet ordre est non négociable et a des effets concrets :
 
-### 1.3 Ordre d'exécution
+```ts
+import express from 'express'
 
-L'ordre des `app.use()` est **crucial** — les middleware sont executes dans l'ordre de declaration :
+const app = express()
 
-```typescript
-import express from "express";
-const app = express();
+// Déclaré en PREMIER : s'exécute sur toutes les requêtes avant tout le reste
+app.use(express.json())              // parse le body JSON → req.body disponible
 
-// 1. Ce middleware s'execute en PREMIER sur TOUTES les requetes
+// Déclaré en DEUXIÈME
 app.use((req, res, next) => {
-  console.log("Middleware 1");
-  next();
-});
+  console.log('Logger')
+  next()
+})
 
-// 2. Ce middleware s'execute en DEUXIEME
-app.use((req, res, next) => {
-  console.log("Middleware 2");
-  next();
-});
+// Handler de route — reçoit req.body déjà parsé
+app.post('/familles', (req, res) => {
+  res.status(201).json(req.body)
+})
 
-// 3. Le route handler s'execute en DERNIER
-app.get("/", (req, res) => {
-  console.log("Route handler");
-  res.send("OK");
-});
-
-// Sortie pour GET / :
-// Middleware 1
-// Middleware 2
-// Route handler
+// Middleware d'erreur — toujours EN DERNIER
+app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  res.status(500).json({ error: err.message })
+})
 ```
 
-> **Piege classique** : Si tu mets `express.json()` APRES tes routes, `req.body` sera `undefined` dans ces routes car le body n'aura pas encore ete parse. L'ordre des middleware est fondamental.
+Règle : **middleware globaux → routes → middleware d'erreur**. Si `express.json()` est déclaré après la route, `req.body` est `undefined` dans cette route.
 
-```typescript
-// MAUVAIS — express.json() trop tard
-app.post("/api/users", (req, res) => {
-  console.log(req.body); // undefined !
-});
-app.use(express.json());
+### 2.3 Middleware applicatif et middleware de routeur
 
-// BON — express.json() en premier
-app.use(express.json());
-app.post("/api/users", (req, res) => {
-  console.log(req.body); // { nom: 'Alice', ... }
-});
+**Middleware applicatif** — attaché à l'instance `app`, s'applique à toutes les requêtes (ou à celles dont le chemin commence par un préfixe) :
+
+```ts
+// Toutes les requêtes
+app.use(express.json())
+
+// Uniquement les requêtes dont le chemin commence par /api
+app.use('/api', (req, res, next) => {
+  console.log('Requête API')
+  next()
+})
+
+// Middleware inline sur une seule route (requireAuth s'exécute avant le handler)
+app.get('/familles/:id', requireAuth, famillesController.getById)
 ```
 
----
+**Middleware de routeur** — attaché à un `express.Router()`, il ne s'applique qu'aux routes de ce routeur :
 
-## 2. Les types de middleware
+```ts
+import { Router } from 'express'
 
-### 2.1 Middleware d'application (app-level)
+const router = Router()
 
-```typescript
-// S'execute sur TOUTES les routes
-app.use(express.json());
-
-// S'execute sur TOUTES les routes commencant par /api
-app.use("/api", (req, res, next) => {
-  console.log("Requete API");
-  next();
-});
-
-// S'execute uniquement sur GET /api/users
-app.get(
-  "/api/users",
-  (req, res, next) => {
-    // Ce handler est AUSSI un middleware
-    // Il peut appeler next() pour passer au handler suivant
-    next();
-  },
-  (req, res) => {
-    res.json({ users: [] });
-  },
-);
-```
-
-### 2.2 Middleware de routeur (router-level)
-
-```typescript
-import express from "express";
-const router = express.Router();
-
-// S'execute sur toutes les routes de CE routeur
+// S'exécute pour toutes les routes de CE routeur uniquement
 router.use((req, res, next) => {
-  console.log("Middleware du routeur");
-  next();
-});
+  console.log('Scoped au routeur familles')
+  next()
+})
 
-router.get("/", (req, res) => {
-  res.json({ users: [] });
-});
+router.get('/', (req, res) => res.json([]))
+router.get('/:id', (req, res) => res.json({ id: req.params.id }))
 
-// Monter le routeur sur un prefixe
-app.use("/api/users", router);
+// Monté sous /familles dans l'app principale
+app.use('/familles', router)
 ```
 
-### 2.3 Middleware d'erreur (4 arguments)
+Le scoping du routeur est le précurseur direct des **modules NestJS** (module 09) : un module NestJS est conceptuellement un routeur Express avec injection de dépendances.
 
-```typescript
-// Un middleware d'erreur a EXACTEMENT 4 arguments
-// C'est le nombre d'arguments qui le distingue d'un middleware normal
-app.use((err, req, res, next) => {
-  console.error("Erreur :", err.message);
-  res.status(err.statusCode || 500).json({
-    error: err.message || "Erreur interne du serveur",
-  });
-});
+### 2.4 Middleware d'erreur à 4 args (Express 5)
+
+Un middleware d'erreur se reconnaît à son **quatrième paramètre `err`** — Express l'identifie uniquement par le nombre d'arguments, pas par le nom. Il doit être déclaré **après toutes les routes**.
+
+```ts
+// middleware/error-handler.ts
+import { Request, Response, NextFunction } from 'express'
+
+export interface AppError extends Error {
+  status?: number
+}
+
+export function errorHandler(
+  err: AppError,
+  req: Request,
+  res: Response,
+  _next: NextFunction   // le 4e param est requis même si non utilisé
+): void {
+  const status = err.status ?? 500
+  const message = err.message ?? 'Erreur interne'
+
+  console.error(`[ERROR] ${req.method} ${req.path} → ${status} ${message}`)
+
+  res.status(status).json({ error: message })
+}
 ```
 
----
+**Express 5 — propagation async automatique.** En Express 5, tout handler `async` dont la Promise rejette appelle automatiquement `next(err)` — sans try/catch ni wrapper :
 
-## 3. Middleware integres (built-in)
-
-### 3.1 express.json()
-
-```typescript
-// Parse le body au format JSON
-app.use(
-  express.json({
-    limit: "10mb", // Taille maximale du body (defaut: 100kb)
-    strict: true, // Accepte uniquement les tableaux et objets
-    type: "application/json", // Type MIME a parser
-  }),
-);
+```ts
+// Express 5 — pas de try/catch nécessaire dans les handlers async
+app.get('/familles/:id', async (req, res) => {
+  const famille = await familleService.findById(req.params.id)   // peut rejeter
+  if (!famille) {
+    const err: AppError = new Error('Famille introuvable')
+    err.status = 404
+    throw err   // Express 5 attrape, appelle next(err), route vers errorHandler
+  }
+  res.json(famille)
+})
 ```
 
-### 3.2 express.urlencoded()
+En Express 4, la même rejection disparaissait silencieusement — il fallait `try/catch` + `next(err)` ou le package `express-async-errors`. Express 5 supprime cette contrainte.
 
-```typescript
-// Parse le body au format URL-encoded (formulaires HTML)
-app.use(
-  express.urlencoded({
-    extended: true, // Utilise la librairie qs (objets imbriques)
-    limit: "10mb",
-  }),
-);
+**Propager une erreur depuis un middleware normal** :
+
+```ts
+app.use('/familles', (req, res, next) => {
+  const apiKey = req.get('X-API-Key')
+  if (!apiKey) {
+    const err: AppError = new Error('Clé API manquante')
+    err.status = 401
+    next(err)   // saute tous les middleware normaux, va direct à errorHandler
+    return
+  }
+  next()
+})
 ```
 
-### 3.3 express.static()
+### 2.5 Middleware intégrés — `json`, `urlencoded`, `static`
 
-```typescript
-import path from "path";
-import { fileURLToPath } from "url";
+Express 5 embarque trois middleware sans dépendance additionnelle :
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+```ts
+// Parse les body Content-Type: application/json → req.body
+app.use(express.json({
+  limit: '1mb',      // taille max du body (défaut 100 ko) — protège contre les gros payloads
+  strict: true,      // accepte uniquement les tableaux et objets JSON
+}))
 
-// Servir les fichiers statiques
-app.use(
-  express.static(path.join(__dirname, "public"), {
-    maxAge: "1h", // Cache navigateur de 1 heure
-    index: "index.html", // Fichier par defaut pour les dossiers
-    dotfiles: "ignore", // Ignorer les fichiers commencant par .
-  }),
-);
+// Parse les body Content-Type: application/x-www-form-urlencoded (formulaires HTML)
+app.use(express.urlencoded({
+  extended: true,    // utilise la librairie qs — supporte les objets imbriqués
+  limit: '1mb',
+}))
+
+// Sert les fichiers statiques d'un dossier local
+import { fileURLToPath } from 'node:url'
+import path from 'node:path'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+
+app.use('/assets', express.static(path.join(__dirname, '../public'), {
+  maxAge: '1d',       // Cache-Control navigateur (1 jour)
+  index: false,       // désactive la page d'index automatique
+  dotfiles: 'ignore', // ne sert pas les fichiers .gitignore, .env, etc.
+}))
 ```
 
----
+`express.json()` et `express.urlencoded()` doivent être déclarés **avant** toute route qui lit `req.body`. `express.static()` déclaré avant les routes dynamiques sert les fichiers en priorité.
 
-## 4. Middleware tiers populaires
-
-### 4.1 cors — Cross-Origin Resource Sharing
+### 2.6 Middleware tiers — `cors`, `helmet`, `morgan`
 
 ```bash
-npm install cors
+npm install cors helmet morgan
+npm install -D @types/cors @types/morgan
 ```
 
-```typescript
-import cors from "cors";
+**cors** — autorise les requêtes cross-origin (indispensable quand le front tourne sur un port différent) :
 
-// Autoriser toutes les origines (developpement uniquement)
-app.use(cors());
+```ts
+import cors from 'cors'
 
-// Configuration fine (production)
-app.use(
-  cors({
-    origin: ["http://localhost:4200", "https://monapp.com"],
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-    credentials: true, // Autoriser les cookies cross-origin
-    maxAge: 86400, // Cache le preflight pendant 24h
-  }),
-);
+// Développement — toutes les origines
+app.use(cors())
+
+// Production — liste blanche stricte
+app.use(cors({
+  origin: ['http://localhost:5173', 'https://tribuzen.app'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,   // cookies et headers d'auth cross-origin
+  maxAge: 86400,        // met en cache la réponse preflight 24 h
+}))
 ```
 
-### 4.2 helmet — Headers de sécurité
+**helmet** — ajoute une dizaine de headers HTTP de sécurité en une ligne :
 
-```bash
-npm install helmet
-```
+```ts
+import helmet from 'helmet'
 
-```typescript
-import helmet from "helmet";
-
-// Ajoute automatiquement des headers de securite
-app.use(helmet());
-
-// Equivalent de :
-// X-Content-Type-Options: nosniff
-// X-Frame-Options: DENY
-// Strict-Transport-Security: max-age=15552000
-// X-XSS-Protection: 0
+app.use(helmet())
+// Ajoute notamment :
 // Content-Security-Policy: default-src 'self'
-// ... et d'autres
+// X-Content-Type-Options: nosniff
+// X-Frame-Options: SAMEORIGIN
+// Strict-Transport-Security: max-age=15552000; includeSubDomains
+// X-XSS-Protection: 0   (désactivé car géré par CSP en mode moderne)
 ```
 
-### 4.3 morgan — Logging HTTP
+**morgan** — logge chaque requête HTTP avec méthode, chemin, status, durée :
 
-```bash
-npm install morgan
+```ts
+import morgan from 'morgan'
+
+// Développement : coloré, lisible en console
+app.use(morgan('dev'))
+// → GET /familles 200 4.321 ms - 256
+
+// Production : format Apache combined, pour agrégation dans un log collector
+app.use(morgan('combined'))
+// → ::1 - - [02/Jul/2026:14:00:00 +0000] "GET /familles HTTP/1.1" 200 256
+
+// Format personnalisé avec timestamp ISO
+app.use(morgan(':date[iso] :method :url :status :response-time ms'))
 ```
 
-```typescript
-import morgan from "morgan";
+Ordre recommandé en production : `helmet()` → `cors()` → `morgan()` → `express.json()` → routes → errorHandler.
 
-// Formats predefinies
-app.use(morgan("dev"));
-// GET /api/users 200 12.345 ms - 234
+### 2.7 Middleware custom réutilisable
 
-app.use(morgan("combined"));
-// ::1 - - [10/Jan/2024:14:30:00 +0000] "GET /api/users HTTP/1.1" 200 234
+Un middleware custom peut être **une simple fonction** ou une **factory** qui retourne une fonction — le pattern factory permet de le paramétrer.
 
-app.use(morgan("tiny"));
-// GET /api/users 200 234 - 12.345 ms
+```ts
+// middleware/request-id.ts — middleware simple (réutilisable partout)
+import crypto from 'node:crypto'
+import { Request, Response, NextFunction } from 'express'
 
-// Format personnalise
-app.use(
-  morgan(":method :url :status :res[content-length] - :response-time ms"),
-);
-```
-
-### 4.4 compression — Compression gzip
-
-```bash
-npm install compression
-```
-
-```typescript
-import compression from "compression";
-
-// Compresse automatiquement les reponses > 1 Ko
-app.use(
-  compression({
-    threshold: 1024, // Minimum 1 Ko pour compresser
-    level: 6, // Niveau de compression (1-9, 6 = bon equilibre)
-  }),
-);
-```
-
-### 4.5 Tableau récapitulatif
-
-| Middleware             | npm install          | Role                          |
-| ---------------------- | -------------------- | ----------------------------- |
-| `express.json()`       | Integre              | Parser le body JSON           |
-| `express.urlencoded()` | Integre              | Parser les formulaires        |
-| `express.static()`     | Integre              | Servir des fichiers statiques |
-| `cors`                 | `cors`               | Gérer le CORS                 |
-| `helmet`               | `helmet`             | Headers de sécurité           |
-| `morgan`               | `morgan`             | Logging des requêtes          |
-| `compression`          | `compression`        | Compression gzip              |
-| `cookie-parser`        | `cookie-parser`      | Parser les cookies            |
-| `express-rate-limit`   | `express-rate-limit` | Limiter le nombre de requêtes |
-
----
-
-## 5. Créer des middleware personnalises
-
-### 5.1 Logger avec timestamps
-
-```typescript
-function logger(req, res, next) {
-  const start = Date.now();
-
-  // Intercepter la fin de la reponse
-  res.on("finish", () => {
-    const duration = Date.now() - start;
-    const timestamp = new Date().toISOString();
-    console.log(
-      `[${timestamp}] ${req.method} ${req.originalUrl} → ${res.statusCode} (${duration}ms)`,
-    );
-  });
-
-  next();
+export function requestId(req: Request, res: Response, next: NextFunction): void {
+  // Réutilise l'id injecté par un proxy (nginx, ALB) ou en génère un
+  const id = req.get('X-Request-Id') ?? crypto.randomUUID()
+  // Attache à req pour que les handlers suivants y aient accès
+  ;(req as Request & { id: string }).id = id
+  // Propage en header de réponse pour le débogage côté client
+  res.set('X-Request-Id', id)
+  next()
 }
-
-app.use(logger);
 ```
 
-### 5.2 Timer de requête
+```ts
+// middleware/logger.ts — middleware custom avec mesure de durée
+import { Request, Response, NextFunction } from 'express'
 
-```typescript
-function requestTimer(req, res, next) {
-  req.startTime = Date.now();
+export function requestLogger(req: Request, res: Response, next: NextFunction): void {
+  const start = Date.now()
 
-  res.on("finish", () => {
-    const duration = Date.now() - req.startTime;
-    // Avertir si la requete est lente
-    if (duration > 1000) {
-      console.warn(
-        `SLOW REQUEST: ${req.method} ${req.originalUrl} took ${duration}ms`,
-      );
+  // res.on('finish') se déclenche quand la réponse a été envoyée
+  // C'est le seul moyen d'avoir le status code final depuis un middleware "before"
+  res.on('finish', () => {
+    const ms = Date.now() - start
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl} → ${res.statusCode} (${ms}ms)`)
+  })
+
+  next()
+}
+```
+
+```ts
+// middleware/require-bearer.ts — factory : paramétrable par liste de tokens
+import { Request, Response, NextFunction } from 'express'
+import { AppError } from './error-handler.js'
+
+// Retourne un middleware qui accepte uniquement les tokens de la liste blanche
+export function requireBearer(allowedTokens: string[]) {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    const header = req.get('Authorization') ?? ''
+
+    if (!header.startsWith('Bearer ')) {
+      const err: AppError = new Error('Token manquant ou format invalide')
+      err.status = 401
+      next(err)
+      return
     }
-  });
 
-  next();
-}
+    const token = header.slice(7)
 
-app.use(requestTimer);
-```
+    if (!allowedTokens.includes(token)) {
+      const err: AppError = new Error('Token non autorisé')
+      err.status = 403
+      next(err)
+      return
+    }
 
-### 5.3 Vérification d'authentification
-
-```typescript
-function requireAuth(req, res, next) {
-  const authHeader = req.get("Authorization");
-
-  if (!authHeader) {
-    return res.status(401).json({ error: "Token d'authentification manquant" });
-  }
-
-  if (!authHeader.startsWith("Bearer ")) {
-    return res.status(401).json({ error: "Format de token invalide" });
-  }
-
-  const token = authHeader.slice(7); // Enlever 'Bearer '
-
-  try {
-    // Verifier le token (simplifie — voir module 08 pour JWT)
-    const user = verifyToken(token);
-    req.user = user; // Attacher l'utilisateur a la requete
-    next();
-  } catch (err) {
-    return res.status(401).json({ error: "Token invalide ou expire" });
+    next()
   }
 }
 
-// Utiliser sur des routes specifiques (pas toutes)
-app.get("/api/profile", requireAuth, (req, res) => {
-  res.json({ user: req.user });
-});
-
-// Ou sur un groupe de routes
-app.use("/api/admin", requireAuth);
-app.get("/api/admin/dashboard", (req, res) => {
-  res.json({ message: "Dashboard admin" });
-});
+// Usage :
+// const checkToken = requireBearer([process.env.API_TOKEN!])
+// router.use(checkToken)  ← s'applique à toutes les routes du routeur
+// app.get('/admin', checkToken, handler) ← route spécifique uniquement
 ```
 
-### 5.4 Validation des query params
+Le pattern factory est le même que celui utilisé par `cors()`, `morgan()`, `helmet()` : ils prennent des options et retournent le middleware configuré.
 
-```typescript
-function validatePagination(req, res, next) {
-  const page = parseInt(req.query.page, 10);
-  const limit = parseInt(req.query.limit, 10);
+## 3. Worked examples
 
-  req.pagination = {
-    page: isNaN(page) || page < 1 ? 1 : page,
-    limit: isNaN(limit) || limit < 1 || limit > 100 ? 10 : limit,
-  };
+### Exemple A — Stack middleware complète de l'API TribuZen
 
-  req.pagination.offset = (req.pagination.page - 1) * req.pagination.limit;
+```ts
+// src/index.ts — API TribuZen avec stack middleware production-ready
+import express, { Request, Response, NextFunction } from 'express'
+import cors from 'cors'
+import helmet from 'helmet'
+import morgan from 'morgan'
+import crypto from 'node:crypto'
+import famillesRouter from './routes/familles.js'
 
-  next();
+interface AppError extends Error {
+  status?: number
 }
 
-app.get("/api/users", validatePagination, (req, res) => {
-  const { page, limit, offset } = req.pagination;
-  const paginatedUsers = users.slice(offset, offset + limit);
+const app = express()
 
-  res.json({
-    data: paginatedUsers,
-    page,
-    limit,
-    total: users.length,
-    totalPages: Math.ceil(users.length / limit),
-  });
-});
+// ── 1. helmet — headers de sécurité en tout premier ─────────────────────────
+// Doit précéder cors : certains headers CSP peuvent interférer avec CORS
+app.use(helmet())
+
+// ── 2. cors — avant les routes pour couvrir aussi les réponses d'erreur ─────
+app.use(cors({
+  origin: process.env.NODE_ENV === 'production'
+    ? ['https://tribuzen.app']
+    : ['http://localhost:5173', 'http://localhost:3000'],
+  credentials: true,
+}))
+
+// ── 3. morgan — log avant les routes pour mesurer la durée réelle totale ────
+app.use(morgan('dev'))
+
+// ── 4. Request ID — corrélation entre logs client, serveur et DB ─────────────
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const id = req.get('X-Request-Id') ?? crypto.randomUUID()
+  ;(req as Request & { id: string }).id = id
+  res.set('X-Request-Id', id)
+  next()
+})
+
+// ── 5. Body parsing ──────────────────────────────────────────────────────────
+// APRÈS le logging : si le parsing échoue (body malformé), morgan a déjà loggé
+app.use(express.json({ limit: '1mb' }))
+app.use(express.urlencoded({ extended: true, limit: '1mb' }))
+
+// ── 6. Routes ────────────────────────────────────────────────────────────────
+app.get('/health', (_req: Request, res: Response) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() })
+})
+
+app.use('/familles', famillesRouter)
+
+// ── 7. Catch-all 404 — après toutes les routes, avant l'error handler ────────
+// Middleware à 3 params : ce n'est PAS un error handler, juste une route finale
+app.use((req: Request, res: Response) => {
+  res.status(404).json({ error: `${req.method} ${req.path} introuvable` })
+})
+
+// ── 8. Error handler — TOUJOURS EN DERNIER ───────────────────────────────────
+// Express 5 : les handlers async qui throw atteignent automatiquement ici
+app.use((err: AppError, _req: Request, res: Response, _next: NextFunction) => {
+  const status = err.status ?? 500
+  console.error(`[ERROR] ${status} ${err.message}`)
+  res.status(status).json({ error: err.message ?? 'Erreur interne' })
+})
+
+app.listen(3000, () => console.log('API TribuZen sur http://localhost:3000'))
 ```
 
-### 5.5 Request ID
+**Pas-à-pas :** (1) `helmet()` en premier — il ajoute des headers de sécurité avant que toute réponse soit envoyée ; (2) `cors()` juste après — les headers CORS doivent être présents même sur les réponses d'erreur ; (3) `morgan('dev')` log la requête depuis le premier middleware visible, donc il mesure la durée réelle totale ; (4) le middleware request-id inline plutôt qu'importé pour simplifier l'exemple ; (5) `express.json()` après le logging — si le body est malformé, morgan a déjà loggé avant l'erreur de parsing ; (6) le middleware 404 est une fonction à 3 paramètres, pas 4 — ce n'est pas un error handler ; (7) l'error handler à 4 paramètres est le dernier `app.use()` — en Express 5, il reçoit aussi les rejections async sans try/catch explicite.
 
-```typescript
-import crypto from "crypto";
+### Exemple B — Router avec middleware scoped et propagation d'erreur async
 
-function requestId(req, res, next) {
-  const id = req.get("X-Request-Id") || crypto.randomUUID();
-  req.id = id;
-  res.set("X-Request-Id", id);
-  next();
+```ts
+// src/routes/familles.ts — router avec middleware scoped + async Express 5
+import { Router, Request, Response, NextFunction } from 'express'
+import crypto from 'node:crypto'
+
+interface Famille { id: string; nom: string; createdAt: string }
+interface AppError extends Error { status?: number }
+
+let familles: Famille[] = []
+
+// ── Middleware scoped au routeur ─────────────────────────────────────────────
+// Ne s'exécute que sur les routes /familles/* — pas sur /health ni ailleurs
+function logFamillesAccess(req: Request, _res: Response, next: NextFunction): void {
+  console.log(`[familles] ${req.method} ${req.path} — user: ${req.get('X-User-Id') ?? 'anon'}`)
+  next()
 }
 
-app.use(requestId);
-```
+const router = Router()
 
----
+// Attaché au routeur : s'exécute AVANT chaque route de ce routeur uniquement
+router.use(logFamillesAccess)
 
-## 6. Le Router — Routes modulaires
+// ── Routes async — Express 5 propage automatiquement les rejections ──────────
 
-### 6.1 Pourquoi les Routers
+router.get('/', async (_req: Request, res: Response) => {
+  // Si une Promise sous-jacente rejette, Express 5 appellera next(err) auto
+  res.json({ data: familles, total: familles.length })
+})
 
-Quand ton API grandit, mettre toutes les routes dans un seul fichier devient ingerable. `express.Router()` permet de **découper les routes en modules** :
-
-```typescript
-// routes/books.js
-import { Router } from "express";
-const router = Router();
-
-router.get("/", (req, res) => {
-  res.json({ books: [] });
-});
-
-router.get("/:id", (req, res) => {
-  res.json({ bookId: req.params.id });
-});
-
-router.post("/", (req, res) => {
-  res.status(201).json({ message: "Livre cree" });
-});
-
-router.patch("/:id", (req, res) => {
-  res.json({ message: `Livre ${req.params.id} modifie` });
-});
-
-router.delete("/:id", (req, res) => {
-  res.status(204).end();
-});
-
-export default router;
-```
-
-```typescript
-// routes/users.js
-import { Router } from "express";
-const router = Router();
-
-router.get("/", (req, res) => res.json({ users: [] }));
-router.get("/:id", (req, res) => res.json({ userId: req.params.id }));
-router.post("/", (req, res) =>
-  res.status(201).json({ message: "Utilisateur cree" }),
-);
-
-export default router;
-```
-
-```typescript
-// src/index.js
-import express from "express";
-import booksRouter from "./routes/books.js";
-import usersRouter from "./routes/users.js";
-
-const app = express();
-app.use(express.json());
-
-// Monter les routeurs
-app.use("/api/books", booksRouter);
-app.use("/api/users", usersRouter);
-
-// GET /api/books → booksRouter.get('/')
-// GET /api/books/42 → booksRouter.get('/:id')
-// GET /api/users → usersRouter.get('/')
-
-app.listen(3000);
-```
-
-### 6.2 Middleware spécifique à un routeur
-
-```typescript
-// routes/admin.js
-import { Router } from "express";
-const router = Router();
-
-// Ce middleware ne s'applique qu'aux routes de CE routeur
-router.use((req, res, next) => {
-  if (!req.user || req.user.role !== "admin") {
-    return res.status(403).json({ error: "Acces reserve aux administrateurs" });
+router.post('/', async (req: Request, res: Response) => {
+  const { nom } = req.body
+  if (!nom || typeof nom !== 'string') {
+    // throw dans un async handler → Express 5 route vers errorHandler
+    const err: AppError = new Error('nom requis (string)')
+    err.status = 400
+    throw err
   }
-  next();
-});
-
-router.get("/dashboard", (req, res) => {
-  res.json({ message: "Dashboard admin" });
-});
-
-router.get("/users", (req, res) => {
-  res.json({ message: "Liste des utilisateurs (admin)" });
-});
-
-export default router;
-```
-
----
-
-## 7. Architecture MVC
-
-### 7.1 Le pattern MVC
-
-**MVC** (Model-View-Controller) est un pattern d'architecture qui separe le code en trois responsabilites :
-
-| Couche         | Responsabilite                                                         | Fichiers                    |
-| -------------- | ---------------------------------------------------------------------- | --------------------------- |
-| **Model**      | Donnees et logique metier                                              | `models/`, `services/`      |
-| **View**       | Presentation (pour une API : le format JSON)                           | Pas de fichier dedie en API |
-| **Controller** | Orchestre : recoit la requête, appelle les services, envoie la réponse | `controllers/`              |
-
-> **Analogie** : Dans un restaurant, le **serveur** (Controller) prend la commande du client, la transmet au **chef** (Service/Model) qui prepare le plat, et le serveur revient avec le plat dans une **assiette** (View/JSON). Le serveur ne cuisine pas, le chef ne sert pas — chacun son role.
-
-### 7.2 Structure de fichiers
-
-```
-src/
-├── index.js                 ← Point d'entree, configuration Express
-├── config/
-│   └── index.js             ← Variables d'environnement
-├── routes/
-│   ├── index.js             ← Aggregation de tous les routeurs
-│   ├── books.routes.js      ← Routes pour /api/books
-│   └── users.routes.js      ← Routes pour /api/users
-├── controllers/
-│   ├── books.controller.js  ← Logique de routing pour les livres
-│   └── users.controller.js  ← Logique de routing pour les users
-├── services/
-│   ├── books.service.js     ← Logique metier pour les livres
-│   └── users.service.js     ← Logique metier pour les users
-├── middleware/
-│   ├── auth.js              ← Middleware d'authentification
-│   ├── error-handler.js     ← Middleware de gestion d'erreurs
-│   └── logger.js            ← Middleware de logging
-└── utils/
-    └── errors.js            ← Classes d'erreurs personnalisees
-```
-
-### 7.3 Exemple complet MVC
-
-```typescript
-// src/services/books.service.js
-import crypto from "crypto";
-
-let books = [
-  { id: "1", title: "Clean Code", author: "Robert C. Martin", year: 2008 },
-];
-
-export function getAllBooks() {
-  return books;
-}
-
-export function getBookById(id) {
-  return books.find((b) => b.id === id) || null;
-}
-
-export function createBook(data) {
-  const newBook = {
+  const created: Famille = {
     id: crypto.randomUUID(),
-    ...data,
-  };
-  books.push(newBook);
-  return newBook;
-}
-
-export function updateBook(id, data) {
-  const book = books.find((b) => b.id === id);
-  if (!book) return null;
-  Object.assign(book, data);
-  return book;
-}
-
-export function deleteBook(id) {
-  const index = books.findIndex((b) => b.id === id);
-  if (index === -1) return false;
-  books.splice(index, 1);
-  return true;
-}
-```
-
-```typescript
-// src/controllers/books.controller.js
-import * as booksService from "../services/books.service.js";
-
-export function getAll(req, res) {
-  const books = booksService.getAllBooks();
-  res.json({ data: books, total: books.length });
-}
-
-export function getById(req, res) {
-  const book = booksService.getBookById(req.params.id);
-  if (!book) {
-    return res.status(404).json({ error: "Livre introuvable" });
+    nom: nom.trim(),
+    createdAt: new Date().toISOString(),
   }
-  res.json({ data: book });
-}
+  familles.push(created)
+  res.status(201).json(created)
+})
 
-export function create(req, res) {
-  const book = booksService.createBook(req.body);
-  res.status(201).json({ data: book });
-}
-
-export function update(req, res) {
-  const book = booksService.updateBook(req.params.id, req.body);
-  if (!book) {
-    return res.status(404).json({ error: "Livre introuvable" });
+router.get('/:id', async (req: Request, res: Response) => {
+  const famille = familles.find(f => f.id === req.params.id)
+  if (!famille) {
+    const err: AppError = new Error('Famille introuvable')
+    err.status = 404
+    throw err   // Express 5 attrape et appelle next(err)
   }
-  res.json({ data: book });
-}
+  res.json(famille)
+})
 
-export function remove(req, res) {
-  const deleted = booksService.deleteBook(req.params.id);
-  if (!deleted) {
-    return res.status(404).json({ error: "Livre introuvable" });
-  }
-  res.status(204).end();
-}
+export default router
 ```
 
-```typescript
-// src/routes/books.routes.js
-import { Router } from "express";
-import * as booksController from "../controllers/books.controller.js";
+**Pas-à-pas :** (1) `router.use(logFamillesAccess)` applique le middleware uniquement aux routes `/familles/*` — pas à `/health` ni aux autres routers ; (2) dans un handler `async`, `throw err` en Express 5 est équivalent à `next(err)` — pas besoin de `try/catch` ; (3) l'objet `AppError` porte un champ `status` que l'error handler global lit pour choisir le code HTTP correct ; (4) si `familles.find()` était un `await db.query()` qui rejette, Express 5 l'attraperait de la même manière.
 
-const router = Router();
+## 4. Pièges & misconceptions
 
-router.get("/", booksController.getAll);
-router.get("/:id", booksController.getById);
-router.post("/", booksController.create);
-router.patch("/:id", booksController.update);
-router.delete("/:id", booksController.remove);
+- **Oublier `next()`.** Un middleware sans appel à `next()` (et sans réponse) bloque la requête indéfiniment. Le client timeout, aucune erreur n'est loggée côté serveur. *Correct* : toujours finir par `next()`, `next(err)`, ou une réponse (`res.json()`, `res.send()`, `res.end()`).
 
-export default router;
+- **4e paramètre absent du middleware d'erreur.** `app.use((err, req, res) => { ... })` — Express compte les paramètres et ne reconnaît PAS cette fonction comme un error handler (seulement 3 args). Les erreurs traversent ce middleware silencieusement. *Correct* : `(err, req, res, _next) => { ... }` — le 4e paramètre est obligatoire même s'il n'est pas utilisé.
+
+- **Error handler non en dernier.** Un `app.use(errorHandler)` déclaré avant les routes ne reçoit jamais les erreurs levées par ces routes — il n'est pas encore dans la chaîne à ce moment. *Correct* : le middleware d'erreur est le tout dernier `app.use()`, après toutes les routes et le catch-all 404.
+
+- **Confondre middleware applicatif et de routeur.** Un middleware attaché à `app.use()` s'applique à TOUTES les routes, y compris celles d'autres routers. Attacher `requireAuth` sur `app.use()` protège tout, y compris `/health` — souvent non voulu. *Correct* : `router.use(requireAuth)` pour le router `/familles` uniquement.
+
+- **CORS manquant sur les réponses d'erreur.** Si `cors()` est déclaré après les routes, une route qui lève une erreur avant `cors()` envoie une réponse sans headers CORS. Le navigateur bloque alors la réponse et le front ne voit pas le message d'erreur. *Correct* : `cors()` en tout début de chaîne, avant les routes et l'error handler.
+
+- **Express 5 async vs Express 4.** En Express 4, `throw` dans un handler `async` disparaît silencieusement (la Promise rejette sans que Express l'intercepte). En Express 5, la rejection est automatiquement catchée et routée vers l'error handler. Sur un projet Express 4 hérité, ajouter `express-async-errors` ou wrapper chaque handler avec `asyncHandler`.
+
+## 5. Ancrage TribuZen
+
+Couche fil-rouge : **middleware de l'API TribuZen (logging des requêtes, CORS, auth à venir)** (`smaurier/tribuzen`).
+
+- **`cors()`** — le front Vue/Nuxt tourne sur `:5173` en développement, l'API sur `:3000`. Sans CORS, le navigateur bloque toutes les réponses cross-origin. En production, l'origine sera `https://tribuzen.app`.
+- **`morgan('dev')`** — trace chaque appel API pendant le développement. En production, il sera remplacé par `morgan('combined')` ou un logger structuré JSON (Pino, Winston) pour l'ingestion dans un log collector.
+- **`requestId`** — le middleware custom qui génère ou propage le `X-Request-Id` permettra de corréler les logs entre le front, l'API Express et les futures requêtes Prisma (module 10).
+- **`requireBearer` (stub)** — le module 08 (JWT) complétera ce stub avec une vraie vérification de token. Le middleware de routeur scoped garantit que `/health` reste accessible sans auth.
+- **Error handler global** — format `{ error: string }` uniforme. En Express 5, les handlers async du CRUD familles peuvent `throw` directement — l'error handler central gère tout, sans duplication de try/catch dans chaque route.
+
+Structure cible dans `smaurier/tribuzen` :
+
+```
+tribuzen/apps/api/src/
+  middleware/
+    error-handler.ts    ← errorHandler global (ce module)
+    request-id.ts       ← requestId middleware
+    logger.ts           ← requestLogger custom
+    require-bearer.ts   ← factory auth stub → JWT réel au module 08
+  index.ts              ← stack middleware dans l'ordre
+  routes/
+    familles.ts         ← router scoped avec logFamillesAccess
 ```
 
-```typescript
-// src/routes/index.js
-import { Router } from "express";
-import booksRouter from "./books.routes.js";
-// import usersRouter from './users.routes.js';
+## 6. Points clés
 
-const router = Router();
+1. Un middleware est `(req, res, next) => void` — `next()` passe la main, une réponse termine la chaîne ; sans l'un ni l'autre, la requête est bloquée.
+2. L'ordre de `app.use()` est non négociable : globaux → routes → error handler.
+3. Middleware applicatif (`app.use`) : toutes les requêtes. Middleware de routeur (`router.use`) : routes du router uniquement.
+4. Le middleware d'erreur a **exactement 4 paramètres** `(err, req, res, next)` — Express le détecte par le nombre, pas par le nom.
+5. Express 5 — les handlers `async` qui `throw` ou dont la Promise rejette appellent automatiquement `next(err)` sans try/catch.
+6. Middleware intégrés : `express.json()` (body JSON), `express.urlencoded()` (formulaires), `express.static()` (fichiers statiques).
+7. `cors()` en tête de chaîne — doit précéder les routes et l'error handler pour couvrir aussi les réponses d'erreur.
+8. `helmet()` avant `cors()` — ajoute les headers de sécurité avant toute réponse.
+9. Pattern factory : un middleware paramétrable retourne une fonction — même pattern que `cors(options)`, `morgan(format)`, `helmet(config)`.
 
-router.use("/books", booksRouter);
-// router.use('/users', usersRouter);
+## 7. Seeds Anki
 
-export default router;
+```
+Pourquoi sans next() une requête Express est-elle bloquée ?|Sans next() ET sans réponse, le middleware ne passe pas la main — la requête reste en attente jusqu'au timeout client, sans aucune erreur loggée
+Combien de paramètres doit avoir un middleware d'erreur Express ?|Exactement 4 : (err, req, res, next) — Express identifie les error handlers uniquement par ce nombre d'arguments ; 3 paramètres = middleware normal ignoré pour les erreurs
+Quelle différence entre app.use(fn) et router.use(fn) ?|app.use(fn) s'applique à toutes les requêtes de l'app ; router.use(fn) s'applique uniquement aux routes de ce router — le scoping évite de protéger par erreur des routes publiques comme /health
+Comment Express 5 gère-t-il les erreurs dans un handler async ?|En Express 5, si un handler async throw ou si sa Promise rejette, Express appelle automatiquement next(err) — pas de try/catch ni de wrapper asyncHandler nécessaire (contrairement à Express 4)
+Quel ordre pour les middleware dans une app Express en production ?|helmet → cors → morgan/logging → express.json/urlencoded → routes → catch-all 404 → error handler
+Pourquoi cors() doit-il être déclaré avant les routes et l'error handler ?|Les réponses d'erreur (4xx, 5xx) doivent aussi porter les headers CORS — si cors() est après les routes, une erreur sera bloquée par le navigateur faute de header Access-Control-Allow-Origin
+À quoi sert le pattern factory dans les middleware custom ?|Retourner une fonction depuis une fonction permet de paramétrer le middleware à la déclaration — c'est le même pattern que cors(options), morgan(format) ou helmet(config)
+Différence entre middleware catch-all 404 et middleware d'erreur ?|Le catch-all 404 est un middleware normal à 3 params déclaré après les routes qui répond directement — l'error handler est à 4 params et reçoit les erreurs propagées par next(err) ou throw dans async
 ```
 
-```typescript
-// src/index.js
-import express from "express";
-import cors from "cors";
-import helmet from "helmet";
-import morgan from "morgan";
-import apiRouter from "./routes/index.js";
+## Pont vers le lab
 
-const app = express();
-
-// Middleware globaux
-app.use(helmet());
-app.use(cors());
-app.use(morgan("dev"));
-app.use(express.json());
-
-// Routes API
-app.use("/api", apiRouter);
-
-// Route sante
-app.get("/health", (req, res) => {
-  res.json({ status: "OK" });
-});
-
-// 404 handler
-app.use((req, res) => {
-  res
-    .status(404)
-    .json({ error: `Route ${req.method} ${req.originalUrl} introuvable` });
-});
-
-// Error handler (TOUJOURS en dernier !)
-app.use((err, req, res, next) => {
-  console.error(err);
-  res.status(500).json({ error: "Erreur interne du serveur" });
-});
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Serveur sur http://localhost:${PORT}`);
-});
-```
-
----
-
-## 8. Middleware de gestion d'erreurs
-
-### 8.1 Le middleware d'erreur (4 arguments)
-
-```typescript
-// middleware/error-handler.js
-export function errorHandler(err, req, res, next) {
-  // Log l'erreur
-  console.error(`[ERROR] ${err.message}`);
-  if (process.env.NODE_ENV !== "production") {
-    console.error(err.stack);
-  }
-
-  // Determiner le status code
-  const statusCode = err.statusCode || 500;
-
-  // Envoyer la reponse
-  res.status(statusCode).json({
-    error: err.message || "Erreur interne du serveur",
-    ...(process.env.NODE_ENV !== "production" && { stack: err.stack }),
-  });
-}
-```
-
-### 8.2 Propager les erreurs avec next(err)
-
-```typescript
-app.get("/api/users/:id", (req, res, next) => {
-  try {
-    const user = getUserById(req.params.id);
-    if (!user) {
-      const error = new Error("Utilisateur introuvable");
-      error.statusCode = 404;
-      throw error;
-    }
-    res.json(user);
-  } catch (err) {
-    next(err); // Passe l'erreur au middleware d'erreur
-  }
-});
-```
-
-> **Bonne pratique** : Place TOUJOURS le middleware d'erreur EN DERNIER, après toutes les routes et les autres middleware. Express détecté les middleware d'erreur grâce à leurs 4 arguments — si tu en oublies un, ça ne fonctionnera pas.
-
----
-
-## 9. Middleware scoping — Application vs Router
-
-| Scope                    | Syntaxe                         | Effet                                          |
-| ------------------------ | ------------------------------- | ---------------------------------------------- |
-| **Application**          | `app.use(fn)`                   | S'applique a TOUTES les requêtes               |
-| **Application + chemin** | `app.use('/api', fn)`           | S'applique aux requêtes commencant par `/api`  |
-| **Routeur**              | `router.use(fn)`                | S'applique uniquement aux routes de ce routeur |
-| **Route spécifique**     | `app.get('/path', fn, handler)` | S'applique a cette route uniquement            |
-
-```typescript
-// Middleware global (toutes les routes)
-app.use(express.json());
-app.use(cors());
-
-// Middleware pour toutes les routes /api
-app.use("/api", (req, res, next) => {
-  console.log("Requete API");
-  next();
-});
-
-// Middleware pour un routeur specifique
-const adminRouter = Router();
-adminRouter.use(requireAdmin);
-
-// Middleware pour une route specifique
-app.get("/api/secret", requireAuth, requireAdmin, (req, res) => {
-  res.json({ secret: "42" });
-});
-```
-
----
-
-## 10. Résumé — Les concepts clés
-
-| Concept              | Definition                                                 |
-| -------------------- | ---------------------------------------------------------- |
-| **Middleware**       | Fonction (req, res, next) qui s'insere dans le pipeline    |
-| **next()**           | Passe la main au middleware suivant                        |
-| **app.use()**        | Enregistre un middleware global                            |
-| **Router**           | Mini-application Express pour regrouper des routes         |
-| **MVC**              | Pattern d'architecture (Model-View-Controller)             |
-| **Error middleware** | Middleware a 4 arguments (err, req, res, next)             |
-| **Scoping**          | Middleware application, routeur ou route                   |
-| **Pipeline**         | Chaine ordonnee de middleware traversee par chaque requête |
-
-> **A retenir** : Les middleware sont le coeur d'Express. Tout est middleware — le parsing du body, le CORS, l'authentification, le logging, et même les route handlers. Comprendre le pipeline d'exécution et l'ordre des middleware est essentiel pour debugger et structurer une application Express. L'architecture MVC avec des Routers modulaires est la base d'une application maintenable.
-
----
-
-## Bonus — Focus BFF (Angular + Express)
-
-Dans un BFF (Backend for Frontend), le serveur Express ne doit pas juste exposer des CRUD techniques. Il doit porter des endpoints orientes ecran et orchestrer plusieurs services backend en une seule reponse utile au front.
-
-### 1) Endpoint oriente ecran
-
-```typescript
-// Route BFF pour la page dashboard Angular
-router.get(
-  "/dashboard",
-  requireAuth,
-  asyncHandler(async (req, res) => {
-    const userId = req.user.userId;
-
-    // Appels upstream paralleles
-    const [profile, notifications, recommendations] = await Promise.all([
-      usersApi.getProfile(userId),
-      notificationsApi.getLatest(userId),
-      catalogApi.getRecommendations(userId),
-    ]);
-
-    // Reponse adaptee a l'ecran, pas exposee "as-is" depuis les upstreams
-    res.json({
-      header: {
-        displayName: profile.displayName,
-        avatarUrl: profile.avatarUrl,
-      },
-      notifications,
-      recommendations,
-    });
-  }),
-);
-```
-
-### 2) Middleware de correlation BFF
-
-```typescript
-// Propager un correlation id vers tous les appels upstream
-app.use((req, res, next) => {
-  const correlationId = req.get("x-correlation-id") || crypto.randomUUID();
-  req.correlationId = correlationId;
-  res.set("x-correlation-id", correlationId);
-  next();
-});
-```
-
-### 3) Conventions BFF recommandees
-
-| Besoin BFF    | Convention                                                            |
-| ------------- | --------------------------------------------------------------------- |
-| Endpoints     | Nommes par ecran/use-case (`/bff/dashboard`, `/bff/checkout/summary`) |
-| Orchestration | `Promise.all` + timeout par upstream                                  |
-| Erreurs       | Contrat d'erreur unique pour le frontend                              |
-| Tracabilite   | `x-correlation-id` propage vers tous les appels                       |
-| Evolution     | Versionner les endpoints BFF par use-case critique                    |
-
-> **A retenir BFF** : En Express, le middleware pipeline est l'endroit ideal pour brancher les besoins transverses BFF (auth, correlation id, rate limit, normalisation d'erreurs) pendant que les handlers d'orchestration restent centres sur les use-cases frontend.
-
----
-
-## Navigation
-
-|                  | Lien                                                                                       |
-| ---------------- | ------------------------------------------------------------------------------------------ |
-| Module précédent | [Module 05 — Express — Fondamentaux](./05-express-fondamentaux.md)                         |
-| Module suivant   | [Module 07 — Express — Validation & Gestion d'erreurs](./07-express-validation-erreurs.md) |
-| Quiz             | [Quiz Module 06](../quizzes/06-express-middleware.quiz.md)                                 |
-| Lab              | [Lab 06 — Middleware et architecture](../labs/06-express-middleware.lab.md)                |
-
----
-
-> **A retenir** : L'architecture d'une application Express repose sur trois piliers : un pipeline de middleware bien ordonne, des Routers pour découper les routes en modules, et une separation MVC claire (routes → controllers → services). Cette organisation te prepare naturellement a NestJS, qui formalise et renforce ces patterns avec de l'injection de dépendances et des decorateurs TypeScript.
-
----
-
-<!-- parcours-recommande -->
-
-::: tip Parcours recommandé
-
-1. **Screencast** : [screencast 06 middleware](../screencasts/screencast-06-middleware.md)
-2. **Lab** : [lab-06-middleware](../labs/lab-06-middleware/README)
-3. **Visualisation** : [Middleware Pipeline](../visualizations/middleware-pipeline.html)
-4. **Quiz** : [quiz 06 middleware](../quizzes/quiz-06-middleware.html)
-   :::
+> Lab associé : `09-nestjs/labs/lab-06-middleware/README.md`. Tu construis de A à Z la stack middleware de l'API TribuZen en Express 5 — requestId, logger custom, cors/helmet/morgan, error handler global, et un router scoped. Corrigé complet commenté + variante J+30 dans le README du lab.

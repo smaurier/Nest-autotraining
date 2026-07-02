@@ -1,764 +1,600 @@
-# Module 09 — NestJS — Introduction & Premiers pas
-
-> **Objectif** : Comprendre pourquoi NestJS existe, installer et explorer un projet NestJS, découvrir les briques fondamentales (modules, controllers, services) et construire un premier CRUD avec la CLI NestJS.
->
-> **Difficulte** : ⭐⭐ (intermédiaire)
-
+---
+titre: NestJS introduction
+cours: 09-nestjs
+notions: [pourquoi NestJS sur Express, architecture modulaire, décorateurs TypeScript, aperçu de l'injection de dépendances, CLI nest, structure controllers providers modules, plateforme Express ou Fastify, bootstrap main.ts]
+outcomes: [expliquer ce que NestJS apporte sur Express nu, générer une app avec le CLI, situer controllers/providers/modules, comprendre le rôle des décorateurs]
+prerequis: [08-express-auth-securite]
+next: 10-nestjs-controllers
+libs: [{ name: "@nestjs/core", version: "^11" }, { name: node, version: "22" }]
+tribuzen: bootstrap de l'API NestJS TribuZen (structure modulaire familles/posts/invitations)
+last-reviewed: 2026-07
 ---
 
-> **⚠️ Changement de paradigme.** Tu passes d'Express (fonctions, middleware) a NestJS (classes, decorateurs, injection de dépendances). C'est un saut conceptuel normal — tout le monde galere ici. Le système de DI est similaire a Angular. Si tu viens d'Express et que la syntaxe te parait etrange, c'est exactement ça qu'il faut apprendre. Prends le temps.
+# NestJS introduction
 
-## 1. Pourquoi NestJS
+> **Outcomes — tu sauras FAIRE :** expliquer ce que NestJS apporte sur Express nu, générer une app avec le CLI, situer controllers/providers/modules dans la structure générée, comprendre le rôle des décorateurs.
+> **Difficulté :** :star::star:
 
-### 1.1 Le problème qu'il resout
+## 1. Cas concret d'abord
 
-Express est minimaliste — et c'est à la fois sa force et sa faiblesse. Il ne fournit aucune structure, aucune convention, aucune architecture. Chaque équipe organise son code differemment, ce qui rend la maintenance et l'onboarding difficiles.
+À l'issue des modules Express, ton `api/src/` ressemble à ça :
 
-| Problème avec Express               | Solution NestJS                           |
-| ----------------------------------- | ----------------------------------------- |
-| Pas de structure imposee            | Architecture modulaire avec conventions   |
-| Organisation libre (chaos possible) | Modules, controllers, services, providers |
-| Pas d'injection de dépendances      | DI intégré, similaire a Angular           |
-| Pas de TypeScript natif             | TypeScript par defaut, decorateurs        |
-| Middleware artisanal                | Guards, Pipes, Interceptors, Filters      |
-| Pas d'outil de génération           | CLI avec `nest generate`                  |
-| Pas de testing intégré              | Jest pre-configure avec mocks DI          |
+```
+src/
+  index.ts          ← app + middlewares + montage routers (200 lignes)
+  routes/
+    familles.ts     ← CRUD familles
+    invitations.ts  ← à créer
+    posts.ts        ← à créer
+  middleware/
+    auth.ts
+    logger.ts
+  utils/
+    errors.ts
+```
 
-> **Analogie** : Express c'est comme une feuille blanche — tu peux dessiner ce que tu veux, mais rien ne te guide. NestJS c'est comme un plan d'architecte — la structure est definie, les conventions sont claires, et chaque piece a sa place. Tu es libre de personnaliser, mais le cadre est pose.
+Un nouveau membre de l'équipe arrive et pose la question : *«où est-ce que je mets la logique d'envoi d'e-mail d'invitation ? Dans `routes/invitations.ts` ? Dans un `services/` que j'invente ? Comment je récupère le service d'e-mail dans le handler de route ?»*
 
-### 1.2 Inspiration Angular
+Pas de réponse évidente. Tu as créé ta propre architecture — qui n'est pas celle du prochain développeur.
 
-NestJS est fortement inspire d'**Angular** :
+Avant de lire la suite, essaie mentalement de répondre à ces deux questions :
+1. Comment diviserais-tu ce code en «domaines» (familles, posts, invitations) chacun avec ses propres fichiers ?
+2. Comment un handler de route obtiendrait-il une instance d'un service partagé sans l'instancier lui-même ?
 
-| Concept Angular        | Equivalent NestJS               |
-| ---------------------- | ------------------------------- |
-| `@Component`           | `@Controller`                   |
-| `@Injectable` service  | `@Injectable` service           |
-| `@NgModule`            | `@Module`                       |
-| Dependency Injection   | Dependency Injection            |
-| Pipes (transform)      | Pipes (validation/transform)    |
-| Guards (routing)       | Guards (authorization)          |
-| Interceptors (HTTP)    | Interceptors (request/response) |
-| Decorateurs TypeScript | Decorateurs TypeScript          |
+Ce module répond exactement à ça.
 
-> **A retenir** : Si tu connais Angular, NestJS te semblera très familier. Les patterns sont les memes — seul le contexte change (frontend → backend). Si tu ne connais pas Angular, pas d'inquietude : les concepts sont expliques de zero dans ce cours.
+## 2. Théorie complète, concise
 
-### 1.3 NestJS en chiffres
+### 2.1 Pourquoi NestJS sur Express
 
-| Statistique                 | Valeur                                             |
-| --------------------------- | -------------------------------------------------- |
-| Telechargements npm/semaine | ~4 millions                                        |
-| Stars GitHub                | ~68 000                                            |
-| Premiere release            | 2017                                               |
-| Createur                    | Kamil Mysliwiec                                    |
-| Runtime sous-jacent         | Express 5 (par defaut depuis NestJS 11) ou Fastify |
-| Langage                     | TypeScript (JavaScript possible mais deconseille)  |
+Express est intentionnellement minimaliste : il expose les primitives HTTP et laisse tout le reste au développeur. C'est sa force pour les petits projets, et sa faiblesse dès que l'équipe grandit.
 
-### 1.4 Express ou Fastify avec NestJS ?
+| Problème Express | Solution NestJS |
+|------------------|-----------------|
+| Aucune structure imposée — chaque repo est différent | Architecture modulaire avec conventions claires |
+| Injection de dépendances manuelle (`require`, factories) | DI intégré via conteneur IoC |
+| Middleware artisanal pour la validation | Pipes + `class-validator` intégrés |
+| Gestion d'erreurs via un middleware en bas de fichier | Exception filters intégrés avec HTTP exceptions prêtes |
+| TypeScript optionnel, `tsconfig` à configurer soi-même | TypeScript par défaut, pré-configuré |
+| Tests Jest à câbler manuellement | Jest (ou Vitest) pré-configuré avec mocking DI |
 
-NestJS te laisse choisir l'adaptateur HTTP. Dans la pratique, tu gardes **la meme architecture Nest** (modules, controllers, services, guards, pipes, interceptors), mais la couche serveur sous-jacente change.
+NestJS n'est pas «mieux» qu'Express — c'est Express plus une couche d'organisation. Le runtime HTTP est toujours Express (ou Fastify) en dessous.
 
-| Sujet                    | Express                                                   | Fastify                                                                      |
-| ------------------------ | --------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| Ecosysteme               | Le plus connu, documentation immense                      | Plus compact, tres oriente performance                                       |
-| Compatibilite middleware | Excellente, beaucoup de middlewares historiques           | Passe souvent par des plugins Fastify dedies                                 |
-| Performance brute        | Bonne                                                     | Souvent meilleure sur les charges HTTP pures                                 |
-| Prise en main            | Plus familiere si tu viens du monde Node/Express          | Simple, mais demande d'apprendre ses plugins et conventions                  |
-| Cas typiques             | API generalistes, equipes qui reutilisent du code Express | APIs a fort trafic, services tres I/O-bound, recherche de latence plus basse |
+### 2.2 Architecture modulaire
 
-> **A retenir** : pour apprendre NestJS, Express suffit largement. Fastify devient surtout utile quand tu veux un runtime HTTP plus nerveux, ou quand ton contexte production justifie ce choix.
+NestJS organise le code en **modules**. Un module est une frontière de domaine : tout ce qui concerne les familles vit dans `FamillesModule`, tout ce qui concerne les invitations vit dans `InvitationsModule`.
 
----
+```
+src/
+  familles/
+    familles.module.ts      ← frontière du domaine
+    familles.controller.ts  ← routing HTTP
+    familles.service.ts     ← logique métier
+  invitations/
+    invitations.module.ts
+    invitations.controller.ts
+    invitations.service.ts
+  app.module.ts             ← module racine, importe les autres
+  main.ts                   ← bootstrap
+```
 
-## 2. Installation et premier projet
+La règle : un module déclare ses propres controllers et providers. Pour qu'un module utilise un service d'un autre module, il l'importe explicitement. Cette règle rend les dépendances visibles et le refactoring prévisible.
 
-### 2.1 Installer la CLI NestJS
+### 2.3 Décorateurs TypeScript
+
+Un décorateur est une fonction qui s'applique à une classe, une méthode ou un paramètre avec la syntaxe `@NomDuDecorateur`. NestJS les utilise massivement pour exprimer le rôle de chaque composant sans code d'enregistrement manuel.
+
+```ts
+// @Module() — déclare une frontière de domaine
+@Module({
+  imports: [],          // autres modules dont celui-ci dépend
+  controllers: [],      // controllers qui reçoivent les requêtes HTTP
+  providers: [],        // services injectables dans ce module
+  exports: [],          // providers exposés aux modules importateurs
+})
+export class FamillesModule {}
+
+// @Controller() — marque une classe comme handler de routes HTTP
+@Controller('familles')
+export class FamillesController {}
+
+// @Injectable() — marque une classe comme injectable via le conteneur DI
+@Injectable()
+export class FamillesService {}
+
+// Décorateurs de méthode HTTP
+@Get()          // GET /familles
+@Post()         // POST /familles
+@Get(':id')     // GET /familles/:id
+@Patch(':id')   // PATCH /familles/:id
+@Delete(':id')  // DELETE /familles/:id
+
+// Décorateurs de paramètre — extraient les données de la requête
+@Param('id') id: string      // req.params.id en Express
+@Body() dto: CreateFamilleDto // req.body
+@Query('page') page: string  // req.query.page
+```
+
+Sous le capot, un décorateur est une fonction qui attache des métadonnées à la classe via `Reflect.metadata`. NestJS lit ces métadonnées au démarrage pour câbler le routing et le conteneur DI. Il n'y a pas de magie : c'est du code TypeScript qui s'exécute au moment de la définition de la classe.
+
+Pour que les décorateurs fonctionnent, deux options dans `tsconfig.json` doivent être activées :
+
+```json
+{
+  "compilerOptions": {
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true
+  }
+}
+```
+
+`nest new` les active automatiquement. Sur un projet existant, oublier ces deux lignes fait planter le conteneur DI au démarrage.
+
+### 2.4 Aperçu de l'injection de dépendances
+
+L'injection de dépendances (DI) est le mécanisme par lequel NestJS instancie et fournit les services à ceux qui en ont besoin, sans que tu gères le `new` manuellement.
+
+Principe en trois étapes :
+
+1. **Déclarer** le service injectable avec `@Injectable()`
+2. **Enregistrer** le service dans le `providers` d'un `@Module`
+3. **Demander** le service via le constructeur du controller (ou d'un autre service)
+
+```ts
+// 1. Le service déclare qu'il est injectable
+@Injectable()
+export class FamillesService {
+  private familles: Famille[] = []
+
+  findAll(): Famille[] {
+    return this.familles
+  }
+}
+
+// 2. Le module enregistre le service
+@Module({
+  controllers: [FamillesController],
+  providers: [FamillesService],   // ← sans ça, l'injection échoue
+})
+export class FamillesModule {}
+
+// 3. Le controller reçoit le service via le constructeur
+@Controller('familles')
+export class FamillesController {
+  constructor(private readonly famillesService: FamillesService) {}
+  //          ↑ NestJS lit le type TypeScript, instancie FamillesService
+  //            et l'injecte ici automatiquement
+
+  @Get()
+  findAll() {
+    return this.famillesService.findAll()
+  }
+}
+```
+
+Le conteneur IoC de NestJS résout le graphe de dépendances au démarrage. Si `FamillesService` dépend lui-même d'un autre service, NestJS l'instancie aussi — récursivement, sans que tu n'écrive de factory.
+
+### 2.5 CLI nest
+
+La CLI est l'outil principal pour scaffolder un projet et générer des fichiers :
 
 ```bash
 # Installer la CLI globalement
-npm install -g @nestjs/cli
+npm i -g @nestjs/cli
 
-# Verifier l'installation
+# Vérifier la version (11.x)
 nest --version
-# 11.x.x
 
-# Voir toutes les commandes disponibles
-nest --help
+# Créer un nouveau projet
+nest new tribuzen-api
+# → choisir pnpm ou npm
+
+# Générer les briques d'un domaine
+nest g module familles       # crée familles/familles.module.ts + màj app.module.ts
+nest g controller familles   # crée familles.controller.ts + spec
+nest g service familles      # crée familles.service.ts + spec
+
+# Tout d'un coup (module + controller + service + DTOs + entity)
+nest g resource familles
+# → choisir "REST API", puis "Yes" pour CRUD
 ```
 
-### 2.2 Créer un nouveau projet
+Tableau des raccourcis CLI :
 
-```bash
-# Creer un projet (installation interactive)
-nest new mon-api
+| Commande longue | Raccourci | Résultat |
+|-----------------|-----------|---------|
+| `nest g module` | `nest g mo` | Module |
+| `nest g controller` | `nest g co` | Controller + spec |
+| `nest g service` | `nest g s` | Service + spec |
+| `nest g resource` | `nest g res` | Module + Controller + Service + DTOs + entity |
+| `nest g guard` | `nest g gu` | Guard |
+| `nest g pipe` | `nest g pi` | Pipe |
+| `nest g interceptor` | `nest g itc` | Interceptor |
+| `nest g filter` | `nest g f` | Exception filter |
+| `nest g middleware` | `nest g mi` | Middleware |
 
-# Choisis :
-# ? Which package manager would you like to use? npm
-# (pnpm et yarn sont aussi disponibles)
+Règle : utiliser systématiquement la CLI pour générer des fichiers. Elle applique les conventions de nommage, ajoute les bons décorateurs, et met à jour le module parent automatiquement. Générer manuellement est une source d'oublis (décorateur manquant, module non mis à jour).
 
-cd mon-api
+### 2.6 Structure controllers / providers / modules
+
+Après `nest new tribuzen-api`, la structure générée :
+
+```
+src/
+  app.controller.ts       ← controller racine avec GET /
+  app.controller.spec.ts  ← test unitaire du controller racine
+  app.module.ts           ← module racine (importe tous les autres)
+  app.service.ts          ← service racine (getHello)
+  main.ts                 ← bootstrap — point d'entrée unique
+test/
+  app.e2e-spec.ts         ← test e2e (supertest sur le serveur réel)
+nest-cli.json             ← config CLI (sourceRoot, entryFile, plugins)
+tsconfig.json             ← config TS avec experimentalDecorators activé
 ```
 
-### 2.3 Structure du projet généré
+Rôle de chaque brique :
 
-```
-mon-api/
-├── src/
-│   ├── app.controller.ts       ← Controller racine
-│   ├── app.controller.spec.ts  ← Tests du controller
-│   ├── app.module.ts           ← Module racine
-│   ├── app.service.ts          ← Service racine
-│   └── main.ts                 ← Point d'entree
-├── test/
-│   ├── app.e2e-spec.ts         ← Tests end-to-end
-│   └── jest-e2e.json
-├── node_modules/
-├── .eslintrc.js
-├── .prettierrc
-├── nest-cli.json               ← Configuration CLI NestJS
-├── package.json
-├── tsconfig.json               ← Configuration TypeScript
-├── tsconfig.build.json
-└── README.md
+- **Module** : frontière de domaine. Déclare qui appartient à quoi. Ne contient pas de logique.
+- **Controller** : reçoit les requêtes HTTP, extrait les paramètres, délègue au service. Ne contient pas de logique métier.
+- **Service (Provider)** : contient la logique métier, accès à la base de données, appels externes. Injectable.
+
+Le pattern obligatoire : un controller ne crée jamais ses propres données — il appelle un service. Un service ne sait pas qu'il est dans un contexte HTTP — il pourrait être appelé depuis un job cron ou un test unitaire.
+
+### 2.7 Plateforme Express ou Fastify
+
+NestJS abstrait la couche HTTP. Tu choisis l'adaptateur au bootstrap :
+
+**Express** (défaut depuis toujours, Express 5 par défaut depuis NestJS 11) :
+
+```ts
+// main.ts — Express (défaut, pas besoin d'importer l'adaptateur)
+const app = await NestFactory.create(AppModule)
+await app.listen(process.env.PORT ?? 3000)
 ```
 
-### 2.4 Démarrer le projet
+**Fastify** (performances brutes supérieures sur HTTP pur) :
 
-```bash
-# Mode developpement (avec hot reload)
-npm run start:dev
-
-# Mode production
-npm run start:prod
-
-# Mode watch (rechargement automatique)
-npm run start:debug
-```
-
----
-
-## 3. Anatomie du projet
-
-### 3.1 main.ts — Le point d'entree
-
-```typescript
-// src/main.ts
-import { NestFactory } from "@nestjs/core";
-import { AppModule } from "./app.module";
-
-async function bootstrap() {
-  // Creer l'application NestJS a partir du module racine
-  const app = await NestFactory.create(AppModule);
-
-  // Configurer (CORS, prefixes, etc.)
-  app.enableCors();
-  app.setGlobalPrefix("api"); // Toutes les routes commencent par /api
-
-  // Demarrer le serveur
-  const port = process.env.PORT || 3000;
-  await app.listen(port);
-  console.log(`Application demarree sur http://localhost:${port}`);
-}
-
-bootstrap();
-```
-
-> **Analogie** : `main.ts` c'est comme la fonction `main()` en C ou Java. C'est le point de depart de ton application. Il créé l'application, la configure et la lance. C'est similaire au `main.ts` d'Angular qui bootstrap le `AppModule`.
-
-### 3.1.1 Variante Fastify
-
-Si tu veux faire tourner NestJS sur Fastify, le point d'entree change peu : tu remplaces simplement l'adaptateur HTTP.
-
-```typescript
-// src/main.ts
-import { NestFactory } from "@nestjs/core";
+```ts
+import { NestFactory } from '@nestjs/core'
 import {
   FastifyAdapter,
   NestFastifyApplication,
-} from "@nestjs/platform-fastify";
-import { AppModule } from "./app.module";
+} from '@nestjs/platform-fastify'
+import { AppModule } from './app.module'
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
     new FastifyAdapter(),
-  );
-
-  app.setGlobalPrefix("api");
-  await app.listen(3000, "0.0.0.0");
+  )
+  await app.listen(process.env.PORT ?? 3000)
 }
-
-bootstrap();
+bootstrap()
 ```
 
-Installation minimale :
+Installation Fastify : `npm install @nestjs/platform-fastify`
+
+Comparaison pratique :
+
+| | Express | Fastify |
+|--|---------|---------|
+| Ecosystème middlewares | Immense (historique) | Plugins Fastify dédiés |
+| Performance brute | Bonne | Meilleure sur HTTP pur |
+| Cas courant | API généralistes | APIs haute fréquence |
+| Compatibilité Nest | Parfaite | Parfaite, API Nest identique |
+
+Pour apprendre NestJS : Express suffit. L'architecture Nest est la même dans les deux cas — tu changes l'adaptateur sans toucher à tes modules, controllers et services.
+
+### 2.8 Bootstrap main.ts
+
+`main.ts` est le seul fichier qui sait que l'application est une application Node. Les modules ne connaissent pas leur contexte d'exécution.
+
+```ts
+// src/main.ts — NestJS 11, Express (défaut)
+import { NestFactory } from '@nestjs/core'
+import { AppModule } from './app.module'
+
+async function bootstrap() {
+  // NestFactory.create instancie le conteneur IoC complet à partir du module racine
+  // Résout le graphe de dépendances, initialise tous les modules
+  const app = await NestFactory.create(AppModule)
+
+  // Préfixe global — toutes les routes commencent par /api
+  // GET /familles devient GET /api/familles
+  app.setGlobalPrefix('api')
+
+  // CORS — à configurer avec les origines autorisées en production
+  app.enableCors()
+
+  // process.env.PORT ?? 3000 — pattern NestJS 11
+  // ?? (nullish coalescing) = utilise 3000 seulement si PORT est null/undefined
+  await app.listen(process.env.PORT ?? 3000)
+}
+
+bootstrap()
+// bootstrap() est appelé sans await au niveau module — intentionnel
+// Node.js attend la résolution de la Promise avant de traiter les requêtes
+```
+
+`NestFactory.create(AppModule)` déclenche :
+1. Construction du conteneur IoC
+2. Résolution du graphe de dépendances (qui dépend de qui)
+3. Instanciation des modules dans l'ordre des imports
+4. Enregistrement des routes dans le router Express sous-jacent
+5. Démarrage du serveur HTTP
+
+## 3. Worked examples
+
+### Exemple A — Bootstrap complet d'un module familles TribuZen
+
+Voici la séquence complète : CLI → structure → fichiers.
 
 ```bash
-npm install @nestjs/platform-fastify
+nest new tribuzen-api --package-manager pnpm
+cd tribuzen-api
+nest g module familles
+nest g controller familles
+nest g service familles
 ```
 
-Checklist de migration Express -> Fastify dans NestJS :
+Résultat de structure :
 
-- Verifier les packages ou middlewares qui dependent explicitement d'Express.
-- Remplacer les middlewares historiques par des plugins Fastify quand c'est necessaire.
-- Revalider cookies, uploads, Swagger et tout acces bas niveau a `req` ou `res`.
-- Rejouer les tests e2e avant de conclure que la migration est terminee.
-
-### 3.2 app.module.ts — Le module racine
-
-```typescript
-// src/app.module.ts
-import { Module } from "@nestjs/common";
-import { AppController } from "./app.controller";
-import { AppService } from "./app.service";
-
-@Module({
-  imports: [], // Autres modules importes
-  controllers: [AppController], // Controllers de ce module
-  providers: [AppService], // Services (providers) de ce module
-})
-export class AppModule {}
+```
+src/
+  familles/
+    familles.controller.spec.ts
+    familles.controller.ts
+    familles.module.ts
+    familles.service.ts
+  app.module.ts     ← mis à jour automatiquement par la CLI
+  app.service.ts
+  app.controller.ts
+  main.ts
 ```
 
-### 3.3 app.controller.ts — Le controller racine
+```ts
+// src/familles/familles.service.ts
+import { Injectable } from '@nestjs/common'
 
-```typescript
-// src/app.controller.ts
-import { Controller, Get } from "@nestjs/common";
-import { AppService } from "./app.service";
-
-@Controller() // Route de base : '/'
-export class AppController {
-  // Injection de dependance via le constructeur
-  constructor(private readonly appService: AppService) {}
-
-  @Get() // GET /
-  getHello(): string {
-    return this.appService.getHello();
-  }
-}
-```
-
-### 3.4 app.service.ts — Le service racine
-
-```typescript
-// src/app.service.ts
-import { Injectable } from "@nestjs/common";
-
-@Injectable() // Indique que cette classe peut etre injectee
-export class AppService {
-  getHello(): string {
-    return "Hello World!";
-  }
-}
-```
-
-> **A retenir** : Le trio **Module → Controller → Service** est le pattern fondamental de NestJS. Le Module declare les composants, le Controller recoit les requêtes HTTP, et le Service contient la logique metier. C'est exactement le pattern MVC du module 06, mais formalise avec des decorateurs TypeScript.
-
----
-
-## 4. Les decorateurs TypeScript
-
-### 4.1 Qu'est-ce qu'un decorateur
-
-Un **decorateur** est une fonction speciale qui modifie le comportement d'une classe, méthode ou paramètre. NestJS utilise massivement les decorateurs :
-
-```typescript
-// @Controller() — Marque une classe comme controller HTTP
-@Controller('users')
-export class UsersController { }
-
-// @Injectable() — Marque une classe comme injectable (DI)
+// @Injectable() = ce service peut être injecté dans d'autres classes
+// NestJS lit cette métadonnée au bootstrap pour construire le conteneur
 @Injectable()
-export class UsersService { }
+export class FamillesService {
+  // Store en mémoire — remplacé par Prisma au module 10 (PostgreSQL)
+  private familles: { id: string; nom: string }[] = []
 
-// @Module() — Marque une classe comme module NestJS
-@Module({ imports: [], controllers: [], providers: [] })
-export class UsersModule { }
+  findAll() {
+    return this.familles
+  }
 
-// @Get(), @Post(), etc. — Definit la methode HTTP
-@Get(':id')
-findOne(@Param('id') id: string) { }
+  findOne(id: string) {
+    return this.familles.find(f => f.id === id) ?? null
+  }
 
-// @Body(), @Param(), @Query() — Extrait les donnees de la requete
-create(@Body() body: CreateUserDto) { }
+  create(nom: string) {
+    const famille = { id: crypto.randomUUID(), nom }
+    this.familles.push(famille)
+    return famille
+  }
+}
 ```
 
-### 4.2 Les decorateurs ne sont PAS magiques
+```ts
+// src/familles/familles.controller.ts
+import { Controller, Get, Post, Param, Body } from '@nestjs/common'
+import { FamillesService } from './familles.service'
 
-Sous le capot, un decorateur est une fonction qui ajoute des metadonnees à une classe via `Reflect.metadata`. NestJS lit ces metadonnees au démarrage pour configurer le routing, l'injection de dépendances, etc.
+// @Controller('familles') — toutes les routes de ce controller sont sous /familles
+@Controller('familles')
+export class FamillesController {
+  // NestJS injecte FamillesService ici — tu ne fais jamais new FamillesService()
+  // private readonly = convention : le service ne sera pas réassigné
+  constructor(private readonly famillesService: FamillesService) {}
 
-```typescript
-// Ce que tu ecris :
-@Controller("users")
-export class UsersController {
+  // @Get() sans argument → GET /familles
   @Get()
   findAll() {
-    return [];
+    // Retourner directement l'objet — NestJS sérialise en JSON automatiquement
+    return this.famillesService.findAll()
+  }
+
+  // @Get(':id') → GET /familles/:id
+  @Get(':id')
+  findOne(@Param('id') id: string) {
+    // @Param('id') extrait req.params.id — équivalent Express
+    return this.famillesService.findOne(id)
+  }
+
+  // @Post() → POST /familles
+  @Post()
+  create(@Body() body: { nom: string }) {
+    // @Body() extrait req.body parsé — NestJS parse le JSON automatiquement
+    return this.famillesService.create(body.nom)
   }
 }
-
-// Ce que NestJS comprend :
-// "La classe UsersController est un controller pour /users"
-// "La methode findAll repond aux requetes GET /users"
 ```
 
----
+```ts
+// src/familles/familles.module.ts
+import { Module } from '@nestjs/common'
+import { FamillesController } from './familles.controller'
+import { FamillesService } from './familles.service'
 
-## 5. La CLI NestJS — Generateurs
-
-### 5.1 Commandes de génération
-
-```bash
-# Generer un module
-nest generate module users
-# ou en raccourci
-nest g mo users
-
-# Generer un controller
-nest g co users
-
-# Generer un service
-nest g s users
-
-# Generer un module + controller + service d'un coup (resource)
-nest g resource books
-# Choisis : REST API, puis Yes pour les operations CRUD
-```
-
-### 5.2 Ce que `nest g resource` généré
-
-```bash
-nest g resource books
-# ? What transport layer do you use? REST API
-# ? Would you like to generate CRUD entry points? Yes
-```
-
-Fichiers generes :
-
-```
-src/books/
-├── books.controller.ts       ← Controller avec les routes CRUD
-├── books.controller.spec.ts  ← Tests du controller
-├── books.module.ts           ← Module
-├── books.service.ts          ← Service avec les methodes CRUD
-├── dto/
-│   ├── create-book.dto.ts    ← DTO pour la creation
-│   └── update-book.dto.ts    ← DTO pour la mise a jour
-└── entities/
-    └── book.entity.ts        ← Entite (modele de donnees)
-```
-
-Et le module est automatiquement importe dans `app.module.ts` :
-
-```typescript
-// app.module.ts (mis a jour automatiquement)
 @Module({
-  imports: [BooksModule], // ← Ajoute automatiquement
+  // controllers — reçoivent les requêtes HTTP, ne sont pas injectables
+  controllers: [FamillesController],
+  // providers — injectables dans ce module (et dans les modules importateurs si exportés)
+  providers: [FamillesService],
+})
+export class FamillesModule {}
+```
+
+```ts
+// src/app.module.ts — mis à jour automatiquement par la CLI
+import { Module } from '@nestjs/common'
+import { AppController } from './app.controller'
+import { AppService } from './app.service'
+import { FamillesModule } from './familles/familles.module'
+
+@Module({
+  // imports = modules dont ce module a besoin
+  // FamillesModule expose ses controllers → Nest les enregistre dans le router
+  imports: [FamillesModule],
   controllers: [AppController],
   providers: [AppService],
 })
 export class AppModule {}
 ```
 
-### 5.3 Tableau des commandes de génération
+```ts
+// src/main.ts — NestJS 11
+import { NestFactory } from '@nestjs/core'
+import { AppModule } from './app.module'
 
-| Commande                    | Raccourci           | Résultat                             |
-| --------------------------- | ------------------- | ------------------------------------ |
-| `nest g module <name>`      | `nest g mo <name>`  | Module                               |
-| `nest g controller <name>`  | `nest g co <name>`  | Controller + spec                    |
-| `nest g service <name>`     | `nest g s <name>`   | Service + spec                       |
-| `nest g resource <name>`    | `nest g res <name>` | Module + Controller + Service + DTOs |
-| `nest g middleware <name>`  | `nest g mi <name>`  | Middleware                           |
-| `nest g guard <name>`       | `nest g gu <name>`  | Guard                                |
-| `nest g pipe <name>`        | `nest g pi <name>`  | Pipe                                 |
-| `nest g interceptor <name>` | `nest g itc <name>` | Interceptor                          |
-| `nest g filter <name>`      | `nest g f <name>`   | Exception filter                     |
-
-> **Bonne pratique** : Utilise TOUJOURS la CLI pour générer des fichiers NestJS. Elle créé les fichiers avec les bonnes conventions de nommage, les bons decorateurs, et met a jour automatiquement les modules parents. Générer manuellement est une source d'erreurs.
-
----
-
-## 6. Premier CRUD avec NestJS
-
-### 6.1 Générer la resource
-
-```bash
-nest g resource books --no-spec
-# Choisis REST API et oui pour le CRUD
-```
-
-### 6.2 Définir l'entite
-
-```typescript
-// src/books/entities/book.entity.ts
-export class Book {
-  id: string;
-  title: string;
-  author: string;
-  year: number;
-  isbn?: string;
-  createdAt: Date;
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule)
+  app.setGlobalPrefix('api')
+  await app.listen(process.env.PORT ?? 3000)
 }
+bootstrap()
 ```
 
-### 6.3 Définir les DTOs
+Pas-à-pas : (1) `nest g module familles` crée `familles.module.ts` et ajoute `FamillesModule` dans `imports` de `app.module.ts` — la CLI s'en charge ; (2) le controller reçoit `FamillesService` via le constructeur — NestJS résout le type TypeScript et injecte l'instance ; (3) `@Controller('familles')` + `@Get(':id')` = la route finale est `GET /api/familles/:id` grâce au `setGlobalPrefix('api')` dans `main.ts` ; (4) le controller ne fait jamais de `new FamillesService()` — c'est le conteneur qui gère l'instance unique (singleton par défaut).
 
-```typescript
-// src/books/dto/create-book.dto.ts
-export class CreateBookDto {
-  title: string;
-  author: string;
-  year: number;
-  isbn?: string;
-}
-```
+### Exemple B — Comparaison Express vs NestJS côte à côte
 
-```typescript
-// src/books/dto/update-book.dto.ts
-import { PartialType } from "@nestjs/mapped-types";
-import { CreateBookDto } from "./create-book.dto";
+```ts
+// === Express — router familles ===
+import { Router } from 'express'
 
-// PartialType rend tous les champs optionnels (comme .partial() de Zod)
-export class UpdateBookDto extends PartialType(CreateBookDto) {}
-```
+const router = Router()
+// Instanciation manuelle — si FamillesService change de constructeur, tous les fichiers qui font new FamillesService() doivent être mis à jour
+const service = new FamillesService()
 
-### 6.4 Implementer le service
-
-```typescript
-// src/books/books.service.ts
-import { Injectable, NotFoundException } from "@nestjs/common";
-import { CreateBookDto } from "./dto/create-book.dto";
-import { UpdateBookDto } from "./dto/update-book.dto";
-import { Book } from "./entities/book.entity";
-import { randomUUID } from "crypto";
-
-@Injectable()
-export class BooksService {
-  // Base de donnees en memoire
-  private books: Book[] = [
-    {
-      id: "1",
-      title: "Clean Code",
-      author: "Robert C. Martin",
-      year: 2008,
-      isbn: "978-0132350884",
-      createdAt: new Date(),
-    },
-  ];
-
-  findAll(): Book[] {
-    return this.books;
-  }
-
-  findOne(id: string): Book {
-    const book = this.books.find((b) => b.id === id);
-    if (!book) {
-      throw new NotFoundException(`Livre avec l'ID "${id}" introuvable`);
-    }
-    return book;
-  }
-
-  create(createBookDto: CreateBookDto): Book {
-    const book: Book = {
-      id: randomUUID(),
-      ...createBookDto,
-      createdAt: new Date(),
-    };
-    this.books.push(book);
-    return book;
-  }
-
-  update(id: string, updateBookDto: UpdateBookDto): Book {
-    const book = this.findOne(id); // Lance NotFoundException si introuvable
-    Object.assign(book, updateBookDto);
-    return book;
-  }
-
-  remove(id: string): void {
-    const index = this.books.findIndex((b) => b.id === id);
-    if (index === -1) {
-      throw new NotFoundException(`Livre avec l'ID "${id}" introuvable`);
-    }
-    this.books.splice(index, 1);
-  }
-}
-```
-
-### 6.5 Implementer le controller
-
-```typescript
-// src/books/books.controller.ts
-import {
-  Controller,
-  Get,
-  Post,
-  Put,
-  Patch,
-  Delete,
-  Body,
-  Param,
-  HttpCode,
-  HttpStatus,
-} from "@nestjs/common";
-import { BooksService } from "./books.service";
-import { CreateBookDto } from "./dto/create-book.dto";
-import { UpdateBookDto } from "./dto/update-book.dto";
-
-@Controller("books")
-export class BooksController {
-  constructor(private readonly booksService: BooksService) {}
-
-  @Get()
-  findAll() {
-    return this.booksService.findAll();
-  }
-
-  @Get(":id")
-  findOne(@Param("id") id: string) {
-    return this.booksService.findOne(id);
-  }
-
-  @Post()
-  @HttpCode(HttpStatus.CREATED) // 201
-  create(@Body() createBookDto: CreateBookDto) {
-    return this.booksService.create(createBookDto);
-  }
-
-  @Patch(":id")
-  update(@Param("id") id: string, @Body() updateBookDto: UpdateBookDto) {
-    return this.booksService.update(id, updateBookDto);
-  }
-
-  @Delete(":id")
-  @HttpCode(HttpStatus.NO_CONTENT) // 204
-  remove(@Param("id") id: string) {
-    this.booksService.remove(id);
-  }
-}
-```
-
-### 6.6 Le module
-
-```typescript
-// src/books/books.module.ts
-import { Module } from "@nestjs/common";
-import { BooksController } from "./books.controller";
-import { BooksService } from "./books.service";
-
-@Module({
-  controllers: [BooksController],
-  providers: [BooksService],
+router.get('/', (_req, res) => {
+  res.json(service.findAll())
 })
-export class BooksModule {}
+
+router.get('/:id', (req, res) => {
+  const f = service.findOne(req.params.id)
+  if (!f) return res.status(404).json({ error: 'Introuvable' })
+  res.json(f)
+})
+
+export default router
 ```
 
----
+```ts
+// === NestJS — controller familles ===
+import { Controller, Get, Param, NotFoundException } from '@nestjs/common'
+import { FamillesService } from './familles.service'
 
-## 7. Express vs NestJS — Comparaison cote a cote
-
-### 7.1 Routing
-
-```typescript
-// === Express ===
-const router = express.Router();
-
-router.get("/", (req, res) => {
-  res.json(booksService.findAll());
-});
-
-router.get("/:id", (req, res) => {
-  const book = booksService.findOne(req.params.id);
-  if (!book) return res.status(404).json({ error: "Not found" });
-  res.json(book);
-});
-
-router.post("/", (req, res) => {
-  const book = booksService.create(req.body);
-  res.status(201).json(book);
-});
-
-app.use("/api/books", router);
-```
-
-```typescript
-// === NestJS ===
-@Controller("books")
-export class BooksController {
-  constructor(private readonly booksService: BooksService) {}
+@Controller('familles')
+export class FamillesController {
+  constructor(private readonly famillesService: FamillesService) {}
+  // ↑ Injection automatique — si FamillesService change, NestJS s'adapte
 
   @Get()
   findAll() {
-    return this.booksService.findAll();
+    return this.famillesService.findAll()
+    // NestJS sérialise automatiquement en JSON avec status 200
   }
 
-  @Get(":id")
-  findOne(@Param("id") id: string) {
-    return this.booksService.findOne(id);
-  }
-
-  @Post()
-  @HttpCode(201)
-  create(@Body() createBookDto: CreateBookDto) {
-    return this.booksService.create(createBookDto);
-  }
-}
-```
-
-### 7.2 Comparaison structurelle
-
-| Aspect            | Express                                  | NestJS                                       |
-| ----------------- | ---------------------------------------- | -------------------------------------------- |
-| **Organisation**  | Libre (routes/, controllers/, services/) | Imposee par modules (books/, users/)         |
-| **DI**            | Manuelle (require/import)                | Automatique (constructeur)                   |
-| **Validation**    | Middleware Zod maison                    | Pipes + class-validator intégré              |
-| **Erreurs**       | Error middleware maison                  | Exception filters intégré                    |
-| **Auth**          | Middleware maison                        | Guards intégré                               |
-| **Logging**       | morgan                                   | Interceptors + Logger intégré                |
-| **TypeScript**    | Optionnel, configuration manuelle        | Natif, pre-configure                         |
-| **Tests**         | Jest a configurer                        | Jest ou Vitest pre-configure avec DI mocking |
-| **Documentation** | Swagger a configurer                     | @nestjs/swagger intégré                      |
-
----
-
-## 8. Lancer et debugger
-
-### 8.1 Les scripts npm
-
-```json
-{
-  "scripts": {
-    "start": "nest start",
-    "start:dev": "nest start --watch",
-    "start:debug": "nest start --debug --watch",
-    "start:prod": "node dist/main",
-    "build": "nest build",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "test:e2e": "jest --config ./test/jest-e2e.json",
-    "lint": "eslint \"{src,apps,libs,test}/**/*.ts\""
+  @Get(':id')
+  findOne(@Param('id') id: string) {
+    const f = this.famillesService.findOne(id)
+    if (!f) throw new NotFoundException(`Famille ${id} introuvable`)
+    // NotFoundException → NestJS répond automatiquement :
+    // { "statusCode": 404, "message": "Famille ...", "error": "Not Found" }
+    return f
   }
 }
 ```
 
-### 8.2 Debugger avec VS Code
+Pas-à-pas : (1) Express — `new FamillesService()` est manuel ; si le service a des dépendances à son tour, tu gères la chaîne de `new` ; (2) NestJS — `private readonly famillesService: FamillesService` dans le constructeur suffit : le type est lu, l'instance est fournie ; (3) Express — `res.status(404).json(...)` est artisanal ; NestJS — `throw new NotFoundException(...)` déclenche le filtre d'exceptions intégré qui répond avec le bon format JSON et le bon status.
 
-Cree un fichier `.vscode/launch.json` :
+## 4. Pièges & misconceptions
 
-```json
-{
-  "version": "0.2.0",
-  "configurations": [
-    {
-      "name": "Debug NestJS",
-      "type": "node",
-      "request": "launch",
-      "runtimeArgs": ["--nolazy", "-r", "ts-node/register"],
-      "args": ["${workspaceFolder}/src/main.ts"],
-      "sourceMaps": true,
-      "envFile": "${workspaceFolder}/.env"
-    }
-  ]
-}
+- **Provider non déclaré dans `providers` du module.** `@Injectable()` ne suffit pas. Sans `providers: [FamillesService]` dans le `@Module`, NestJS ne sait pas que ce service existe et lève `Nest can't resolve dependencies of FamillesController`. Le décorateur ajoute des métadonnées, mais c'est le module qui enregistre le provider dans le conteneur IoC. Correction : vérifier `providers` dans `familles.module.ts`.
+
+- **`emitDecoratorMetadata: false` dans tsconfig.** Les décorateurs d'injection (`@Injectable`, `@Controller`) reposent sur les métadonnées TypeScript pour connaître le type des paramètres du constructeur. Sans `emitDecoratorMetadata: true`, NestJS ne peut pas résoudre les dépendances et lève une erreur au démarrage. Correction : vérifier `tsconfig.json` — `nest new` l'active, mais un projet migré depuis zéro peut l'avoir oublié.
+
+- **`bootstrap()` sans `async/await`.** `NestFactory.create()` retourne une Promise. Sans `await`, le serveur ne démarre pas réellement avant que Node.js ait continué l'exécution du module — comportement non déterministe. Correction : `async function bootstrap() { const app = await NestFactory.create(...) ; await app.listen(...) }`.
+
+- **Confondre `controllers` et `providers` dans `@Module`.** Un service mis dans `controllers` lève une erreur silencieuse (NestJS ignore les providers déclarés comme controllers). Un controller mis dans `providers` n'enregistre pas ses routes. La règle : les classes avec `@Controller` vont dans `controllers`, les classes avec `@Injectable` vont dans `providers`.
+
+- **`@Injectable()` ne crée pas un singleton global.** Par défaut, NestJS crée une instance par module (singleton dans le scope du module, pas de l'application entière). Pour partager un service entre modules, le module qui le détient doit l'exporter dans `exports: [FamillesService]` et le module consommateur doit importer `FamillesModule`. Sans l'export, le service est privé au module.
+
+- **Penser que NestJS remplace Express.** NestJS s'appuie sur Express (ou Fastify) en dessous. `app.use(middleware)` fonctionne toujours. Un middleware Express compatible peut être utilisé dans NestJS. La stack Express est là — NestJS ajoute une couche d'organisation au-dessus.
+
+## 5. Ancrage TribuZen
+
+Couche fil-rouge : **bootstrap de l'API NestJS TribuZen (structure modulaire familles/posts/invitations)** (`smaurier/tribuzen`).
+
+L'API TribuZen démarre avec trois modules de domaine :
+
+```
+tribuzen/
+  apps/
+    api/
+      src/
+        familles/
+          familles.module.ts
+          familles.controller.ts   ← GET /api/familles, POST /api/familles, etc.
+          familles.service.ts      ← logique CRUD, remplacé par Prisma au module 10
+        posts/
+          posts.module.ts
+          posts.controller.ts      ← GET /api/posts (posts d'une famille)
+          posts.service.ts
+        invitations/
+          invitations.module.ts
+          invitations.controller.ts ← POST /api/invitations, PATCH /api/invitations/:id/accept
+          invitations.service.ts    ← logique d'envoi e-mail (module 12)
+        app.module.ts              ← importe FamillesModule, PostsModule, InvitationsModule
+        main.ts                    ← NestFactory.create + setGlobalPrefix('api')
 ```
 
-### 8.3 Exceptions integrees de NestJS
+Ce que chaque module des cours suivants apporte à cette base :
+- **Module 10 (Controllers avancés)** : DTOs typés, `@HttpCode`, `@Query` avec validation.
+- **Module 11 (Providers avancés)** : `exports`, modules partagés (ex. `NotificationsModule` utilisé par `InvitationsModule`).
+- **Module 12 (PostgreSQL + Prisma)** : les services passent de tableaux en mémoire à `PrismaService`.
+- **Module 14 (Auth)** : guards JWT sur les routes protégées.
 
-NestJS fournit des exceptions HTTP pretes a l'emploi :
+À ce stade (module 09), le store est en mémoire et il n'y a pas de validation des DTOs — c'est intentionnel pour se concentrer sur la structure modulaire.
 
-```typescript
-import {
-  NotFoundException, // 404
-  BadRequestException, // 400
-  UnauthorizedException, // 401
-  ForbiddenException, // 403
-  ConflictException, // 409
-  InternalServerErrorException, // 500
-  HttpException, // Custom
-} from "@nestjs/common";
+## 6. Points clés
 
-// Utilisation dans un service
-throw new NotFoundException("Livre introuvable");
-// Reponse automatique :
-// { "statusCode": 404, "message": "Livre introuvable", "error": "Not Found" }
+1. NestJS = Express (ou Fastify) + architecture modulaire + TypeScript natif + DI intégré. Le runtime HTTP reste Express.
+2. Trio fondamental : **Module** (frontière de domaine) → **Controller** (routing HTTP) → **Service/Provider** (logique métier).
+3. `@Module({ imports, controllers, providers, exports })` — les quatre clés du décorateur de module.
+4. `@Injectable()` + enregistrement dans `providers` du module = condition nécessaire et suffisante pour l'injection.
+5. `@Controller('prefix')` + `@Get(':id')` = route finale composée : `GET /prefix/:id` (plus `setGlobalPrefix` si défini).
+6. `NestFactory.create(AppModule)` résout le graphe DI complet au démarrage — erreurs DI détectées avant la première requête.
+7. `experimentalDecorators: true` + `emitDecoratorMetadata: true` dans `tsconfig.json` — obligatoires pour que la DI fonctionne.
+8. `nest g resource <name>` génère l'ensemble module + controller + service + DTOs + entity et met à jour le module parent.
+9. Express ou Fastify — même API NestJS (modules, decorateurs, DI), seul l'adaptateur change dans `NestFactory.create`.
 
-throw new BadRequestException("Le titre est requis");
-// { "statusCode": 400, "message": "Le titre est requis", "error": "Bad Request" }
+## 7. Seeds Anki
 
-// Exception personnalisee
-throw new HttpException("Erreur metier specifique", 422);
+```
+Quel problème fondamental NestJS résout-il par rapport à Express nu ?|Absence de structure imposée : chaque équipe invente sa propre architecture. NestJS apporte modules/controllers/services avec des conventions claires et une DI intégrée.
+Quelles sont les trois briques fondamentales de NestJS et leurs rôles ?|Module = frontière de domaine (déclare les composants) ; Controller = reçoit les requêtes HTTP et délègue ; Service/Provider = logique métier injectable
+Quelle condition double est nécessaire pour qu'un service soit injectable ?|1) Décorer la classe avec @Injectable() ; 2) L'enregistrer dans le tableau providers du @Module correspondant — l'un sans l'autre ne suffit pas
+Que fait NestFactory.create(AppModule) au démarrage ?|Instancie le conteneur IoC, résout le graphe de dépendances, enregistre toutes les routes dans le router HTTP sous-jacent (Express ou Fastify)
+Quels deux flags tsconfig.json sont obligatoires pour la DI NestJS ?|experimentalDecorators: true (active les décorateurs) et emitDecoratorMetadata: true (permet à NestJS de lire les types des paramètres de constructeur)
+Comment partager un service FamillesService entre deux modules NestJS ?|Ajouter FamillesService dans exports: [FamillesService] de FamillesModule, puis importer FamillesModule dans le module consommateur
+Différence entre controllers et providers dans @Module ?|controllers = classes avec @Controller — NestJS enregistre leurs routes HTTP ; providers = classes avec @Injectable — NestJS les instancie et les injecte
+Quelle commande CLI génère module + controller + service + DTOs d'un coup ?|nest g resource <name> (ou nest g res <name>) — choisir "REST API" puis "Yes" pour le CRUD
 ```
 
-> **Bonne pratique** : NestJS géré automatiquement les exceptions — pas besoin de try/catch dans les controllers ni de error handler middleware. Lance simplement une exception et NestJS la transforme en réponse HTTP appropriee. C'est un enorme gain par rapport a Express.
+## Pont vers le lab
+
+> Lab associé : `09-nestjs/labs/lab-09-nestjs-premiers-pas/README.md`. Tu bootstrappes l'API NestJS TribuZen avec le CLI, génères le module `familles`, câbles controller et service, et valides les routes avec curl. Corrigé complet commenté + variante J+30 dans le README du lab.
 
 ---
 
-## 9. Exercices pratiques
-
-### Exercice 1 — Projet NestJS de zero
-
-Cree un nouveau projet NestJS et généré une resource `tasks` (gestion de taches) avec :
-
-- Les operations CRUD
-- Les DTOs pour création et mise a jour
-- La gestion des erreurs avec `NotFoundException`
-
-### Exercice 2 — Migration Express vers NestJS
-
-Reprends l'API de livres Express du module 05 et migre-la vers NestJS. Compare la structure et le nombre de lignes.
-
-### Exercice 3 — Multiple resources
-
-Cree un projet NestJS avec trois resources liees :
-
-- `authors` (auteurs)
-- `books` (livres d'un auteur)
-- `reviews` (critiques d'un livre)
-
-Chaque resource dans son propre module avec son service et son controller.
-
----
-
-## 10. Résumé — Les concepts clés
-
-| Concept         | Definition                                                            |
-| --------------- | --------------------------------------------------------------------- |
-| **NestJS**      | Framework Node.js structure, inspire d'Angular                        |
-| **@Module**     | Decorateur qui declare un module (imports, controllers, providers)    |
-| **@Controller** | Decorateur qui marque une classe comme controller HTTP                |
-| **@Injectable** | Decorateur qui marque une classe comme injectable (service)           |
-| **DI**          | Injection de dépendances — les services sont injectes automatiquement |
-| **DTO**         | Data Transfer Object — classe decrivant la forme des donnees          |
-| **CLI**         | `nest g resource` généré module + controller + service + DTOs         |
-| **Exceptions**  | `NotFoundException`, `BadRequestException`, etc.                      |
-| **main.ts**     | Point d'entree qui bootstrap l'application                            |
-
-> **A retenir** : NestJS apporte a Node.js ce qu'Angular apporte au frontend : une architecture claire, une injection de dépendances puissante, et des conventions qui rendent le code previsible et maintenable. La CLI généré le boilerplate pour toi — tu te concentres sur la logique metier. Les modules suivants approfondiront les controllers, les providers et l'architecture modulaire.
-
----
-
-## Navigation
-
-|                  | Lien                                                                               |
-| ---------------- | ---------------------------------------------------------------------------------- |
-| Module précédent | [Module 08 — Express — Authentification & Sécurité](./08-express-auth-securite.md) |
-| Module suivant   | [Module 10 — NestJS — Controllers & Routing](./10-nestjs-controllers.md)           |
-| Quiz             | [Quiz Module 09](../quizzes/09-nestjs-introduction.quiz.md)                        |
-| Lab              | [Lab 09 — Premier projet NestJS](../labs/09-nestjs-introduction.lab.md)            |
-
----
-
-> **NestJS 11 (janvier 2025)** : NestJS 11 apporte Express 5 comme runtime par defaut, un logger repense, le support natif de Vitest, et des ameliorations de performance. La migration depuis NestJS 10 est fluide : `npm i @nestjs/core@11 @nestjs/common@11 @nestjs/platform-express@11`.
-
-> **A retenir** : NestJS n'est pas "mieux" qu'Express — c'est Express + structure + TypeScript + DI. Il resout les problèmes d'organisation que tu rencontres des que ton API Express dépasse quelques fichiers. Le trio Module → Controller → Service est le pattern fondamental que tu retrouveras dans chaque module de cette section du cours.
-
----
-
-<!-- parcours-recommande -->
-
-::: tip Parcours recommandé
-
-1. **Screencast** : [screencast 09 nestjs introduction](../screencasts/screencast-09-nestjs-introduction.md)
-2. **Lab** : [lab-09-nestjs-premiers-pas](../labs/lab-09-nestjs-premiers-pas/README)
-3. **Quiz** : [quiz 09 nestjs introduction](../quizzes/quiz-09-nestjs-introduction.html)
-   :::
+| Navigation | Lien |
+|------------|------|
+| Module précédent | `09-nestjs/modules/08-express-auth-securite.md` |
+| Module suivant | `09-nestjs/modules/10-nestjs-controllers.md` |
+| Lab | `09-nestjs/labs/lab-09-nestjs-premiers-pas/README.md` |

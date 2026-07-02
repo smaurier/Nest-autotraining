@@ -1,688 +1,588 @@
-# Module 10 — NestJS — Controllers & Routing
-
-> **Objectif** : Maîtriser les controllers NestJS en profondeur — decorateurs HTTP, decorateurs de paramètres, DTOs, versioning d'API, sous-routes, et bonnes pratiques pour des controllers propres et maintenables.
->
-> **Difficulte** : ⭐⭐ (intermédiaire)
-
+---
+titre: NestJS controllers
+cours: 09-nestjs
+notions: [décorateur Controller, décorateurs de route Get Post Put Delete Patch, paramètres Param Query Body Headers, DTOs et class-validator, ValidationPipe, codes de statut HttpCode, gestion de la réponse, préfixe de route]
+outcomes: [créer un controller avec des routes REST, extraire params/query/body, valider un DTO avec class-validator et ValidationPipe, retourner le bon code de statut]
+prerequis: [09-nestjs-introduction]
+next: 11-nestjs-providers-di
+libs: [{ name: "@nestjs/common", version: "^11" }, { name: class-validator, version: "^0.14" }]
+tribuzen: FamilyController et PostController de l'API TribuZen (routes REST + DTOs validés)
+last-reviewed: 2026-07
 ---
 
-## 1. Le role du Controller
+# NestJS controllers
 
-### 1.1 Definition
+> **Outcomes — tu sauras FAIRE :** créer un controller NestJS avec des routes REST complètes, extraire params/query/body avec les bons décorateurs, valider un DTO avec class-validator et ValidationPipe, retourner le bon code de statut HTTP.
+> **Difficulté :** :star::star::star:
 
-Un **controller** dans NestJS est une classe decoree avec `@Controller()` qui recoit les requêtes HTTP entrantes et renvoie les réponses au client. Son role est d'**orchestrer** — pas de contenir la logique metier.
+## 1. Cas concret d'abord
 
-> **Analogie** : Le controller est un aiguilleur du ciel. Il recoit les avions (requêtes), vérifié leur identite et destination, et les dirige vers la bonne piste (service). Il ne fait pas atterrir l'avion lui-même — il coordonne.
+L'API TribuZen doit exposer les familles. Tu viens d'écrire le module Express (module 05) — maintenant la même API passe sous NestJS. Voici ce que tu dois produire :
 
 ```
-  Requete HTTP
-       │
-       ▼
-  ┌──────────────────┐
-  │   Controller      │  ← Recoit la requete, extrait les donnees
-  │  (orchestration)  │
-  └────────┬─────────┘
-           │
-           ▼
-  ┌──────────────────┐
-  │    Service        │  ← Logique metier, acces aux donnees
-  │  (logique)        │
-  └────────┬─────────┘
-           │
-           ▼
-  ┌──────────────────┐
-  │  Reponse HTTP     │  ← Le controller renvoie le resultat
-  └──────────────────┘
+POST   /families          → créer une famille (201, body validé)
+GET    /families          → lister (?page=1&limit=10)
+GET    /families/:id      → une famille (UUID obligatoire)
+PATCH  /families/:id      → modifier partiellement
+DELETE /families/:id      → supprimer (204, pas de body)
 ```
 
-### 1.2 Ce que le controller fait et ne fait PAS
+Tu essaies d'écrire le controller et tu bloques sur plusieurs points : comment déclarer le préfixe de route ? comment extraire l'`:id` de l'URL ? comment valider que `name` dans le body n'est pas vide ? comment renvoyer 201 au lieu du 200 par défaut ?
 
-| Le controller fait | Le controller ne fait PAS |
-|---|---|
-| Recevoir les requêtes HTTP | Logique metier complexe |
-| Extraire les paramètres (body, params, query) | Acces direct à la base de donnees |
-| Appeler le(s) service(s) | Calculs, transformations de donnees |
-| Renvoyer la réponse HTTP | Validation complexe (délégué aux Pipes) |
-| Définir le status code | Gestion d'erreurs globale (délégué aux Filters) |
+Ce module répond exactement à ça.
 
-> **Bonne pratique** : Un controller devrait etre "maigre" (thin controller). Si ton controller contient plus de 5-10 lignes par méthode, tu as probablement de la logique metier qui devrait etre dans un service.
+## 2. Théorie complète, concise
 
----
+### 2.1 Décorateur `@Controller` — préfixe de route
 
-## 2. Le decorateur @Controller
+`@Controller('prefix')` déclare la classe comme point d'entrée pour les requêtes HTTP arrivant sous ce préfixe. Tous les décorateurs de route à l'intérieur sont relatifs à ce préfixe.
 
-### 2.1 Route de base
+```ts
+import { Controller, Get } from '@nestjs/common'
 
-```typescript
-import { Controller, Get } from '@nestjs/common';
-
-// Route de base : /cats
-@Controller('cats')
-export class CatsController {
-  @Get() // GET /cats
-  findAll(): string {
-    return 'Liste des chats';
-  }
-}
-
-// Plusieurs segments
-@Controller('api/v1/cats') // /api/v1/cats
-export class CatsV1Controller { }
-
-// Pas de prefixe
-@Controller() // /
-export class RootController { }
-```
-
-### 2.2 Combiner avec setGlobalPrefix
-
-```typescript
-// main.ts
-app.setGlobalPrefix('api');
-
-// controller
-@Controller('users') // Route effective : /api/users
-```
-
----
-
-## 3. Decorateurs de méthodes HTTP
-
-### 3.1 Les méthodes standard
-
-```typescript
-import {
-  Controller,
-  Get, Post, Put, Patch, Delete,
-  Head, Options, All,
-} from '@nestjs/common';
-
-@Controller('books')
-export class BooksController {
-  constructor(private readonly booksService: BooksService) {}
-
-  @Get()          // GET /books
+// Toutes les routes de cette classe commencent par /families
+@Controller('families')
+export class FamilyController {
+  @Get()       // répond à GET /families
   findAll() {
-    return this.booksService.findAll();
+    return []
   }
 
-  @Get(':id')     // GET /books/:id
-  findOne(@Param('id') id: string) {
-    return this.booksService.findOne(id);
-  }
-
-  @Post()         // POST /books
-  create(@Body() dto: CreateBookDto) {
-    return this.booksService.create(dto);
-  }
-
-  @Put(':id')     // PUT /books/:id (remplacement total)
-  replace(@Param('id') id: string, @Body() dto: CreateBookDto) {
-    return this.booksService.replace(id, dto);
-  }
-
-  @Patch(':id')   // PATCH /books/:id (modification partielle)
-  update(@Param('id') id: string, @Body() dto: UpdateBookDto) {
-    return this.booksService.update(id, dto);
-  }
-
-  @Delete(':id')  // DELETE /books/:id
-  remove(@Param('id') id: string) {
-    return this.booksService.remove(id);
-  }
-
-  @Head(':id')    // HEAD /books/:id (comme GET mais sans body)
-  checkExists(@Param('id') id: string) {
-    this.booksService.findOne(id); // Lance NotFoundException si absent
-  }
-
-  @All('health')  // Toutes les methodes sur /books/health
-  health() {
-    return { status: 'OK' };
+  @Get(':id')  // répond à GET /families/:id
+  findOne() {
+    return {}
   }
 }
 ```
 
-### 3.2 Routes multiples sur une méthode
+Sans argument (`@Controller()`), le controller répond à la racine `/`. Avec `setGlobalPrefix('api')` dans `main.ts`, toutes les routes deviennent `/api/families`.
 
-```typescript
-// Une methode peut repondre a plusieurs routes
-@Get(['', 'list', 'all'])  // GET /books, GET /books/list, GET /books/all
-findAll() {
-  return this.booksService.findAll();
+```ts
+// main.ts
+app.setGlobalPrefix('api')
+// @Controller('families') → répond à /api/families/*
+```
+
+### 2.2 Décorateurs de route — `@Get`, `@Post`, `@Put`, `@Patch`, `@Delete`
+
+Chaque méthode HTTP a son décorateur. L'argument optionnel est le sous-chemin relatif au préfixe du controller.
+
+```ts
+import { Controller, Get, Post, Put, Patch, Delete } from '@nestjs/common'
+
+@Controller('families')
+export class FamilyController {
+  @Get()               // GET /families
+  findAll() { return [] }
+
+  @Get(':id')          // GET /families/:id
+  findOne() { return {} }
+
+  @Post()              // POST /families
+  create() { return {} }
+
+  @Put(':id')          // PUT /families/:id — remplacement complet
+  replace() { return {} }
+
+  @Patch(':id')        // PATCH /families/:id — modification partielle
+  update() { return {} }
+
+  @Delete(':id')       // DELETE /families/:id
+  remove() { return }
 }
 ```
 
----
+`PUT` remplace la ressource entière (tous les champs requis). `PATCH` ne modifie que les champs présents dans le body. En pratique sur une API NestJS moderne, on préfère `PATCH` pour les mises à jour partielles.
 
-## 4. Decorateurs de paramètres
+### 2.3 Décorateurs de paramètres — `@Param`, `@Query`, `@Body`, `@Headers`
 
-### 4.1 Liste complete
+Ces décorateurs injectent des fragments de la requête HTTP dans les arguments de la méthode.
 
-```typescript
+```ts
 import {
-  Param, Body, Query, Headers, Ip, Req, Res,
-  Session, HostParam,
-} from '@nestjs/common';
+  Controller, Get, Post, Patch, Delete,
+  Param, Query, Body, Headers,
+} from '@nestjs/common'
 
-@Controller('users')
-export class UsersController {
+@Controller('families')
+export class FamilyController {
 
-  // @Param — Parametres de route
+  // @Param('id') — paramètre de route : toujours une string
   @Get(':id')
   findOne(@Param('id') id: string) {
-    // GET /users/42 → id = '42'
-    return this.usersService.findOne(id);
+    // GET /families/abc-123 → id = 'abc-123'
+    return { id }
   }
 
-  // @Param sans argument — tous les params
-  @Get(':userId/posts/:postId')
-  findPost(@Param() params: { userId: string; postId: string }) {
-    return { userId: params.userId, postId: params.postId };
+  // @Param() sans argument — tous les params dans un objet
+  @Get(':familyId/posts/:postId')
+  findPost(@Param() params: { familyId: string; postId: string }) {
+    return params  // { familyId: '...', postId: '...' }
   }
 
-  // @Body — Corps de la requete
-  @Post()
-  create(@Body() body: CreateUserDto) {
-    return this.usersService.create(body);
-  }
-
-  // @Body avec un champ specifique
-  @Post()
-  createSimple(@Body('email') email: string) {
-    // Extrait uniquement le champ 'email' du body
-    return { email };
-  }
-
-  // @Query — Parametres de requete
+  // @Query — paramètres de l'URL (?page=2&limit=10) : toujours des strings
   @Get()
   findAll(
-    @Query('page') page: string,     // ?page=2
-    @Query('limit') limit: string,   // ?limit=10
-    @Query('search') search: string, // ?search=alice
+    @Query('page') page: string,
+    @Query('limit') limit: string,
   ) {
-    return this.usersService.findAll({ page, limit, search });
+    return { page, limit }
   }
 
-  // @Query sans argument — tous les query params
-  @Get()
-  findAllAlt(@Query() query: { page: string; limit: string }) {
-    return query;
+  // @Body — corps JSON parsé
+  @Post()
+  create(@Body() body: CreateFamilyDto) {
+    return body
   }
 
-  // @Headers — En-tetes de la requete
+  // @Body('field') — extrait un seul champ
+  @Post('quick')
+  createQuick(@Body('name') name: string) {
+    return { name }
+  }
+
+  // @Headers — headers de la requête
   @Get('me')
   getProfile(@Headers('authorization') auth: string) {
-    return { token: auth };
+    return { auth }
   }
 
-  // @Headers sans argument — tous les headers
-  @Get('debug/headers')
-  debugHeaders(@Headers() headers: Record<string, string>) {
-    return headers;
-  }
-
-  // @Ip — Adresse IP du client
-  @Get('whoami')
-  whoami(@Ip() ip: string) {
-    return { ip };
-  }
-
-  // @Req — L'objet Request Express complet (echappatoire)
-  @Get('raw')
-  raw(@Req() req: Request) {
-    return { method: req.method, url: req.url };
+  // @Headers() sans argument — tous les headers
+  @Get('debug')
+  debug(@Headers() headers: Record<string, string>) {
+    return headers
   }
 }
 ```
 
-> **Piege classique** : Les valeurs de `@Param()` et `@Query()` sont TOUJOURS des **strings**. Si tu attends un nombre, utilise un Pipe pour transformer : `@Param('id', ParseIntPipe) id: number`. NestJS fournit des pipes de transformation integres (voir section 4.3).
+**Important :** `@Param()` et `@Query()` retournent toujours des **strings**, même si la valeur ressemble à un nombre. Pour convertir, utilise les pipes intégrés (`ParseIntPipe`, `ParseUUIDPipe`) ou active `transform: true` dans `ValidationPipe`.
 
-### 4.2 Pipes de transformation integres
+```ts
+import { ParseUUIDPipe, ParseIntPipe, DefaultValuePipe } from '@nestjs/common'
 
-```typescript
+@Get(':id')
+findOne(@Param('id', ParseUUIDPipe) id: string) {
+  // Valide que id est un UUID v4 — sinon 400 automatique
+  return { id }
+}
+
+@Get()
+list(
+  @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+  @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
+) {
+  return { page, limit }
+}
+```
+
+### 2.4 DTOs et class-validator
+
+Un **DTO** (Data Transfer Object) est une classe TypeScript qui décrit la forme du body attendu. On y attache des décorateurs `class-validator` pour exprimer les contraintes de validation.
+
+Installation :
+
+```bash
+pnpm add class-validator class-transformer
+```
+
+```ts
+// src/families/dto/create-family.dto.ts
 import {
-  ParseIntPipe,
-  ParseUUIDPipe,
-  ParseBoolPipe,
-  ParseFloatPipe,
-  ParseEnumPipe,
-  DefaultValuePipe,
-  ParseArrayPipe,
-} from '@nestjs/common';
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  MinLength,
+  MaxLength,
+  IsArray,
+  IsEnum,
+} from 'class-validator'
 
-@Controller('users')
-export class UsersController {
-
-  // ParseIntPipe — Convertit la string en number
-  @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    // id est maintenant un number, pas une string
-    // Si 'abc' est envoye → 400 Bad Request automatique
-    return this.usersService.findOne(id);
-  }
-
-  // ParseUUIDPipe — Valide que c'est un UUID
-  @Get(':uuid')
-  findByUuid(@Param('uuid', ParseUUIDPipe) uuid: string) {
-    // Si le format n'est pas un UUID valide → 400 Bad Request
-    return this.usersService.findByUuid(uuid);
-  }
-
-  // ParseBoolPipe — Convertit 'true'/'false' en boolean
-  @Get()
-  findAll(@Query('active', new DefaultValuePipe(true), ParseBoolPipe) active: boolean) {
-    return this.usersService.findAll({ active });
-  }
-
-  // DefaultValuePipe — Valeur par defaut si absent
-  @Get()
-  list(
-    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
-    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
-  ) {
-    return this.usersService.list(page, limit);
-  }
-
-  // ParseEnumPipe — Valide que la valeur est dans un enum
-  @Get()
-  findByRole(
-    @Query('role', new ParseEnumPipe(UserRole)) role: UserRole,
-  ) {
-    return this.usersService.findByRole(role);
-  }
+export enum FamilyVisibility {
+  Private = 'private',
+  Public = 'public',
 }
 
-enum UserRole {
-  Admin = 'admin',
-  User = 'user',
-  Moderator = 'moderator',
-}
-```
-
----
-
-## 5. Les DTOs (Data Transfer Objects)
-
-### 5.1 Qu'est-ce qu'un DTO
-
-Un **DTO** est une classe qui définit la forme des donnees envoyees ou recues. C'est l'équivalent des schemas Zod du module 07, mais sous forme de classe TypeScript.
-
-```typescript
-// dto/create-user.dto.ts
-export class CreateUserDto {
-  email: string;
-  password: string;
-  nom: string;
-  age?: number;
-  role?: string;
-}
-
-// dto/update-user.dto.ts
-import { PartialType } from '@nestjs/mapped-types';
-import { CreateUserDto } from './create-user.dto';
-
-// Tous les champs deviennent optionnels
-export class UpdateUserDto extends PartialType(CreateUserDto) {}
-```
-
-> **Analogie** : Un DTO c'est comme un formulaire papier. Il définit quels champs existent, lesquels sont obligatoires, et quel type de donnees est attendu. Le formulaire n'est pas la donnee elle-même — c'est un contrat qui dit "voila ce que j'attends de toi".
-
-### 5.2 Helpers de @nestjs/mapped-types
-
-```bash
-npm install @nestjs/mapped-types
-```
-
-```typescript
-import { PartialType, PickType, OmitType, IntersectionType } from '@nestjs/mapped-types';
-
-// PartialType — Tous les champs deviennent optionnels
-class UpdateDto extends PartialType(CreateDto) {}
-
-// PickType — Seulement certains champs
-class LoginDto extends PickType(CreateUserDto, ['email', 'password'] as const) {}
-
-// OmitType — Tous les champs sauf certains
-class PublicUserDto extends OmitType(UserDto, ['password', 'role'] as const) {}
-
-// IntersectionType — Combiner deux DTOs
-class ExtendedDto extends IntersectionType(CreateDto, TimestampDto) {}
-```
-
-### 5.3 Validation avec class-validator (apercu)
-
-```bash
-npm install class-validator class-transformer
-```
-
-```typescript
-// dto/create-user.dto.ts
-import { IsEmail, IsString, MinLength, MaxLength, IsOptional, IsInt, Min, Max } from 'class-validator';
-
-export class CreateUserDto {
-  @IsEmail({}, { message: 'Email invalide' })
-  email: string;
-
+export class CreateFamilyDto {
+  // IsNotEmpty rejette les chaînes vides — IsString assure le type
   @IsString()
-  @MinLength(8, { message: 'Le mot de passe doit contenir au moins 8 caracteres' })
-  @MaxLength(72)
-  password: string;
+  @IsNotEmpty({ message: 'Le nom est obligatoire' })
+  @MinLength(2, { message: 'Le nom doit contenir au moins 2 caractères' })
+  @MaxLength(80, { message: 'Le nom ne peut pas dépasser 80 caractères' })
+  name: string
 
+  @IsOptional()   // Champ absent OU présent sont valides
   @IsString()
-  @MinLength(2)
-  @MaxLength(50)
-  nom: string;
+  @MaxLength(300)
+  description?: string
 
   @IsOptional()
-  @IsInt()
-  @Min(13)
-  @Max(150)
-  age?: number;
+  @IsArray()
+  @IsString({ each: true })  // Valide chaque élément du tableau
+  tags?: string[]
+
+  @IsOptional()
+  @IsEnum(FamilyVisibility, { message: 'visibility doit être "private" ou "public"' })
+  visibility?: FamilyVisibility
 }
 ```
 
-```typescript
-// main.ts — Activer la validation globale
-import { ValidationPipe } from '@nestjs/common';
+```ts
+// src/families/dto/update-family.dto.ts
+import { PartialType } from '@nestjs/mapped-types'
+import { CreateFamilyDto } from './create-family.dto'
+
+// Tous les champs deviennent optionnels — les décorateurs class-validator sont préservés
+export class UpdateFamilyDto extends PartialType(CreateFamilyDto) {}
+```
+
+Décorateurs `class-validator` courants :
+
+| Décorateur | Ce qu'il valide |
+|---|---|
+| `@IsString()` | Valeur est une string |
+| `@IsNotEmpty()` | String non vide (pas `''`) |
+| `@MinLength(n)` / `@MaxLength(n)` | Longueur de chaîne |
+| `@IsEmail()` | Format email valide |
+| `@IsUUID('4')` | UUID version 4 |
+| `@IsInt()` | Entier |
+| `@Min(n)` / `@Max(n)` | Plage numérique |
+| `@IsOptional()` | Champ absent accepté — court-circuite les autres décorateurs si absent |
+| `@IsEnum(E)` | Valeur appartient à l'enum E |
+| `@IsArray()` | Valeur est un tableau |
+| `@IsString({ each: true })` | Chaque élément du tableau est une string |
+
+### 2.5 ValidationPipe — activer la validation globale
+
+`class-validator` seul ne fait rien. Il faut câbler un `ValidationPipe` qui appelle `validate()` sur chaque DTO entrant.
+
+```ts
+// main.ts
+import { NestFactory } from '@nestjs/core'
+import { ValidationPipe } from '@nestjs/common'
+import { AppModule } from './app.module'
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule)
+
   app.useGlobalPipes(new ValidationPipe({
-    whitelist: true,       // Supprime les champs non declares dans le DTO
-    forbidNonWhitelisted: true, // Rejette si champs non declares
-    transform: true,       // Transforme les types automatiquement
-  }));
-  await app.listen(3000);
+    // Supprime automatiquement les champs non déclarés dans le DTO
+    whitelist: true,
+
+    // Retourne une erreur 400 si des champs non déclarés sont présents
+    forbidNonWhitelisted: true,
+
+    // Convertit les types : string → number pour les @Query parsés
+    transform: true,
+  }))
+
+  await app.listen(3000)
+}
+bootstrap()
+```
+
+Quand un body ne satisfait pas un DTO, NestJS retourne automatiquement une réponse 400 :
+
+```json
+{
+  "statusCode": 400,
+  "message": [
+    "Le nom est obligatoire",
+    "Le nom doit contenir au moins 2 caractères"
+  ],
+  "error": "Bad Request"
 }
 ```
 
-> **Bonne pratique** : Active TOUJOURS le `ValidationPipe` global avec `whitelist: true`. Cela empeche un client d'envoyer des champs supplementaires (comme `role: 'admin'`) qui pourraient corrompre tes donnees.
+### 2.6 Codes de statut — `@HttpCode` et `HttpStatus`
 
----
+Par défaut, NestJS retourne 200 pour toutes les méthodes sauf `@Post()` qui retourne 201. Pour tout autre code, utilise `@HttpCode`.
 
-## 6. Decorateurs de réponse
+```ts
+import { HttpCode, HttpStatus } from '@nestjs/common'
 
-### 6.1 @HttpCode — Status code personnalise
-
-```typescript
-import { HttpCode, HttpStatus } from '@nestjs/common';
-
-@Controller('books')
-export class BooksController {
+@Controller('families')
+export class FamilyController {
 
   @Post()
-  @HttpCode(HttpStatus.CREATED)  // 201 (POST retourne 201 par defaut)
-  create(@Body() dto: CreateBookDto) {
-    return this.booksService.create(dto);
+  @HttpCode(HttpStatus.CREATED)   // 201 — c'est le défaut de @Post, mais explicite = clair
+  create(@Body() dto: CreateFamilyDto) {
+    return dto
   }
 
   @Delete(':id')
-  @HttpCode(HttpStatus.NO_CONTENT) // 204
+  @HttpCode(HttpStatus.NO_CONTENT)  // 204 — pas de body possible
   remove(@Param('id') id: string) {
-    this.booksService.remove(id);
-    // Pas de return — 204 = pas de body
+    // Pas de return — 204 n'a pas de body
   }
 
   @Post('import')
-  @HttpCode(HttpStatus.ACCEPTED) // 202 — Traitement async
+  @HttpCode(HttpStatus.ACCEPTED)  // 202 — traitement asynchrone lancé
   import(@Body() dto: ImportDto) {
-    this.booksService.queueImport(dto);
-    return { message: 'Import en cours de traitement' };
+    return { jobId: 'queued' }
   }
 }
 ```
 
-### 6.2 @Header — Ajouter des headers de réponse
+`HttpStatus` est un enum qui évite les "magic numbers" : `HttpStatus.OK = 200`, `HttpStatus.CREATED = 201`, `HttpStatus.NO_CONTENT = 204`, `HttpStatus.BAD_REQUEST = 400`, `HttpStatus.NOT_FOUND = 404`.
 
-```typescript
-import { Header } from '@nestjs/common';
+### 2.7 Gestion de la réponse — retour implicite vs `@Res`
 
-@Get('export')
-@Header('Content-Type', 'text/csv')
-@Header('Content-Disposition', 'attachment; filename="books.csv"')
-export() {
-  return this.booksService.exportCsv();
+NestJS sérialise automatiquement ce que la méthode retourne :
+- Un **objet ou tableau** → réponse JSON.
+- Une **string** → réponse texte.
+- `undefined` / `void` → body vide (utile avec 204).
+
+```ts
+@Get()
+findAll(): FamilyDto[] {
+  return []   // → JSON [] avec 200
+}
+
+@Delete(':id')
+@HttpCode(HttpStatus.NO_CONTENT)
+remove(): void {
+  // → body vide avec 204
 }
 ```
 
-### 6.3 @Redirect — Redirection
+Évite `@Res()` (accès à l'objet réponse Express brut) sauf cas extrême — il court-circuite le cycle NestJS (interceptors, exception filters ne s'exécutent plus).
 
-```typescript
-import { Redirect } from '@nestjs/common';
+## 3. Worked examples
 
-@Get('old-endpoint')
-@Redirect('/api/books', 301) // 301 Moved Permanently
-oldEndpoint() {
-  // Pas besoin de body
-}
+### Exemple A — FamilyController complet avec DTO validé
 
-// Redirection dynamique (retourne un objet)
-@Get('docs')
-@Redirect('https://docs.example.com', 302)
-getDocs(@Query('version') version: string) {
-  if (version === 'v2') {
-    return { url: 'https://docs-v2.example.com', statusCode: 302 };
-  }
-  // Si pas de return, utilise la valeur par defaut du decorateur
+```ts
+// src/families/dto/create-family.dto.ts
+import { IsString, IsNotEmpty, IsOptional, MinLength, MaxLength } from 'class-validator'
+
+export class CreateFamilyDto {
+  @IsString()
+  @IsNotEmpty({ message: 'name est obligatoire' })
+  @MinLength(2)
+  @MaxLength(80)
+  name: string
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  description?: string
 }
 ```
 
----
+```ts
+// src/families/families.controller.ts
+import {
+  Controller, Get, Post, Patch, Delete,
+  Param, Query, Body,
+  HttpCode, HttpStatus,
+  ParseUUIDPipe, DefaultValuePipe, ParseIntPipe,
+} from '@nestjs/common'
+import { CreateFamilyDto } from './dto/create-family.dto'
+import { UpdateFamilyDto } from './dto/update-family.dto'
+import { FamiliesService } from './families.service'
 
-## 7. Routes avancees
+@Controller('families')
+export class FamiliesController {
+  // FamiliesService est injecté par NestJS (DI — module 11)
+  constructor(private readonly familiesService: FamiliesService) {}
 
-### 7.1 Routes imbriquees (nested routes)
-
-```typescript
-// /api/authors/:authorId/books
-@Controller('authors/:authorId/books')
-export class AuthorBooksController {
-  constructor(private readonly booksService: BooksService) {}
-
+  // GET /families?page=1&limit=10
   @Get()
-  findAll(@Param('authorId') authorId: string) {
-    return this.booksService.findByAuthor(authorId);
-  }
-
-  @Post()
-  create(
-    @Param('authorId') authorId: string,
-    @Body() dto: CreateBookDto,
+  findAll(
+    // DefaultValuePipe donne la valeur par défaut si le param est absent
+    // ParseIntPipe convertit la string en number — nécessaire car @Query retourne des strings
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
   ) {
-    return this.booksService.createForAuthor(authorId, dto);
+    return this.familiesService.findAll(page, limit)
+  }
+
+  // GET /families/:id
+  @Get(':id')
+  findOne(
+    // ParseUUIDPipe valide le format UUID — retourne 400 si invalide
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.familiesService.findOne(id)
+  }
+
+  // POST /families → 201 Created
+  @Post()
+  @HttpCode(HttpStatus.CREATED)
+  create(@Body() dto: CreateFamilyDto) {
+    // Le ValidationPipe intercepte le body AVANT d'arriver ici
+    // Si name est vide, NestJS retourne 400 automatiquement
+    return this.familiesService.create(dto)
+  }
+
+  // PATCH /families/:id
+  @Patch(':id')
+  update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateFamilyDto,   // Tous les champs optionnels grâce à PartialType
+  ) {
+    return this.familiesService.update(id, dto)
+  }
+
+  // DELETE /families/:id → 204 No Content
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  remove(@Param('id', ParseUUIDPipe) id: string) {
+    this.familiesService.remove(id)
+    // Pas de return — NestJS envoie 204 sans body
   }
 }
 ```
 
-### 7.2 Wildcards de route
+**Pas-à-pas :**
+1. `@Controller('families')` — tout le controller répond sous `/families/*`.
+2. `ParseUUIDPipe` sur chaque `@Param('id')` — si un client envoie `/families/abc`, NestJS retourne 400 avant d'atteindre le handler.
+3. `DefaultValuePipe(1), ParseIntPipe` sur `@Query` — enchaînement de pipes : le premier donne la valeur par défaut, le second convertit en `number`.
+4. `@HttpCode(HttpStatus.NO_CONTENT)` sur `remove` — le `void` combiné à 204 garantit qu'aucun body n'est envoyé.
+5. Le `ValidationPipe` global (dans `main.ts`) valide le DTO automatiquement — le handler n'est jamais appelé si la validation échoue.
 
-```typescript
-@Get('ab*cd')  // Correspond a : abcd, abXcd, abXYZcd, etc.
-findWildcard() {
-  return 'Route wildcard';
+### Exemple B — DTO avec enum et tableau de tags
+
+```ts
+// src/families/dto/create-family.dto.ts
+import {
+  IsString, IsNotEmpty, IsOptional,
+  MinLength, MaxLength,
+  IsArray, IsEnum,
+} from 'class-validator'
+
+export enum FamilyVisibility {
+  Private = 'private',
+  Public = 'public',
+}
+
+export class CreateFamilyDto {
+  @IsString()
+  @IsNotEmpty()
+  @MinLength(2)
+  @MaxLength(80)
+  name: string
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  description?: string
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })   // Valide chaque élément — { each: true } = mode tableau
+  tags?: string[]
+
+  @IsOptional()
+  @IsEnum(FamilyVisibility, { message: 'visibility doit être "private" ou "public"' })
+  visibility?: FamilyVisibility
 }
 ```
 
-### 7.3 Versioning d'API
+Body valide :
 
-```typescript
-// main.ts — Activer le versioning
-import { VersioningType } from '@nestjs/common';
-
-async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-  app.enableVersioning({
-    type: VersioningType.URI, // /v1/books, /v2/books
-    // Autres options : VersioningType.HEADER, VersioningType.MEDIA_TYPE
-  });
-  await app.listen(3000);
+```json
+{
+  "name": "Famille Martin",
+  "description": "Tribu du Nord",
+  "tags": ["bretagne", "musique"],
+  "visibility": "private"
 }
 ```
 
-```typescript
-import { Controller, Get, Version } from '@nestjs/common';
+Body invalide → 400 :
 
-// Version sur le controller entier
-@Controller({ path: 'books', version: '1' })
-export class BooksV1Controller {
-  @Get() // GET /v1/books
-  findAll() {
-    return { version: 1, books: [] };
-  }
-}
-
-@Controller({ path: 'books', version: '2' })
-export class BooksV2Controller {
-  @Get() // GET /v2/books
-  findAll() {
-    return { version: 2, books: [], pagination: {} };
-  }
-}
-
-// Version sur une methode specifique
-@Controller('books')
-export class BooksController {
-  @Version('1')
-  @Get()
-  findAllV1() {
-    return { version: 1 };
-  }
-
-  @Version('2')
-  @Get()
-  findAllV2() {
-    return { version: 2 };
-  }
+```json
+{
+  "name": "",
+  "visibility": "secret"
 }
 ```
 
-### 7.4 Sous-domaine routing
+Réponse NestJS :
 
-```typescript
-// Routing base sur le sous-domaine
-@Controller({ host: 'admin.example.com' })
-export class AdminController {
-  @Get()
-  dashboard() {
-    return { panel: 'admin' };
-  }
-}
-
-@Controller({ host: ':tenant.example.com' })
-export class TenantController {
-  @Get()
-  index(@HostParam('tenant') tenant: string) {
-    return { tenant };
-  }
+```json
+{
+  "statusCode": 400,
+  "message": [
+    "name should not be empty",
+    "visibility doit être \"private\" ou \"public\""
+  ],
+  "error": "Bad Request"
 }
 ```
 
----
+**Pas-à-pas :**
+1. `@IsEnum(FamilyVisibility)` — NestJS vérifie que la valeur appartient à l'union `'private' | 'public'` ; toute autre valeur lève une erreur lisible.
+2. `@IsString({ each: true })` combiné à `@IsArray()` — chaque élément du tableau `tags` doit être une string ; un `[1, 2]` serait rejeté.
+3. `@IsOptional()` court-circuite les décorateurs suivants si le champ est absent — description et tags peuvent être omis.
+4. `whitelist: true` dans `ValidationPipe` supprime silencieusement tout champ non déclaré dans le DTO — un client ne peut pas injecter un champ `role: 'admin'` non attendu.
 
-## 8. Le cycle de vie d'une requête dans NestJS
+## 4. Pièges & misconceptions
+
+- **`@Param()` retourne toujours une string.** `@Param('id') id: string` — même si la route est `:id` et que le client envoie `/families/42`, `id` vaut `'42'` (string). Si tu utilises des IDs numériques, ajoute `ParseIntPipe`. Pour les UUID, ajoute `ParseUUIDPipe` qui valide le format et retourne 400 si invalide — évite un aller en base inutile.
+
+- **`ValidationPipe` désactivé silencieusement.** Si tu oublies `app.useGlobalPipes(new ValidationPipe())` dans `main.ts`, les décorateurs `class-validator` ne s'exécutent jamais — le body est accepté quel que soit son contenu. *Correction :* activer `ValidationPipe` global au démarrage, ou appliquer `@UsePipes(new ValidationPipe())` au niveau du controller ou de la méthode.
+
+- **`whitelist: true` sans `forbidNonWhitelisted`.** `whitelist: true` seul supprime silencieusement les champs inconnus. Si tu veux que le client sache qu'il envoie des champs invalides (meilleure DX), ajouter `forbidNonWhitelisted: true` : NestJS retourne alors une erreur 400 explicite.
+
+- **`@HttpCode` sur `@Post` manquant.** `@Post()` retourne 200 par défaut en NestJS 11 (le 201 était le comportement des versions antérieures — confirmation dans la doc officielle). *Toujours* décorer la méthode `create` avec `@HttpCode(HttpStatus.CREATED)` pour être explicite et indépendant des versions.
+
+- **Double body avec `@Res()`.** Utiliser `@Res() res: Response` et appeler `res.json()` ET `return` dans la même méthode envoie deux réponses — Express lève `Cannot set headers after they are sent`. Si tu dois utiliser `@Res()`, ajoute `{ passthrough: true }` pour que NestJS gère quand même la sérialisation : `@Res({ passthrough: true }) res: Response`.
+
+- **`PartialType` de la mauvaise source.** `PartialType` existe dans `@nestjs/mapped-types` ET dans `@nestjs/swagger`. Importer depuis `@nestjs/swagger` sans avoir Swagger installé fait planter le démarrage. *Correction :* utiliser `@nestjs/mapped-types` pour les projets sans Swagger.
+
+## 5. Ancrage TribuZen
+
+Couche fil-rouge : **FamilyController et PostController de l'API TribuZen (routes REST + DTOs validés)** (`smaurier/tribuzen`).
+
+Structure cible dans `apps/api/src/` :
 
 ```
-  Requete HTTP entrante
-       │
-       ▼
-  ┌──────────────────┐
-  │  Middleware        │  (express middleware, cors, helmet)
-  └────────┬─────────┘
-           │
-  ┌────────▼─────────┐
-  │  Guards            │  (authentification, autorisation)
-  └────────┬─────────┘
-           │
-  ┌────────▼─────────┐
-  │  Interceptors     │  (avant le handler — logging, cache)
-  │  (pre-handler)    │
-  └────────┬─────────┘
-           │
-  ┌────────▼─────────┐
-  │  Pipes             │  (validation, transformation)
-  └────────┬─────────┘
-           │
-  ┌────────▼─────────┐
-  │  Controller        │  (route handler)
-  │  Handler           │
-  └────────┬─────────┘
-           │
-  ┌────────▼─────────┐
-  │  Interceptors     │  (apres le handler — transform response)
-  │  (post-handler)   │
-  └────────┬─────────┘
-           │
-  ┌────────▼─────────┐
-  │  Exception        │  (si erreur — formatte la reponse)
-  │  Filters          │
-  └────────┬─────────┘
-           │
-       Reponse HTTP
+families/
+  dto/
+    create-family.dto.ts   ← CreateFamilyDto avec class-validator
+    update-family.dto.ts   ← UpdateFamilyDto = PartialType(CreateFamilyDto)
+  families.controller.ts   ← FamilyController (GET/POST/PATCH/DELETE)
+  families.service.ts      ← FamiliesService (logique + accès DB)
+  families.module.ts       ← FamiliesModule (assemblage)
+
+posts/
+  dto/
+    create-post.dto.ts     ← titre, contenu, tags, statut (enum Draft|Published)
+  posts.controller.ts      ← PostController
 ```
 
-> **A retenir** : Ce pipeline est le coeur de NestJS. Chaque couche à un role précis : les Guards decidident si la requête a le droit de passer, les Pipes valident et transforment les donnees, les Interceptors peuvent modifier la requête et la réponse, et les Exception Filters gerent les erreurs. Les controllers ne sont qu'un maillon de cette chaine.
+Dans TribuZen :
+- `POST /families` avec `CreateFamilyDto` — un owner crée une famille. La validation empêche un `name` vide ou un `visibility` invalide d'atteindre la base.
+- `GET /families?page=&limit=` — liste paginée des familles auxquelles l'utilisateur appartient (filtre Guard en module 12).
+- `PATCH /families/:id` avec `UpdateFamilyDto` — modification partielle de la fiche famille ; `PartialType` garantit que les champs non envoyés ne sont pas écrasés.
+- `DELETE /families/:id` → 204 — suppression physique (soft-delete avec `deletedAt` sera ajouté quand Prisma est câblé au module 13).
 
----
+## 6. Points clés
 
-## 9. Bonnes pratiques pour les controllers
+1. `@Controller('prefix')` définit le préfixe de route pour toute la classe ; combiné à `setGlobalPrefix('api')` dans `main.ts`.
+2. `@Get`, `@Post`, `@Put`, `@Patch`, `@Delete` mappent les méthodes HTTP — l'argument est le sous-chemin relatif au préfixe.
+3. `@Param('id')` = paramètre de route (`:id`) ; `@Query('page')` = query string (`?page=`) ; `@Body()` = body JSON parsé — tous retournent `string` sauf si un pipe convertit.
+4. `ParseUUIDPipe` et `ParseIntPipe` sur `@Param`/`@Query` convertissent et valident — retournent 400 automatiquement si le format est invalide.
+5. Un DTO = une classe TypeScript avec des décorateurs `class-validator` ; `@IsOptional()` court-circuite les autres décorateurs si le champ est absent.
+6. `ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true })` dans `main.ts` active la validation globale — sans lui, `class-validator` ne s'exécute pas.
+7. `@HttpCode(HttpStatus.CREATED)` pour les POST créateurs, `@HttpCode(HttpStatus.NO_CONTENT)` pour les DELETE sans body — ne pas laisser les codes implicites.
+8. Éviter `@Res()` sauf cas extrême — il court-circuite interceptors et exception filters.
 
-| Pratique | Explication |
-|---|---|
-| **Controllers maigres** | Maximum 5-10 lignes par méthode, déléguer au service |
-| **Un controller par ressource** | `BooksController`, `UsersController` — pas de mega-controller |
-| **DTOs pour les entrees** | Toujours typer les `@Body()` avec un DTO |
-| **Pipes pour la validation** | Utiliser le `ValidationPipe` global |
-| **Pas de logique metier** | Le controller orchestre, le service travaille |
-| **Nommage conventionnel** | `findAll`, `findOne`, `create`, `update`, `remove` |
-| **Status codes explicites** | Utiliser `@HttpCode` quand le defaut n'est pas adapte |
-| **Documentation** | Ajouter `@ApiTags`, `@ApiOperation` avec Swagger |
+## 7. Seeds Anki
 
----
+```
+Quelle est la différence entre @Param('id') et @Query('page') ?|@Param extrait un segment de chemin de route (:id dans l'URL) ; @Query extrait un paramètre de query string (?page= dans l'URL) — les deux retournent des strings
+Pourquoi class-validator ne valide-t-il rien sans configuration supplémentaire ?|Les décorateurs class-validator ne s'exécutent que si un ValidationPipe est actif — il faut app.useGlobalPipes(new ValidationPipe()) dans main.ts ou @UsePipes au niveau de la méthode
+À quoi sert whitelist: true dans ValidationPipe ?|Supprime silencieusement les champs du body non déclarés dans le DTO — empêche un client d'injecter des champs inattendus comme role ou isAdmin
+Comment retourner 204 No Content sur un DELETE NestJS ?|Décorer la méthode avec @HttpCode(HttpStatus.NO_CONTENT) et ne rien retourner (void) — NestJS envoie un body vide avec le bon status
+Quelle pipe valide qu'un paramètre de route est un UUID v4 valide ?|ParseUUIDPipe — s'utilise dans @Param('id', ParseUUIDPipe) id: string ; retourne automatiquement 400 si le format UUID n'est pas respecté
+Comment rendre tous les champs d'un DTO optionnels pour un PATCH ?|Importer PartialType de @nestjs/mapped-types et créer class UpdateDto extends PartialType(CreateDto) {} — tous les décorateurs class-validator sont préservés mais les champs deviennent optionnels
+Que se passe-t-il si on utilise @Res() dans une méthode NestJS controller ?|@Res() donne accès à l'objet Express brut et court-circuite le pipeline NestJS — interceptors et exception filters ne s'exécutent plus ; utiliser @Res({ passthrough: true }) si on veut les deux
+Comment enchaîner plusieurs pipes sur un @Query pour pagination ?|@Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number — DefaultValuePipe donne la valeur par défaut si le paramètre est absent, ParseIntPipe convertit ensuite en number
+```
 
-## 10. Exercices pratiques
+## Pont vers le lab
 
-### Exercice 1 — Controller avec query params avances
-
-Cree un controller `ProductsController` avec :
-- `GET /products` avec filtres : `?category=electronics&minPrice=10&maxPrice=100&inStock=true&sort=price&order=asc`
-- Utilise `DefaultValuePipe`, `ParseIntPipe`, `ParseBoolPipe`
-- Pagination avec `page` et `limit`
-
-### Exercice 2 — Routes imbriquees
-
-Cree une API avec les routes suivantes :
-- `GET /api/shops/:shopId/products`
-- `POST /api/shops/:shopId/products`
-- `GET /api/shops/:shopId/products/:productId`
-
-### Exercice 3 — API versionnee
-
-Implemente deux versions d'un endpoint `/books` :
-- V1 retourne un tableau simple
-- V2 retourne un objet avec pagination et metadata
-
----
-
-## Navigation
-
-| | Lien |
-|---|---|
-| Module précédent | [Module 09 — NestJS — Introduction & Premiers pas](./09-nestjs-introduction.md) |
-| Module suivant | [Module 11 — NestJS — Providers & Injection de Dependances](./11-nestjs-providers-di.md) |
-| Quiz | [Quiz Module 10](../quizzes/10-nestjs-controllers.quiz.md) |
-| Lab | [Lab 10 — Controllers NestJS](../labs/10-nestjs-controllers.lab.md) |
-
----
-
-> **A retenir** : Les controllers NestJS sont la porte d'entree de ton API. Avec les decorateurs de méthodes HTTP, les decorateurs de paramètres et les pipes de transformation, tu as un controle total sur le routing et l'extraction des donnees. Mais rappelle-toi : le controller orchestre, le service travaille. Garde tes controllers maigres et tes services riches en logique metier.
-
----
-
-<!-- parcours-recommande -->
-
-::: tip Parcours recommandé
-1. **Screencast** : [screencast 10 controllers](../screencasts/screencast-10-controllers.md)
-2. **Lab** : [lab-10-controllers-dto](../labs/lab-10-controllers-dto/README)
-3. **Quiz** : [quiz 10 controllers](../quizzes/quiz-10-controllers.html)
-:::
+> Lab associé : `09-nestjs/labs/lab-10-controllers-dto/README.md`. Tu construis FamilyController et son DTO TribuZen avec class-validator et ValidationPipe — pas de gap-fill, code de A à Z, corrigé complet commenté inline.

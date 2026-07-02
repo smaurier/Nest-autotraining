@@ -1,885 +1,546 @@
-# Module 07 — Express — Validation & Gestion d'erreurs
-
-> **Objectif** : Implementer une validation robuste des donnees entrantes avec Zod, créer un système centralise de gestion d'erreurs avec des classes d'erreurs personnalisees, et eliminer le boilerplate try/catch avec un wrapper async.
->
-> **Difficulte** : ⭐⭐⭐ (avance)
-
+---
+titre: Express validation et erreurs
+cours: 09-nestjs
+notions: [validation des entrées, schéma zod et inférence de type, middleware de validation, gestion centralisée des erreurs, classes d'erreur custom, codes de statut appropriés, erreurs async en Express 5, réponses d'erreur cohérentes]
+outcomes: [valider un payload avec zod, centraliser la gestion d'erreurs dans un middleware, définir des classes d'erreur métier, renvoyer des erreurs HTTP cohérentes]
+prerequis: [06-express-middleware]
+next: 08-express-auth-securite
+libs: [{ name: express, version: "^5" }, { name: zod, version: "^3" }]
+tribuzen: valider les payloads d'invitation TribuZen et centraliser les erreurs API
+last-reviewed: 2026-07
 ---
 
-## 1. Pourquoi la validation est critique
+# Express validation et erreurs
 
-### 1.1 Ne jamais faire confiance au client
+> **Outcomes — tu sauras FAIRE :** valider un payload avec Zod, centraliser la gestion d'erreurs dans un middleware, définir des classes d'erreur métier, renvoyer des erreurs HTTP cohérentes.
+> **Difficulté :** :star::star::star:
 
-Le client (navigateur, application mobile, Postman) peut envoyer **n'importe quoi**. Même si ton formulaire Angular à une validation cote client, un attaquant peut :
+## 1. Cas concret d'abord
 
-- Modifier le body JSON directement avec les DevTools ou curl
-- Envoyer des types inattendus (string au lieu de number)
-- Injecter du code malveillant (SQL injection, XSS)
-- Envoyer des donnees manquantes ou supplementaires
+Dans TribuZen, un membre `admin` veut inviter quelqu'un dans sa famille. Il envoie :
 
-```typescript
-// Ce que tu esperes recevoir :
-{ "email": "alice@example.com", "age": 28 }
-
-// Ce que tu peux REELLEMENT recevoir :
-{ "email": "", "age": "vingt-huit" }
-{ "email": "<script>alert('xss')</script>" }
-{ "age": -5, "role": "admin" }
-{ }
-null
-"une string au lieu d'un objet"
+```ts
+POST /invitations
+{ "email": "", "familyId": 42, "role": "superadmin" }
 ```
 
-> **Analogie** : La validation backend, c'est comme le controle de sécurité a l'aeroport. La compagnie aerienne (frontend) peut vérifier ton billet, mais la sécurité (backend) vérifié quand même — parce que n'importe qui peut se présenter à la porte.
+Sans validation, ton handler reçoit un email vide, un `familyId` qui devrait être un UUID (pas un entier), et un rôle inexistant dans le domaine. La DB va soit rejeter silencieusement, soit stocker des données corrompues. L'erreur qui remonte est souvent une `TypeError` interne qui fuite la stack trace au client.
 
-### 1.2 La validation frontend ne suffit JAMAIS
+Le problème a trois faces :
 
-| Validation       | Frontend                      | Backend                             |
-| ---------------- | ----------------------------- | ----------------------------------- |
-| **Objectif**     | UX — guider l'utilisateur     | **Sécurité** — proteger les donnees |
-| **Contournable** | Oui (DevTools, curl, scripts) | Non (seul le serveur controle)      |
-| **Obligatoire**  | Recommandee                   | **Indispensable**                   |
-| **Quand**        | Avant l'envoi                 | A la reception                      |
+1. **Entrées** : les données du client ne correspondent pas au contrat attendu.
+2. **Erreurs métier** : invitation d'un utilisateur déjà membre, famille introuvable — des cas prévus qui nécessitent des codes HTTP précis.
+3. **Erreurs inattendues** : bugs qui ne doivent jamais exposer leur stack trace en production.
 
-> **Piege classique** : "J'ai déjà la validation dans mon formulaire Angular/React, pas besoin de la refaire au backend." FAUX. La validation frontend est un confort utilisateur, pas une protection. Un attaquant contourne la validation frontend en 5 secondes.
+Ce module installe les trois solutions : un schéma Zod qui valide et infère le type, un middleware de validation réutilisable, et un error handler centralisé qui produit des réponses cohérentes pour les trois cas.
 
----
+## 2. Théorie complète, concise
 
-## 2. Zod — Validation avec des schemas
+### 2.1 Validation des entrées — pourquoi le backend est la seule barrière réelle
 
-### 2.1 Qu'est-ce que Zod
+La validation frontend est un confort utilisateur, pas une protection. Un attaquant ou un script curl contourne un formulaire Angular en cinq secondes. Seul le serveur contrôle ce qui entre dans la base de données.
 
-**Zod** est une librairie de validation et de parsing de schemas pour TypeScript/JavaScript. Elle est :
+La règle : **valider le body, les params, et la query à l'entrée de chaque route**, avant toute logique métier. Toute donnée non validée est une donnée non-typée au runtime.
 
-- **Type-safe** : infere automatiquement les types TypeScript
-- **Zero dépendance** : très legere
-- **Composable** : les schemas se combinent facilement
-- **Immutable** : chaque transformation retourne un nouveau schema
-
-```bash
-npm install zod
+```ts
+// Sans validation — req.body est `any` à l'exécution
+router.post('/invitations', async (req, res) => {
+  // req.body.email peut être undefined, null, un objet, 42…
+  await db.insert(req.body) // stocke n'importe quoi
+})
 ```
 
-### 2.2 Schemas de base
+### 2.2 Schéma Zod et inférence de type
 
-```typescript
-import { z } from "zod";
+Zod est une librairie de validation TypeScript-first. Un schéma Zod décrit la forme attendue d'une donnée ; Zod valide, transforme, et infère le type TypeScript statique correspondant.
 
-// === Types primitifs ===
-const stringSchema = z.string();
-const numberSchema = z.number();
-const booleanSchema = z.boolean();
-const dateSchema = z.date();
-const bigintSchema = z.bigint();
+```ts
+import { z } from 'zod'
 
-// === Validation avec parse (lance une erreur si invalide) ===
-stringSchema.parse("hello"); // 'hello'
-stringSchema.parse(42); // ERREUR: ZodError
+// Schéma pour POST /invitations
+const InvitationSchema = z.object({
+  email: z.string().email('Email invalide').toLowerCase().trim(),
+  familyId: z.string().uuid('familyId doit être un UUID'),
+  role: z.enum(['admin', 'member', 'guest']).default('member'),
+})
 
-// === Validation avec safeParse (retourne un resultat) ===
-const result = stringSchema.safeParse("hello");
-if (result.success) {
-  console.log(result.data); // 'hello'
-} else {
-  console.log(result.error.issues); // tableau d'erreurs
-}
+// z.infer extrait le type TypeScript du schéma — source de vérité unique
+type InvitationPayload = z.infer<typeof InvitationSchema>
+// { email: string; familyId: string; role: 'admin' | 'member' | 'guest' }
 ```
 
-### 2.3 Validations sur les strings
+**`parse` vs `safeParse`** — deux modes de validation :
 
-```typescript
-import { z } from "zod";
+```ts
+// parse — lance une ZodError si invalide (à utiliser avec try/catch)
+const data = InvitationSchema.parse(req.body)
 
-const emailSchema = z
-  .string()
-  .email("Email invalide") // Validation email
-  .min(5, "Minimum 5 caracteres") // Longueur minimum
-  .max(100, "Maximum 100 caracteres") // Longueur maximum
-  .toLowerCase() // Transforme en minuscules
-  .trim(); // Supprime les espaces
-
-const passwordSchema = z
-  .string()
-  .min(8, "Le mot de passe doit contenir au moins 8 caracteres")
-  .max(72, "Maximum 72 caracteres (limite bcrypt)")
-  .regex(/[A-Z]/, "Doit contenir au moins une majuscule")
-  .regex(/[a-z]/, "Doit contenir au moins une minuscule")
-  .regex(/[0-9]/, "Doit contenir au moins un chiffre");
-
-const urlSchema = z.string().url("URL invalide");
-const uuidSchema = z.string().uuid("UUID invalide");
-const isoDateSchema = z.string().datetime("Date ISO invalide");
-
-// Tester
-emailSchema.parse("  ALICE@Example.Com  "); // 'alice@example.com'
-emailSchema.parse("pas-un-email"); // ERREUR
-```
-
-### 2.4 Validations sur les nombres
-
-```typescript
-import { z } from "zod";
-
-const ageSchema = z
-  .number()
-  .int("L'age doit etre un entier")
-  .min(0, "L'age ne peut pas etre negatif")
-  .max(150, "Age non realiste");
-
-const priceSchema = z
-  .number()
-  .positive("Le prix doit etre positif")
-  .multipleOf(0.01, "Maximum 2 decimales"); // Precision centimes
-
-const pageSchema = z.number().int().min(1).default(1); // Valeur par defaut si non fourni
-
-// Coerce — convertir une string en number automatiquement
-const coercedNumber = z.coerce.number();
-coercedNumber.parse("42"); // 42 (number, pas string)
-coercedNumber.parse("abc"); // ERREUR: NaN n'est pas un nombre valide
-```
-
-### 2.5 Schemas d'objets
-
-```typescript
-import { z } from "zod";
-
-// Schema pour creer un utilisateur
-const createUserSchema = z.object({
-  email: z.string().email().toLowerCase().trim(),
-  password: z.string().min(8).max(72),
-  nom: z.string().min(2).max(50).trim(),
-  age: z.number().int().min(13).max(150).optional(),
-  role: z.enum(["user", "admin", "moderator"]).default("user"),
-  preferences: z
-    .object({
-      newsletter: z.boolean().default(false),
-      theme: z.enum(["light", "dark"]).default("light"),
-    })
-    .optional(),
-});
-
-// Inferer le type TypeScript automatiquement
-// type CreateUserInput = z.infer<typeof createUserSchema>
-
-// Validation
-const userData = createUserSchema.parse({
-  email: "  ALICE@Example.Com  ",
-  password: "MyP@ssw0rd",
-  nom: "  Alice Dupont  ",
-  role: "user",
-});
-// {
-//   email: 'alice@example.com',  ← trim + lowercase
-//   password: 'MyP@ssw0rd',
-//   nom: 'Alice Dupont',         ← trim
-//   role: 'user',
-//   age: undefined,              ← optionnel
-// }
-```
-
-### 2.6 Schema pour les mises a jour (PATCH)
-
-```typescript
-// Pour un PATCH, tous les champs sont optionnels
-const updateUserSchema = createUserSchema.partial();
-// Equivalent de rendre chaque champ .optional()
-
-// Ou choisir les champs modifiables
-const updateUserSchema2 = createUserSchema
-  .pick({ nom: true, age: true, preferences: true })
-  .partial();
-```
-
-### 2.7 Tableaux et enums
-
-```typescript
-import { z } from "zod";
-
-// Tableau de strings
-const tagsSchema = z
-  .array(z.string().min(1).max(30))
-  .min(1, "Au moins un tag")
-  .max(10, "Maximum 10 tags");
-
-// Enum
-const statusSchema = z.enum(["draft", "published", "archived"]);
-statusSchema.parse("draft"); // 'draft'
-statusSchema.parse("invalid"); // ERREUR
-
-// Enum natif (TypeScript)
-// enum Status { Draft = 'draft', Published = 'published' }
-// const statusSchema = z.nativeEnum(Status);
-
-// Union de types
-const idSchema = z.union([z.string().uuid(), z.number().int().positive()]);
-idSchema.parse("550e8400-e29b-41d4-a716-446655440000"); // OK
-idSchema.parse(42); // OK
-idSchema.parse("pas-un-uuid"); // ERREUR
-```
-
-### 2.8 Nullable et optional
-
-```typescript
-import { z } from "zod";
-
-// optional : le champ peut etre absent (undefined)
-z.string().optional(); // string | undefined
-
-// nullable : le champ peut etre null
-z.string().nullable(); // string | null
-
-// Les deux
-z.string().optional().nullable(); // string | null | undefined
-
-// default : valeur par defaut si absent
-z.string().default("N/A");
-
-// Difference dans un objet
-const schema = z.object({
-  requis: z.string(), // DOIT etre present et etre une string
-  optionnel: z.string().optional(), // Peut etre absent
-  nullable: z.string().nullable(), // Peut etre null mais DOIT etre present
-  defaut: z.string().default("hello"), // Absent → 'hello'
-});
-```
-
-### 2.9 Messages d'erreur personnalises
-
-```typescript
-import { z } from "zod";
-
-const schema = z.object({
-  email: z
-    .string({
-      required_error: "L'email est obligatoire",
-      invalid_type_error: "L'email doit etre une chaine de caracteres",
-    })
-    .email("Format d'email invalide"),
-
-  age: z
-    .number({
-      required_error: "L'age est obligatoire",
-      invalid_type_error: "L'age doit etre un nombre",
-    })
-    .min(13, { message: "Tu dois avoir au moins 13 ans" }),
-});
-
-// Formatter les erreurs de facon lisible
-function formatZodErrors(error) {
-  return error.issues.map((issue) => ({
-    field: issue.path.join("."),
-    message: issue.message,
-  }));
-}
-
-const result = schema.safeParse({ email: 123, age: "abc" });
+// safeParse — retourne { success: true, data } ou { success: false, error }
+// préférable dans un middleware : contrôle explicite du chemin d'erreur
+const result = InvitationSchema.safeParse(req.body)
 if (!result.success) {
-  console.log(formatZodErrors(result.error));
-  // [
-  //   { field: 'email', message: "L'email doit etre une chaine de caracteres" },
-  //   { field: 'age', message: "L'age doit etre un nombre" }
-  // ]
+  // result.error.issues : tableau de { path: string[], message: string, code: string }
+  result.error.issues.forEach(issue => {
+    console.log(issue.path.join('.'), issue.message)
+    // 'email' 'Email invalide'
+  })
 }
 ```
 
----
+**Transformations intégrées** : `.toLowerCase()`, `.trim()`, `.default()`, `.coerce.number()` s'appliquent pendant la validation. Après un `safeParse` réussi, `result.data` contient les données transformées, pas les données brutes.
 
-## 3. Middleware de validation générique
+**Schéma partiel pour PATCH** :
 
-### 3.1 Un middleware réutilisable
+```ts
+// .partial() rend chaque champ optionnel — pattern standard pour PATCH
+const UpdateInvitationSchema = InvitationSchema.partial()
+// { email?: string; familyId?: string; role?: 'admin' | 'member' | 'guest' }
 
-```typescript
-// middleware/validate.js
-import { ZodError } from "zod";
+// .pick() sélectionne un sous-ensemble de champs
+const RoleUpdateSchema = InvitationSchema.pick({ role: true })
+```
 
-/**
- * Middleware de validation generique pour Zod
- * @param {import('zod').ZodSchema} schema - Le schema Zod
- * @param {'body' | 'query' | 'params'} source - L'endroit a valider
- */
-export function validate(schema, source = "body") {
-  return (req, res, next) => {
-    const result = schema.safeParse(req[source]);
+### 2.3 Middleware de validation générique
+
+Un middleware Express reçoit `(req, res, next)`. Le middleware de validation applique un schéma Zod sur `req.body`, `req.params` ou `req.query`, et mute la source avec les données transformées si la validation réussit.
+
+```ts
+// src/middleware/validate.ts
+import { z, ZodSchema } from 'zod'
+import { Request, Response, NextFunction } from 'express'
+
+export function validate(
+  schema: ZodSchema,
+  source: 'body' | 'params' | 'query' = 'body'
+) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const result = schema.safeParse(req[source])
 
     if (!result.success) {
-      const errors = result.error.issues.map((issue) => ({
-        field: issue.path.join("."),
-        message: issue.message,
-        code: issue.code,
-      }));
-
+      // On n'appelle PAS next(err) ici — c'est une erreur de validation 400 attendue
       return res.status(400).json({
-        error: "Validation echouee",
-        details: errors,
-      });
+        error: 'Validation échouée',
+        details: result.error.issues.map(issue => ({
+          field: issue.path.join('.'),
+          message: issue.message,
+        })),
+      })
     }
 
-    // Remplacer les donnees par les donnees validees et transformees
-    req[source] = result.data;
-    next();
-  };
+    // Mutater req[source] avec les données validées+transformées (trim, toLowerCase, default…)
+    // Sans cette ligne, les transformations Zod sont ignorées
+    req[source] = result.data
+    next()
+  }
 }
 ```
 
-### 3.2 Utilisation dans les routes
+Usage dans le router :
 
-```typescript
-// routes/users.routes.js
-import { Router } from "express";
-import { z } from "zod";
-import { validate } from "../middleware/validate.js";
-import * as usersController from "../controllers/users.controller.js";
+```ts
+// src/routes/invitations.ts
+import { Router } from 'express'
+import { validate } from '../middleware/validate.js'
+import { InvitationSchema } from '../schemas/invitation.js'
 
-const router = Router();
+const router = Router()
 
-// Schemas
-const createUserSchema = z.object({
-  email: z.string().email().toLowerCase().trim(),
-  password: z.string().min(8).max(72),
-  nom: z.string().min(2).max(50).trim(),
-});
-
-const updateUserSchema = createUserSchema.partial();
-
-const paramsSchema = z.object({
-  id: z.string().uuid("ID invalide"),
-});
-
-const querySchema = z.object({
-  page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(100).default(10),
-  search: z.string().optional(),
-});
-
-// Routes avec validation
-router.get("/", validate(querySchema, "query"), usersController.getAll);
-
-router.get("/:id", validate(paramsSchema, "params"), usersController.getById);
-
-router.post("/", validate(createUserSchema, "body"), usersController.create);
-
-router.patch(
-  "/:id",
-  validate(paramsSchema, "params"),
-  validate(updateUserSchema, "body"),
-  usersController.update,
-);
-
-export default router;
+router.post('/', validate(InvitationSchema), async (req, res) => {
+  // req.body est maintenant typé et transformé
+  const payload = req.body as z.infer<typeof InvitationSchema>
+  // …logique métier
+})
 ```
 
-> **Bonne pratique** : Avec ce pattern, la validation est declarative et separee de la logique metier. Tu declares le schema, tu l'appliques comme middleware, et ton controller recoit toujours des donnees valides et correctement typees. C'est le même principe que NestJS utilise avec les Pipes et les DTO.
+### 2.4 Classes d'erreur custom
 
----
+Les classes d'erreur permettent de distinguer les erreurs prévues (domaine métier) des bugs. Chaque classe porte son code HTTP et son flag `isOperational`.
 
-## 4. Gestion centralisee des erreurs
+```ts
+// src/utils/errors.ts
 
-### 4.1 Classes d'erreurs personnalisees
-
-```typescript
-// utils/errors.js
-
+// Classe de base — toutes les erreurs métier en héritent
 export class AppError extends Error {
-  constructor(message, statusCode = 500) {
-    super(message);
-    this.name = this.constructor.name;
-    this.statusCode = statusCode;
-    this.isOperational = true; // Erreur prevue vs bug
-    Error.captureStackTrace(this, this.constructor);
+  readonly statusCode: number
+  readonly isOperational = true  // erreur prévue, pas un bug
+
+  constructor(message: string, statusCode = 500) {
+    super(message)
+    this.name = this.constructor.name
+    this.statusCode = statusCode
+    // Préserve la stack trace en pointant sur l'appelant, pas sur AppError
+    Error.captureStackTrace(this, this.constructor)
   }
 }
 
 export class NotFoundError extends AppError {
-  constructor(resource = "Ressource", id) {
-    const message = id
-      ? `${resource} avec l'ID "${id}" introuvable`
-      : `${resource} introuvable`;
-    super(message, 404);
+  constructor(resource: string, id?: string) {
+    const msg = id ? `${resource} "${id}" introuvable` : `${resource} introuvable`
+    super(msg, 404)
   }
 }
 
-export class ValidationError extends AppError {
-  constructor(message = "Donnees invalides", details = []) {
-    super(message, 400);
-    this.details = details;
+// 400 — données malformées ou manquantes
+export class BadRequestError extends AppError {
+  constructor(message = 'Requête invalide') {
+    super(message, 400)
   }
 }
 
-export class UnauthorizedError extends AppError {
-  constructor(message = "Authentification requise") {
-    super(message, 401);
-  }
-}
-
-export class ForbiddenError extends AppError {
-  constructor(message = "Acces interdit") {
-    super(message, 403);
-  }
-}
-
+// 409 — violation de contrainte métier (doublon, état incompatible)
 export class ConflictError extends AppError {
-  constructor(message = "Conflit avec une ressource existante") {
-    super(message, 409);
+  constructor(message = 'Conflit avec une ressource existante') {
+    super(message, 409)
   }
 }
 ```
 
-### 4.2 Middleware de gestion d'erreurs centralise
+Usage dans un handler — on lève l'erreur, le error handler la reçoit via `next` :
 
-```typescript
-// middleware/error-handler.js
-import { AppError } from "../utils/errors.js";
-import { ZodError } from "zod";
+```ts
+// Express 5 — l'erreur throwée dans un async handler atteint automatiquement next(err)
+router.get('/:id', async (req, res) => {
+  const invitation = await db.findInvitation(req.params.id)
+  if (!invitation) {
+    throw new NotFoundError('Invitation', req.params.id)  // pas de next(err) manuel
+  }
+  res.json(invitation)
+})
+```
 
-export function errorHandler(err, req, res, next) {
-  // Log l'erreur
-  console.error(`[${new Date().toISOString()}] ${err.name}: ${err.message}`);
+### 2.5 Codes de statut appropriés
 
-  // Erreurs Zod (validation)
+Chaque cas d'erreur a un code HTTP sémantique. Renvoyer `500` pour toutes les erreurs masque l'intention et casse le contrat client.
+
+| Code | Signification | Exemple dans TribuZen |
+|------|---------------|-----------------------|
+| `400 Bad Request` | Corps malformé, champ manquant, type incorrect | `familyId` absent du payload |
+| `404 Not Found` | Ressource absente | Famille inconnue dans l'invitation |
+| `409 Conflict` | Contrainte métier violée | Utilisateur déjà membre de la famille |
+| `422 Unprocessable Entity` | Données syntaxiquement valides mais métier invalides | Invitation d'un owner vers lui-même |
+| `500 Internal Server Error` | Bug non prévu | TypeError inattendue |
+
+**400 vs 422** : `400` = données malformées (Zod échoue sur le type). `422` = données bien formées mais logique métier impossible (email valide, mais l'utilisateur s'invite lui-même).
+
+### 2.6 Gestion centralisée des erreurs
+
+Un middleware d'erreur Express reçoit quatre paramètres : `(err, req, res, next)`. C'est la signature exacte qui le distingue d'un middleware normal. Il doit être déclaré **après toutes les routes**.
+
+```ts
+// src/middleware/error-handler.ts
+import { Request, Response, NextFunction } from 'express'
+import { ZodError } from 'zod'
+import { AppError } from '../utils/errors.js'
+
+export function errorHandler(
+  err: unknown,
+  req: Request,
+  res: Response,
+  _next: NextFunction
+) {
+  // Erreurs Zod remontées par parse() (pas par safeParse)
   if (err instanceof ZodError) {
     return res.status(400).json({
-      error: "Validation echouee",
-      details: err.issues.map((i) => ({
-        field: i.path.join("."),
-        message: i.message,
-      })),
-    });
+      error: 'Validation échouée',
+      details: err.issues.map(i => ({ field: i.path.join('.'), message: i.message })),
+    })
   }
 
-  // Erreurs applicatives (nos classes personnalisees)
+  // Erreurs métier prévues
   if (err instanceof AppError) {
-    return res.status(err.statusCode).json({
-      error: err.message,
-      ...(err.details && { details: err.details }),
-    });
+    return res.status(err.statusCode).json({ error: err.message })
   }
 
-  // Erreur JSON parse (body mal forme)
-  if (err.type === "entity.parse.failed") {
-    return res.status(400).json({
-      error: "JSON invalide dans le body de la requete",
-    });
+  // Body JSON mal formé (SyntaxError levée par express.json())
+  if (err instanceof SyntaxError && 'body' in err) {
+    return res.status(400).json({ error: 'JSON invalide dans le body' })
   }
 
-  // Erreur inattendue (bug) — ne pas exposer les details en production
-  if (process.env.NODE_ENV === "production") {
-    return res.status(500).json({
-      error: "Erreur interne du serveur",
-    });
-  }
+  // Bug non prévu — ne jamais exposer la stack en production
+  const message = process.env.NODE_ENV === 'production'
+    ? 'Erreur interne du serveur'
+    : (err instanceof Error ? err.message : String(err))
 
-  // En developpement, exposer les details
-  res.status(500).json({
-    error: err.message,
-    stack: err.stack,
-    name: err.name,
-  });
+  res.status(500).json({ error: message })
 }
 ```
 
-### 4.3 Utilisation dans les controllers
+Montage dans `index.ts` :
 
-```typescript
-// controllers/books.controller.js
-import * as booksService from "../services/books.service.js";
-import { NotFoundError, ConflictError } from "../utils/errors.js";
+```ts
+import express from 'express'
+import invitationsRouter from './routes/invitations.js'
+import { errorHandler } from './middleware/error-handler.js'
 
-export function getAll(req, res) {
-  const { page, limit } = req.query; // Deja valide par le middleware
-  const books = booksService.getAllBooks({ page, limit });
-  res.json(books);
-}
+const app = express()
+app.use(express.json())
+app.use('/invitations', invitationsRouter)
 
-export function getById(req, res) {
-  const book = booksService.getBookById(req.params.id);
-  if (!book) {
-    throw new NotFoundError("Livre", req.params.id);
-  }
-  res.json({ data: book });
-}
+// APRÈS toutes les routes — sinon les erreurs n'atteignent jamais ce handler
+app.use(errorHandler)
 
-export function create(req, res) {
-  // Verifier l'unicite
-  if (booksService.existsByIsbn(req.body.isbn)) {
-    throw new ConflictError("Un livre avec cet ISBN existe deja");
-  }
-
-  const book = booksService.createBook(req.body);
-  res.status(201).json({ data: book });
-}
+app.listen(3000)
 ```
 
----
+### 2.7 Erreurs async en Express 5
 
-## 5. Async handler wrapper
+En Express 4, un handler `async` dont la Promise rejette ne déclenche pas le middleware d'erreur — l'exception disparaît silencieusement. Il fallait un wrapper `asyncHandler` ou un bloc `try/catch` manuel.
 
-### 5.1 Le problème du try/catch repetitif
+**Express 5 propage automatiquement** les rejections des handlers async vers `next(err)` sans aucun wrapper :
 
-```typescript
-// SANS wrapper — try/catch dans CHAQUE handler async
-app.get("/api/books/:id", async (req, res, next) => {
+```ts
+// Express 5 — propre, aucun try/catch nécessaire
+router.post('/', validate(InvitationSchema), async (req, res) => {
+  const created = await invitationService.create(req.body)
+  // Si create() rejette (ConflictError, DB error…) → next(err) automatique
+  res.status(201).json(created)
+})
+
+// Express 4 — try/catch obligatoire sinon l'erreur est perdue
+router.post('/', validate(InvitationSchema), async (req, res, next) => {
   try {
-    const book = await booksService.getById(req.params.id);
-    if (!book) throw new NotFoundError("Livre", req.params.id);
-    res.json(book);
+    const created = await invitationService.create(req.body)
+    res.status(201).json(created)
   } catch (err) {
-    next(err); // Il faut TOUJOURS passer l'erreur a next()
+    next(err)  // sans ça, le client attend indéfiniment (timeout)
   }
-});
-
-app.post("/api/books", async (req, res, next) => {
-  try {
-    const book = await booksService.create(req.body);
-    res.status(201).json(book);
-  } catch (err) {
-    next(err); // Encore et encore...
-  }
-});
+})
 ```
 
-> **Piege classique** : Si tu oublies le `try/catch` et le `next(err)` dans un handler async, Express ne capte PAS l'erreur. La requête reste en attente indefiniment (timeout). C'est un des bugs les plus courants en Express.
+La migration Express 4 → 5 sur ce point est transparente : le code Express 4 avec `try/catch` continue de fonctionner. Le bénéfice d'Express 5 est de pouvoir supprimer le boilerplate.
 
-### 5.2 La solution : asyncHandler
+### 2.8 Réponses d'erreur cohérentes
 
-```typescript
-// utils/async-handler.js
+Un contrat d'erreur stable permet au frontend de parser les erreurs de façon uniforme, quelle que soit la route. La forme recommandée :
 
-/**
- * Wrapper qui attrape les erreurs des handlers async
- * et les passe automatiquement a next()
- */
-export function asyncHandler(fn) {
-  return (req, res, next) => {
-    Promise.resolve(fn(req, res, next)).catch(next);
-  };
+```ts
+// Erreur de validation (400)
+{
+  "error": "Validation échouée",
+  "details": [
+    { "field": "email", "message": "Email invalide" },
+    { "field": "familyId", "message": "familyId doit être un UUID" }
+  ]
+}
+
+// Erreur métier (404, 409…)
+{
+  "error": "Invitation \"inv-abc\" introuvable"
+}
+
+// Erreur interne en production (500)
+{
+  "error": "Erreur interne du serveur"
 }
 ```
 
-### 5.3 Utilisation — Code propre sans try/catch
+La clé `error` est toujours présente. `details` n'apparaît que pour les erreurs de validation. En production, aucune stack trace ne fuite.
 
-```typescript
-import { asyncHandler } from "../utils/async-handler.js";
-import { NotFoundError } from "../utils/errors.js";
+## 3. Worked examples
 
-// AVEC wrapper — plus de try/catch !
-router.get(
-  "/:id",
-  asyncHandler(async (req, res) => {
-    const book = await booksService.getById(req.params.id);
-    if (!book) throw new NotFoundError("Livre", req.params.id);
-    res.json({ data: book });
-  }),
-);
+### Exemple A — Schéma Zod complet + middleware de validation sur POST /invitations
 
-router.post(
-  "/",
-  asyncHandler(async (req, res) => {
-    const book = await booksService.create(req.body);
-    res.status(201).json({ data: book });
-  }),
-);
+```ts
+// src/schemas/invitation.ts
+import { z } from 'zod'
 
-// Si booksService.getById() rejette ou si le throw est execute,
-// l'erreur est automatiquement passee a next() → error handler
+export const InvitationSchema = z.object({
+  // email normalisé automatiquement : trim + toLowerCase → pas besoin de le faire dans le handler
+  email: z.string({
+    required_error: 'email est obligatoire',
+    invalid_type_error: 'email doit être une chaîne',
+  }).email('Email invalide').toLowerCase().trim(),
+
+  familyId: z.string().uuid('familyId doit être un UUID v4'),
+
+  // enum restreint les valeurs possibles — 'superadmin' sera rejeté avec un message lisible
+  role: z.enum(['admin', 'member', 'guest'], {
+    errorMap: () => ({ message: 'role doit être admin, member ou guest' }),
+  }).default('member'),
+})
+
+// Type inféré — source de vérité unique pour handler et service
+export type InvitationPayload = z.infer<typeof InvitationSchema>
+// { email: string; familyId: string; role: 'admin' | 'member' | 'guest' }
 ```
 
-> **Bonne pratique** : Utilise `asyncHandler` (où la librairie `express-async-errors`) pour TOUS tes handlers async. C'est un petit utilitaire qui elimine des dizaines de blocs try/catch et empeche les erreurs silencieuses. Express 5 (sorti en octobre 2024) intégré ce comportement nativement.
->
-> **Note Express 5** : Express 5 géré nativement les erreurs dans les handlers async — plus besoin de `express-async-errors` ni de `asyncHandler`. Si vous demarrez un nouveau projet, privilegiez Express 5.
+```ts
+// src/routes/invitations.ts
+import { Router } from 'express'
+import { z } from 'zod'
+import { validate } from '../middleware/validate.js'
+import { InvitationSchema, type InvitationPayload } from '../schemas/invitation.js'
+import { ConflictError, NotFoundError } from '../utils/errors.js'
 
----
+const router = Router()
 
-## 6. Gestion globale des erreurs Node.js
+// Données en mémoire (Prisma viendra au module 10)
+const invitations: Array<InvitationPayload & { id: string }> = []
 
-### 6.1 Filets de sécurité globaux
+// POST /invitations
+// validate() agit avant le handler : si le body est invalide, répond 400 immédiatement
+router.post('/', validate(InvitationSchema), async (req, res) => {
+  // req.body est maintenant de type InvitationPayload (transformé et validé)
+  const payload = req.body as InvitationPayload
 
-```typescript
-// A mettre au debut de ton fichier principal (src/index.js)
-
-// Promise rejection non geree
-process.on("unhandledRejection", (reason, promise) => {
-  console.error("UNHANDLED REJECTION !", reason);
-  // En production : logger, alerter, puis arreter proprement
-  // process.exit(1);
-});
-
-// Exception non attrapee
-process.on("uncaughtException", (err) => {
-  console.error("UNCAUGHT EXCEPTION !", err);
-  // TOUJOURS arreter le processus apres une uncaughtException
-  // L'application est dans un etat inconsistant
-  process.exit(1);
-});
-
-// Arret propre (Ctrl+C, Docker stop, etc.)
-process.on("SIGTERM", () => {
-  console.log("SIGTERM recu. Arret propre...");
-  server.close(() => {
-    console.log("Serveur ferme.");
-    process.exit(0);
-  });
-});
-```
-
-### 6.2 Erreur operationnelle vs Bug
-
-| Type                    | Description                                     | Reaction                                 |
-| ----------------------- | ----------------------------------------------- | ---------------------------------------- |
-| **Operationnelle**      | Situation prevue (404, validation, timeout)     | Renvoyer une erreur au client            |
-| **Bug (programmation)** | Erreur dans le code (TypeError, ReferenceError) | Logger, alerter, possiblement redemarrer |
-
-```typescript
-// middleware/error-handler.js
-export function errorHandler(err, req, res, next) {
-  if (err.isOperational) {
-    // Erreur prevue — reponse normale au client
-    return res.status(err.statusCode).json({ error: err.message });
+  // Vérification d'unicité — erreur métier 409
+  const duplicate = invitations.find(
+    i => i.email === payload.email && i.familyId === payload.familyId
+  )
+  if (duplicate) {
+    throw new ConflictError(`${payload.email} est déjà invité dans cette famille`)
+    // Express 5 : ce throw atteint le error handler automatiquement
   }
 
-  // Bug — situation anormale
-  console.error("BUG DETECTE :", err);
-  // En production : alerter l'equipe (Slack, email, Sentry)
+  const created = { id: crypto.randomUUID(), ...payload }
+  invitations.push(created)
+  res.status(201).json(created)
+})
 
-  res.status(500).json({ error: "Erreur interne du serveur" });
-}
-```
-
----
-
-## 7. Patterns courants et pieges
-
-### 7.1 Pattern : Validation + Controller + Service
-
-```typescript
-// Le flux complet d'une requete validee :
-
-// 1. Le middleware validate() verifie les donnees
-// 2. Le controller orchestre (pas de logique metier)
-// 3. Le service contient la logique metier
-// 4. En cas d'erreur, le error handler centralise la reponse
-
-// Route
-router.post(
-  "/",
-  validate(createBookSchema), // 1. Validation
-  asyncHandler(booksCtrl.create), // 2. Controller (async-safe)
-);
-
-// Controller
-export async function create(req, res) {
-  const book = await booksService.create(req.body); // 3. Service
-  res.status(201).json({ data: book });
-}
-
-// Service
-export async function create(data) {
-  if (await existsByIsbn(data.isbn)) {
-    throw new ConflictError("ISBN deja utilise"); // 4. Erreur → error handler
+// GET /invitations/:id
+router.get('/:id', async (req, res) => {
+  const invitation = invitations.find(i => i.id === req.params.id)
+  if (!invitation) {
+    throw new NotFoundError('Invitation', req.params.id)
+    // Express 5 : pas de next(err) — le throw suffit
   }
-  // ... creer le livre
-}
+  res.json(invitation)
+})
+
+export default router
 ```
 
-### 7.2 Piege : Oublier next(err) avec les erreurs async
+**Pas-à-pas :**
+1. `validate(InvitationSchema)` est un middleware — il s'exécute avant le handler. Si le body échoue, il répond `400` et n'appelle pas `next()` : le handler n'est jamais atteint.
+2. `req.body = result.data` dans le middleware remplace les données brutes par les données transformées (`email` est déjà en minuscules et trimmé).
+3. `throw new ConflictError(...)` dans un handler `async` Express 5 déclenche automatiquement `next(err)` — pas de `try/catch`.
+4. `z.infer<typeof InvitationSchema>` donne le type TypeScript exact, aligné sur le schéma — si le schéma change, le type change aussi sans intervention manuelle.
 
-```typescript
-// MAUVAIS — l'erreur est perdue, le client attend indefiniment
-app.get("/api/data", async (req, res) => {
-  const data = await fetchData(); // Si ca rejette → crash silencieux
-  res.json(data);
-});
+### Exemple B — Error handler complet + test des trois chemins d'erreur
 
-// BON — avec asyncHandler
-app.get(
-  "/api/data",
-  asyncHandler(async (req, res) => {
-    const data = await fetchData();
-    res.json(data);
-  }),
-);
+```ts
+// src/index.ts — assemblage complet
+import express from 'express'
+import invitationsRouter from './routes/invitations.js'
+import { errorHandler } from './middleware/error-handler.js'
 
-// BON — avec try/catch et next
-app.get("/api/data", async (req, res, next) => {
-  try {
-    const data = await fetchData();
-    res.json(data);
-  } catch (err) {
-    next(err);
-  }
-});
+const app = express()
+app.use(express.json())  // parse le body JSON — lève SyntaxError si JSON malformé
+
+app.use('/invitations', invitationsRouter)
+
+// Route catch-all pour les URL inconnues
+app.use((_req, res) => {
+  res.status(404).json({ error: 'Route introuvable' })
+})
+
+// error handler — APRÈS toutes les routes et middlewares
+// Gère : ZodError (si parse() utilisé), AppError, SyntaxError, bugs
+app.use(errorHandler)
+
+app.listen(3000, () => console.log('API TribuZen sur http://localhost:3000'))
 ```
 
-### 7.3 Piege : Envoyer deux réponses
+Trois requêtes curl pour tester les trois chemins :
 
-```typescript
-// MAUVAIS — res.json() est appele deux fois
-app.get("/api/users/:id", (req, res) => {
-  const user = findUser(req.params.id);
-  if (!user) {
-    res.status(404).json({ error: "Not found" });
-    // OUBLI du return ! Le code continue...
-  }
-  res.json(user); // Error: Cannot set headers after they are sent
-});
+```bash
+# Chemin 1 — validation échouée (400)
+curl -X POST http://localhost:3000/invitations \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"","familyId":42,"role":"superadmin"}'
+# → 400 { "error": "Validation échouée", "details": [
+#     { "field": "email", "message": "Email invalide" },
+#     { "field": "familyId", "message": "familyId doit être un UUID v4" },
+#     { "field": "role", "message": "role doit être admin, member ou guest" }
+#   ] }
 
-// BON — return apres chaque reponse
-app.get("/api/users/:id", (req, res) => {
-  const user = findUser(req.params.id);
-  if (!user) {
-    return res.status(404).json({ error: "Not found" });
-  }
-  res.json(user);
-});
+# Chemin 2 — doublon (409)
+curl -X POST http://localhost:3000/invitations \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"bob@tribu.fr","familyId":"550e8400-e29b-41d4-a716-446655440000"}'
+# → 409 { "error": "bob@tribu.fr est déjà invité dans cette famille" }
+
+# Chemin 3 — ressource absente (404)
+curl http://localhost:3000/invitations/inv-inconnu
+# → 404 { "error": "Invitation \"inv-inconnu\" introuvable" }
 ```
 
----
+**Pas-à-pas :**
+1. Le middleware `validate()` répond `400` directement — il ne passe jamais au handler ni au error handler.
+2. `throw new ConflictError(...)` dans le handler async Express 5 passe à `errorHandler` via `next(err)` automatique. `err instanceof AppError` est vrai → `409`.
+3. `throw new NotFoundError(...)` idem → `404`.
+4. Un bug inattendu (ex. `TypeError` sur une valeur nulle) passe aussi dans `errorHandler`. `isOperational` est `false` → `500` avec message générique en production.
 
-## 8. Structure finale recommandee
+## 4. Pièges & misconceptions
+
+- **`parse()` throw, `safeParse()` retourne.** `schema.parse(data)` lève une `ZodError` si les données sont invalides — il faut un `try/catch` ou que l'erreur soit captée par le error handler. `schema.safeParse(data)` ne throw jamais : il retourne `{ success: false, error }`. Dans un middleware de validation, `safeParse` est préférable car on contrôle explicitement le code de statut. Dans un service où on veut que l'erreur remonte, `parse` avec Express 5 est correct.
+
+- **Oublier de muter `req[source]`.** Sans `req.body = result.data`, les transformations Zod (`.trim()`, `.toLowerCase()`, `.default()`) ne sont jamais appliquées dans le handler. L'email arrive avec sa casse originale, les valeurs par défaut sont absentes. Le handler reçoit les données brutes, pas les données transformées.
+
+- **Middleware d'erreur déclaré avant les routes.** Un `app.use(errorHandler)` placé avant `app.use('/invitations', router)` ne reçoit jamais les erreurs des routes — les erreurs passent dans le vide (timeout client). Il doit être le dernier `app.use()` de l'application.
+
+- **Express 4 vs Express 5 — async silencieux.** En Express 4, un `throw` ou une Promise rejetée dans un handler `async` sans `try/catch` ne déclenche pas le middleware d'erreur. La requête reste en attente indéfiniment. En Express 5, ce throw remonte automatiquement. Si tu vois des timeouts inexpliqués, vérifie la version d'Express et la présence du `try/catch` ou du wrapper `asyncHandler`.
+
+- **`400` vs `422` — confusion sur le code.** `400 Bad Request` = données malformées (mauvais type, champ manquant) — c'est ce que Zod détecte. `422 Unprocessable Entity` = données bien formées mais règle métier impossible (invitation de soi-même, rôle incompatible avec la famille). Utiliser `400` pour les deux mélange les couches validation et domaine et complique le débogage côté client.
+
+- **Exposer la stack trace en production.** `res.status(500).json({ error: err.stack })` expose l'architecture interne, les chemins de fichiers, les noms de bibliothèques — informations précieuses pour un attaquant. En production, toujours renvoyer un message générique et logger la stack côté serveur.
+
+- **`req.body` de type `any` après validation.** Sans un cast explicite (`const payload = req.body as InvitationPayload`) ou un type générique sur `Request`, TypeScript ne sait pas que le middleware a transformé `req.body`. Variante propre : créer un type `ValidatedRequest<T>` qui étend `Request` avec un `body: T` typé.
+
+## 5. Ancrage TribuZen
+
+Couche fil-rouge : **valider les payloads d'invitation TribuZen et centraliser les erreurs API** (`smaurier/tribuzen`).
+
+- `POST /invitations` → `InvitationSchema` avec Zod valide email, UUID de famille, rôle enum. Le middleware `validate(InvitationSchema)` est branché avant le handler — le handler ne voit jamais de données invalides.
+- `ConflictError` est levée si l'utilisateur invité est déjà membre de la famille — code `409` explicite pour que le frontend affiche "Déjà membre" plutôt qu'une erreur générique.
+- `NotFoundError` couvre le cas `GET /invitations/:id` avec un UUID inconnu — `404` propre.
+- L'`errorHandler` centralisé garantit que toutes les routes TribuZen (familles, invitations, membres) renvoient le même shape d'erreur — le frontend peut parser avec un intercepteur Axios unique.
+- En Express 5 (version cible), aucun handler async ne contient de `try/catch` — le code est plus lisible et l'erreur ne peut pas être avalée silencieusement.
+
+Structure cible dans `smaurier/tribuzen` :
 
 ```
-src/
-├── index.js
-├── middleware/
-│   ├── validate.js          ← Middleware Zod generique
-│   ├── error-handler.js     ← Error handler centralise
-│   ├── async-handler.js     ← Wrapper async
-│   └── auth.js
-├── routes/
-│   ├── index.js
-│   └── books.routes.js
-├── controllers/
-│   └── books.controller.js
-├── services/
-│   └── books.service.js
-├── schemas/                  ← Schemas Zod
-│   └── books.schema.js
-└── utils/
-    └── errors.js            ← Classes d'erreurs
+tribuzen/
+  apps/
+    api/
+      src/
+        schemas/
+          invitation.ts       ← InvitationSchema + z.infer
+        middleware/
+          validate.ts         ← validate(schema, source)
+          error-handler.ts    ← errorHandler centralisé
+        utils/
+          errors.ts           ← AppError, NotFoundError, ConflictError
+        routes/
+          invitations.ts      ← router avec validate + handlers async Express 5
+        index.ts              ← app.use(errorHandler) en dernier
 ```
 
----
+## 6. Points clés
 
-## 9. Exercices pratiques
+1. `z.object({...})` définit le schéma ; `z.infer<typeof Schema>` en extrait le type TypeScript — une seule source de vérité.
+2. `safeParse` retourne `{ success, data | error }` sans throw ; `parse` throw une `ZodError` — préférer `safeParse` dans les middlewares pour contrôler le code de statut.
+3. `result.error.issues` est un tableau `{ path: string[], message: string, code: string }` — `path.join('.')` donne le nom du champ (`email`, `preferences.theme`).
+4. Le middleware `validate(schema, source)` mute `req[source] = result.data` pour que les transformations Zod (trim, toLowerCase, default) soient effectives dans le handler.
+5. `AppError` porte `statusCode` et `isOperational = true` — le error handler distingue les erreurs prévues des bugs.
+6. `400` = données malformées (Zod), `404` = ressource absente, `409` = contrainte métier, `422` = règle domaine invalide, `500` = bug non prévu.
+7. Middleware d'erreur Express = 4 paramètres `(err, req, res, next)` — déclaré après toutes les routes, sinon inatteignable.
+8. Express 5 propage automatiquement les rejections des handlers async vers `next(err)` — pas de `try/catch` ni de `asyncHandler` wrapper nécessaire.
+9. En production, le error handler renvoie un message générique pour les `500` — jamais de stack trace exposée au client.
 
-### Exercice 1 — Schema Zod complet
+## 7. Seeds Anki
 
-Cree un schema Zod pour une API de blog avec les regles suivantes :
-
-- `title` : string, 5-200 caracteres, trim
-- `content` : string, minimum 50 caracteres
-- `tags` : tableau de strings, 1-5 tags, chaque tag 2-30 caracteres
-- `status` : 'draft' | 'published' | 'archived', defaut 'draft'
-- `publishedAt` : date ISO optionnelle, requise si status = 'published'
-
-### Exercice 2 — Error handler avance
-
-Ameliore le error handler pour :
-
-- Logger les erreurs dans un fichier `errors.log`
-- Ajouter un identifiant unique à chaque erreur (pour la retrouver dans les logs)
-- Retourner cet identifiant au client pour le support
-
-### Exercice 3 — Middleware de validation avance
-
-Cree un middleware qui valide body, params ET query en une seule declaration :
-
-```typescript
-router.post(
-  "/:id",
-  validate({ body: bodySchema, params: paramsSchema, query: querySchema }),
-  handler,
-);
+```
+Différence parse vs safeParse dans Zod ?|parse lève une ZodError si invalide (nécessite try/catch) ; safeParse retourne { success, data } ou { success, error } sans throw — préférable dans un middleware pour contrôler le code de statut
+Comment extraire le type TypeScript d'un schéma Zod ?|z.infer<typeof MonSchema> — source de vérité unique, le type change si le schéma change sans intervention manuelle
+Pourquoi muter req.body = result.data dans le middleware validate ?|Sans cette mutation, les transformations Zod (trim, toLowerCase, default) ne sont pas appliquées — le handler reçoit les données brutes du client
+Quelle signature distingue un middleware d'erreur Express d'un middleware normal ?|(err, req, res, next) — 4 paramètres, express reconnaît le error handler uniquement par ce nombre ; déclaré après toutes les routes
+Comment Express 5 améliore-t-il la gestion des handlers async ?|Express 5 propage automatiquement les rejections de Promise vers next(err) — plus besoin de try/catch ni de wrapper asyncHandler ; en Express 4, l'erreur était silencieuse et le client restait en attente
+Différence HTTP 400 vs 422 dans une API REST ?|400 Bad Request = données malformées (type incorrect, champ manquant) — ce que Zod détecte ; 422 Unprocessable Entity = données valides syntaxiquement mais règle métier impossible
+À quoi sert isOperational sur une classe AppError ?|Distinguer les erreurs prévues (domaine métier — 404, 409) des bugs (TypeError, ReferenceError) ; le error handler renvoie un message générique pour les non-opérationnelles en production
+Comment accéder aux détails d'une ZodError ?|err.issues — tableau de { path: string[], message: string, code: string } ; path.join('.') donne le nom du champ ('email', 'preferences.theme')
 ```
 
----
+## Pont vers le lab
 
-## Bonus — Validation BFF et contrat frontend stable
-
-Pour un BFF Angular, la validation ne sert pas seulement a securiser l'API. Elle sert aussi a figer un contrat front/BFF stable, meme si les services upstream evoluent.
-
-### 1) Contrat d'erreur uniforme (front-friendly)
-
-```typescript
-return res.status(400).json({
-  success: false,
-  error: {
-    code: "VALIDATION_ERROR",
-    message: "Donnees invalides",
-    details: errors,
-  },
-  requestId: req.id,
-});
-```
-
-### 2) Schema BFF strict contre le mass-assignment
-
-```typescript
-import { z } from "zod";
-
-const bffCheckoutSchema = z
-  .object({
-    cartId: z.string().uuid(),
-    couponCode: z.string().trim().max(32).optional(),
-    deliveryMode: z.enum(["standard", "express"]),
-  })
-  .strict();
-```
-
-### 3) Regle BFF importante
-
-Le frontend ne consomme jamais directement les erreurs brutes des upstreams.
-Le BFF mappe toujours les erreurs techniques (timeouts, 5xx, payloads heterogenes) vers un format d'erreur coherent pour Angular.
-
-| Type d'erreur upstream     | Reponse BFF conseillee               |
-| -------------------------- | ------------------------------------ |
-| Timeout service paiement   | `503` + code `PAYMENT_UNAVAILABLE`   |
-| Validation metier upstream | `422` + code metier stable           |
-| Resource absente           | `404` + message front comprehensible |
-| Erreur interne inattendue  | `500` + message generic + requestId  |
-
-> **A retenir BFF** : Une validation robuste + un contrat d'erreur stable reduisent drastiquement les regressions frontend, surtout quand plusieurs equipes backend changent en parallele.
-
----
-
-## 10. Résumé — Les concepts clés
-
-| Concept                   | Definition                                                    |
-| ------------------------- | ------------------------------------------------------------- |
-| **Zod**                   | Librairie de validation de schemas TypeScript-first           |
-| **parse vs safeParse**    | parse lance une erreur, safeParse retourne un résultat        |
-| **validate middleware**   | Middleware générique qui valide req.body/query/params         |
-| **AppError**              | Classe de base pour les erreurs applicatives                  |
-| **Error handler**         | Middleware Express a 4 arguments pour centraliser les erreurs |
-| **asyncHandler**          | Wrapper qui passe les rejections async a next()               |
-| **Operationnelle vs Bug** | Erreur prevue (404) vs erreur de code (TypeError)             |
-| **unhandledRejection**    | Événement global pour les Promises non gerees                 |
-
-> **A retenir** : Une bonne gestion des erreurs et une validation robuste sont les deux piliers d'une API fiable. Zod pour valider les entrees, des classes d'erreurs pour structurer les cas d'erreur, un error handler centralise pour formater les réponses, et asyncHandler pour eliminer le boilerplate — ces patterns sont la base de toute API Express professionnelle. NestJS formalisera ces concepts avec les Pipes, Filters et Exception Filters.
-
----
-
-## Navigation
-
-|                  | Lien                                                                               |
-| ---------------- | ---------------------------------------------------------------------------------- |
-| Module précédent | [Module 06 — Express — Middleware & Architecture](./06-express-middleware.md)      |
-| Module suivant   | [Module 08 — Express — Authentification & Sécurité](./08-express-auth-securite.md) |
-| Quiz             | [Quiz Module 07](../quizzes/07-express-validation-erreurs.quiz.md)                 |
-| Lab              | [Lab 07 — Validation et erreurs](../labs/07-express-validation-erreurs.lab.md)     |
-
----
-
-> **A retenir** : Ne fais jamais confiance aux donnees du client. Valide TOUT avec Zod, centralise tes erreurs avec un error handler, et utilise asyncHandler pour éviter les erreurs silencieuses. Ces pratiques ne sont pas optionnelles — elles sont la différence entre une API amateur et une API de production.
-
----
-
-<!-- parcours-recommande -->
-
-::: tip Parcours recommandé
-
-1. **Screencast** : [screencast 07 validation erreurs](../screencasts/screencast-07-validation-erreurs.md)
-2. **Lab** : [lab-07-validation-erreurs](../labs/lab-07-validation-erreurs/README)
-3. **Visualisation** : [Middleware Pipeline](../visualizations/middleware-pipeline.html)
-4. **Quiz** : [quiz 07 validation erreurs](../quizzes/quiz-07-validation-erreurs.html)
-   :::
+> Lab associé : `09-nestjs/labs/lab-07-validation-erreurs/`. Tu construis de zéro le endpoint `POST /invitations` TribuZen avec Zod + validate middleware + error handler centralisé en Express 5 — pas de gap-fill, code de A à Z. Corrigé complet commenté + variante J+30 dans le README.
