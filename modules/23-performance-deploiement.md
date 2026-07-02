@@ -4,7 +4,7 @@ cours: 09-nestjs
 notions: [cache avec cache-manager, compression des réponses, Docker multi-stage pour NestJS, variables d'environnement en production, health checks avec terminus, logging structuré, arrêt gracieux, bonnes pratiques de déploiement]
 outcomes: [mettre en cache des réponses, dockeriser une app NestJS en multi-stage, exposer un health check, configurer un arrêt gracieux et un logging structuré pour la prod]
 prerequis: [22-nestjs-jobs-queues]
-next: 24-nestjs-projet-final
+next: 24-projet-final
 libs: [{ name: "@nestjs/cache-manager", version: "^3" }, { name: "@nestjs/terminus", version: "^11" }]
 tribuzen: dockeriser et durcir pour la prod l'API TribuZen (cache, health check, graceful shutdown)
 last-reviewed: 2026-07

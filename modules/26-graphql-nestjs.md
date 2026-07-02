@@ -1,1943 +1,680 @@
-# Module 26 — GraphQL avec NestJS
-
-> **Objectif** : Maîtriser l'intégration de GraphQL dans NestJS avec Apollo Server. Comprendre les différences fondamentales avec REST, implementer des queries, mutations, subscriptions, gérer le problème N+1 avec DataLoader, sécuriser et paginer une API GraphQL.
-> **Difficulte** : ⭐⭐⭐⭐ (avance+)
-> **Prérequis** : Module 10 (Controllers & Providers), Module 13 (Guards & Pipes), Module 19 (Auth JWT)
-> **Duree estimee** : 8 heures
-
+---
+titre: GraphQL avec NestJS
+cours: 09-nestjs
+notions: [GraphQL vs REST, approche code-first NestJS, resolvers et décorateurs Resolver Query Mutation, types ObjectType et Field, arguments et input types, résolution de champs et ResolveField, problème N plus 1 et DataLoader, subscriptions en survol]
+outcomes: [exposer une API GraphQL code-first avec NestJS, écrire des resolvers query et mutation, typer schéma et inputs, éviter le N+1 avec DataLoader]
+prerequis: [25-mongodb-mongoose]
+next: fin-parcours-09-nestjs
+libs: [{ name: "@nestjs/graphql", version: "^13" }, { name: graphql, version: "^16" }]
+tribuzen: exposer une API GraphQL de TribuZen (query familles avec membres, mutation d'invitation)
+last-reviewed: 2026-07
 ---
 
-## 1. REST vs GraphQL — Pourquoi une alternative ?
+# GraphQL avec NestJS
 
-### 1.1 Les limites de REST
+> **Outcomes — tu sauras FAIRE :** exposer une API GraphQL code-first avec NestJS, écrire des resolvers `@Query` et `@Mutation`, typer ton schéma avec `@ObjectType` et `@InputType`, résoudre des champs liés avec `@ResolveField`, et éliminer le problème N+1 avec DataLoader.
+> **Difficulté :** :star::star::star::star:
 
-REST est un excellent paradigme architectural, mais il montre ses limites dans certains contextes :
+## 1. Cas concret d'abord
 
-**Over-fetching** : le client recoit plus de donnees que nécessaire.
+TribuZen doit exposer ses données à deux clients très différents. L'app mobile n'a besoin que du nom de la famille et du nombre de membres sur l'écran d'accueil. L'app web charge la famille avec la liste complète des membres, leurs rôles et leurs activités récentes pour la page de gestion.
 
-```
-GET /api/products/42
-```
-
-```json
-{
-  "id": 42,
-  "name": "Clavier mecanique",
-  "description": "Un clavier mecanique haut de gamme avec switches Cherry MX...",
-  "price": 149.99,
-  "stock": 23,
-  "weight": 1.2,
-  "dimensions": { "width": 44, "height": 3.5, "depth": 14 },
-  "manufacturer": "KeyTech",
-  "createdAt": "2024-01-15T10:30:00Z",
-  "updatedAt": "2024-03-01T14:22:00Z",
-  "categoryId": 7,
-  "supplierId": 12
-}
-```
-
-Si le frontend n'a besoin que du `name` et du `price`, il recoit quand même tous les autres champs. Sur un réseau mobile, ça peut faire la différence.
-
-**Under-fetching** : le client doit faire plusieurs requêtes pour obtenir les donnees liees.
+Tu essaies de construire ça en REST et tu bloques immédiatement :
 
 ```
-GET /api/products/42          → le produit
-GET /api/products/42/reviews  → les avis
-GET /api/categories/7         → la categorie
+GET /families        → retourne 12 champs par famille, le mobile n'en utilise que 2 (over-fetching)
+GET /families/:id    → retourne la famille mais PAS les membres
+GET /families/:id/members → requête séparée obligatoire (under-fetching)
 ```
 
-Trois requêtes HTTP pour afficher une seule page produit. C'est du **under-fetching**.
-
-> **Analogie** : Imagine que tu commandes au restaurant. Avec REST, tu dois demander le plat, puis separement les accompagnements, puis separement la sauce. Avec GraphQL, tu fais une seule commande : "Je veux le plat avec les frites et la sauce bearnaise". Le serveur te ramene tout en une fois, exactement ce que tu as demandé.
-
-### 1.2 Qu'est-ce que GraphQL ?
-
-GraphQL est un **langage de requête pour les API** et un **runtime** pour exécuter ces requêtes. Il a ete créé par Facebook en 2012 et rendu open source en 2015.
-
-Principes fondamentaux :
-
-| Principe | Description |
-|---|---|
-| **Schema fortement type** | Chaque API définit un schema avec des types précis |
-| **Requête declarative** | Le client demandé exactement ce qu'il veut |
-| **Un seul endpoint** | Tout passe par `POST /graphql` |
-| **Introspection** | L'API peut decrire son propre schema |
-| **Hierarchique** | Les requêtes suivent la structure des donnees |
-
-### 1.3 Anatomie d'une requête GraphQL
+Deux clients, trois endpoints, et le mobile sur-charge le réseau à chaque affichage. Avec GraphQL, chaque client déclare exactement ce qu'il veut en une seule requête :
 
 ```graphql
-# Le client envoie cette requete
+# Mobile — uniquement ce qu'il faut
 query {
-  product(id: 42) {
+  families {
+    id
     name
-    price
-    reviews {
-      rating
-      comment
-    }
-    category {
-      name
+    memberCount
+  }
+}
+
+# Web — famille + membres en une requête
+query {
+  family(id: "fam-1") {
+    name
+    members {
+      id
+      displayName
     }
   }
 }
 ```
 
-```json
-// Le serveur repond exactement avec cette structure
-{
-  "data": {
-    "product": {
-      "name": "Clavier mecanique",
-      "price": 149.99,
-      "reviews": [
-        { "rating": 5, "comment": "Excellent !" },
-        { "rating": 4, "comment": "Tres bon produit" }
-      ],
-      "category": {
-        "name": "Peripheriques"
-      }
-    }
-  }
-}
-```
+Ce module implémente cette API GraphQL code-first avec NestJS : `@ObjectType`, `@Resolver`, `@Query`, `@Mutation`, `@ResolveField`, `@InputType`, et un DataLoader pour éliminer le problème N+1 sur les membres.
 
-**Une seule requête, exactement les champs demandes, avec les relations incluses.**
+## 2. Théorie complète, concise
 
-### 1.4 Les trois types d'operations
+### 2.1 GraphQL vs REST — ce qui change vraiment
 
-| Operation | Description | Equivalent REST |
+REST = un endpoint par ressource, réponse fixe définie par le serveur. GraphQL = un seul endpoint `/graphql`, réponse définie par le client dans sa requête.
+
+| Critère | REST | GraphQL |
 |---|---|---|
-| **Query** | Lecture de donnees | GET |
-| **Mutation** | Création, modification, suppression | POST, PUT, PATCH, DELETE |
-| **Subscription** | Donnees temps réel (WebSocket) | WebSocket / SSE |
+| Endpoints | Un par ressource | Un seul (`/graphql`) |
+| Champs retournés | Fixés par le serveur | Sélectionnés par le client |
+| Relations | Plusieurs requêtes ou endpoints composites | Une requête hiérarchique |
+| Contrat | Documentation + conventions | Schéma auto-documenté introspectable |
+| Caching HTTP | Natif sur les GET | Complexe (tout passe en POST) |
 
-### 1.5 REST vs GraphQL — Matrice de decision
+**GraphQL l'emporte** quand plusieurs clients ont des besoins différents (mobile vs web), quand les données sont fortement interconnectées (familles → membres → activités), et quand le frontend évolue vite. REST reste préférable pour les APIs publiques simples, l'upload de fichiers, ou quand le caching HTTP est critique.
 
-| Critere | REST | GraphQL |
-|---|---|---|
-| **Simplicite** | Plus simple à apprendre | Courbe d'apprentissage plus forte |
-| **Caching** | HTTP caching natif (GET) | Plus complexe (POST uniquement) |
-| **Over/under-fetching** | Frequent | Elimine par design |
-| **Versioning** | /api/v1, /api/v2 | Pas de versioning (evolution du schema) |
-| **Upload fichiers** | Natif (multipart) | Nécessaire spec supplementaire |
-| **Monitoring** | Un endpoint = une metrique | Tout passe par /graphql |
-| **Outillage** | Swagger/OpenAPI | Playground, introspection |
-| **Multi-clients** | Un endpoint par besoin (BFF) | Un seul schema, chaque client choisit ses champs |
-| **Temps réel** | WebSocket a part | Subscriptions integrees |
+### 2.2 Approche code-first NestJS
 
-**Quand utiliser REST** :
-- API publique simple avec caching important
-- CRUD classique avec peu de relations
-- Équipe peu experimentee avec GraphQL
-- Upload de fichiers intensif
+NestJS propose deux approches : **code-first** (les décorateurs TypeScript génèrent le schéma SDL) et schema-first (le fichier `.graphql` est la source). Ce module utilise code-first — plus intégré avec l'écosystème NestJS, pas de double fichier à synchroniser.
 
-**Quand utiliser GraphQL** :
-- Plusieurs clients (web, mobile) avec des besoins différents
-- Donnees fortement interconnectees (graphe)
-- Frontend qui evolue rapidement
-- Besoin de reduire le nombre de requêtes réseau
-
----
-
-## 2. Setup — @nestjs/graphql + Apollo Server
-
-### 2.1 Installation
+Installation :
 
 ```bash
-npm install @nestjs/graphql @nestjs/apollo @apollo/server graphql
+pnpm add @nestjs/graphql @nestjs/apollo @apollo/server graphql
 ```
 
-Les packages :
-- `@nestjs/graphql` — Module GraphQL pour NestJS
-- `@nestjs/apollo` — Driver Apollo Server pour NestJS
-- `@apollo/server` — Apollo Server v4
-- `graphql` — Implementation de référence de GraphQL en JavaScript
+Configuration dans `AppModule` :
 
-### 2.2 Configuration dans AppModule
-
-```typescript
-// app.module.ts
-import { Module } from '@nestjs/common';
-import { GraphQLModule } from '@nestjs/graphql';
-import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
-import { join } from 'path';
+```ts
+import { Module } from '@nestjs/common'
+import { GraphQLModule } from '@nestjs/graphql'
+import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo'
+import { join } from 'path'
 
 @Module({
   imports: [
     GraphQLModule.forRoot<ApolloDriverConfig>({
       driver: ApolloDriver,
-      // Code-first : le schema est genere automatiquement
+      // autoSchemaFile : NestJS génère src/schema.gql depuis les décorateurs TypeScript
       autoSchemaFile: join(process.cwd(), 'src/schema.gql'),
-      // Trier les champs par ordre alphabetique
       sortSchema: true,
-      // Activer le playground Apollo
-      playground: true,
+      // Playground désactivé en production — expose le schéma complet
+      playground: process.env.NODE_ENV !== 'production',
     }),
   ],
 })
 export class AppModule {}
 ```
 
-### 2.3 Approche Code-first vs Schema-first
+La propriété `autoSchemaFile` est le cœur du code-first : NestJS parcourt tous les `@ObjectType`, `@Resolver`, `@Query` et `@Mutation` au démarrage, construit le schéma SDL, et l'écrit dans le fichier. Le schéma est le résultat du code TypeScript, pas la source.
 
-NestJS supporte deux approches pour définir le schema GraphQL :
+### 2.3 ObjectType et Field
 
-| Approche | Schema défini dans... | Génération |
-|---|---|---|
-| **Code-first** | Decorateurs TypeScript | Schema .gql généré automatiquement |
-| **Schema-first** | Fichiers .graphql | Types TypeScript generes |
+`@ObjectType()` déclare une classe TypeScript comme type de sortie GraphQL. `@Field()` marque chaque champ exposé dans le schéma — un champ sans `@Field()` est invisible pour le client.
 
-Dans ce module, nous utilisons l'approche **code-first** car elle :
-- S'intégré naturellement avec les decorateurs NestJS
-- Evite la duplication entre le schema et les types TypeScript
-- Permet une meilleure experience avec l'autocompletion
+```ts
+// src/family/models/member.model.ts
+import { ObjectType, Field, ID } from '@nestjs/graphql'
 
-> **Analogie** : L'approche code-first, c'est comme écrire un roman directement. L'approche schema-first, c'est comme écrire d'abord le plan détaillé de chaque chapitre, puis le roman qui doit respecter ce plan. Les deux approches sont valides, mais la première est souvent plus naturelle quand on développé en TypeScript.
-
-### 2.4 Le playground Apollo
-
-Une fois le serveur lance, ouvrez `http://localhost:3000/graphql` dans votre navigateur. Le playground Apollo vous permet de :
-
-- Explorer le schema avec l'onglet **Docs**
-- Écrire et exécuter des requêtes
-- Voir l'historique des requêtes
-- Tester les mutations et subscriptions
-
-```graphql
-# Testez cette requete dans le playground
-query {
-  __schema {
-    types {
-      name
-    }
-  }
-}
-```
-
-C'est l'**introspection** : l'API se decrit elle-même. Très utile en développement, a désactiver en production.
-
-```typescript
-// En production, desactivez l'introspection et le playground
-GraphQLModule.forRoot<ApolloDriverConfig>({
-  driver: ApolloDriver,
-  autoSchemaFile: join(process.cwd(), 'src/schema.gql'),
-  playground: process.env.NODE_ENV !== 'production',
-  introspection: process.env.NODE_ENV !== 'production',
-}),
-```
-
----
-
-## 3. Code-first — Types et Resolvers
-
-### 3.1 @ObjectType — Définir un type GraphQL
-
-Un `@ObjectType` est l'équivalent GraphQL d'un type dans le schema SDL.
-
-```typescript
-// products/models/product.model.ts
-import { ObjectType, Field, ID, Float } from '@nestjs/graphql';
-
-@ObjectType({ description: 'Un produit du catalogue' })
-export class Product {
-  @Field(() => ID, { description: 'Identifiant unique du produit' })
-  id: string;
-
-  @Field({ description: 'Nom du produit' })
-  name: string;
-
-  @Field({ nullable: true, description: 'Description detaillee' })
-  description?: string;
-
-  @Field(() => Float, { description: 'Prix en euros' })
-  price: number;
-
-  @Field({ description: 'Date de creation' })
-  createdAt: Date;
-}
-```
-
-Cela généré ce schema SDL :
-
-```graphql
-"""Un produit du catalogue"""
-type Product {
-  """Identifiant unique du produit"""
-  id: ID!
-
-  """Nom du produit"""
-  name: String!
-
-  """Description detaillee"""
-  description: String
-
-  """Prix en euros"""
-  price: Float!
-
-  """Date de creation"""
-  createdAt: DateTime!
-}
-```
-
-### 3.2 Types scalaires GraphQL
-
-| GraphQL | TypeScript | Decorateur NestJS |
-|---|---|---|
-| `ID` | `string \| number` | `@Field(() => ID)` |
-| `String` | `string` | `@Field()` |
-| `Int` | `number` | `@Field(() => Int)` |
-| `Float` | `number` | `@Field(() => Float)` |
-| `Boolean` | `boolean` | `@Field()` |
-| `DateTime` | `Date` | `@Field()` |
-
-> **Important** : TypeScript ne distingue pas `Int` et `Float` (tout est `number`). Vous devez explicitement spécifier le type GraphQL avec le premier argument de `@Field()`. Si vous ne le faites pas, NestJS infere `Float` par defaut pour les `number`.
-
-### 3.3 Champs nullables et valeurs par defaut
-
-```typescript
 @ObjectType()
-export class Product {
-  // Champ obligatoire (non-null dans le schema GraphQL)
+export class Member {
+  @Field(() => ID)
+  id: string
+
   @Field()
-  name: string;
+  displayName: string
 
-  // Champ optionnel (nullable dans le schema GraphQL)
+  @Field(() => ID)
+  familyId: string
+}
+```
+
+```ts
+// src/family/models/family.model.ts
+import { ObjectType, Field, ID, Int } from '@nestjs/graphql'
+import { Member } from './member.model'
+
+@ObjectType({ description: 'Une famille TribuZen' })
+export class Family {
+  @Field(() => ID)
+  id: string
+
+  @Field({ description: 'Nom affiché de la famille' })
+  name: string
+
   @Field({ nullable: true })
-  description?: string;
+  description?: string
 
-  // Champ avec valeur par defaut
-  @Field({ defaultValue: true })
-  active: boolean;
+  // Int doit être explicite — @Field() seul infèrerait Float pour un number
+  @Field(() => Int)
+  memberCount: number
 
-  // Liste non-null d'elements non-null : [String!]!
-  @Field(() => [String])
-  tags: string[];
-
-  // Liste nullable d'elements nullables : [String]
-  @Field(() => [String], { nullable: 'itemsAndList' })
-  aliases?: (string | null)[] | null;
+  // Ce champ sera résolu par @ResolveField — pas chargé par findAll() directement
+  @Field(() => [Member])
+  members: Member[]
 }
 ```
 
-### 3.4 @Resolver — Le coeur de la logique
+Règle fondamentale : TypeScript n'a qu'un type `number`. GraphQL distingue `Int` et `Float`. Il faut toujours passer le type scalaire explicitement en premier argument de `@Field(() => Int)` ou `@Field(() => Float)`. Sans ça, NestJS infère `Float` et le schéma génère `Float!` pour un entier.
 
-Un resolver est l'équivalent d'un controller REST, mais pour GraphQL.
+### 2.4 Resolvers, Query, Mutation
 
-```typescript
-// products/products.resolver.ts
-import { Resolver, Query, Args, Mutation, ID } from '@nestjs/graphql';
-import { Product } from './models/product.model';
-import { ProductsService } from './products.service';
-import { CreateProductInput } from './dto/create-product.input';
+`@Resolver(() => Family)` déclare la classe comme responsable de la résolution des champs du type `Family`. `@Query` expose une lecture, `@Mutation` expose une écriture.
 
-@Resolver(() => Product)
-export class ProductsResolver {
-  constructor(private readonly productsService: ProductsService) {}
+```ts
+import { Resolver, Query, Mutation, Args, ID } from '@nestjs/graphql'
+import { Family } from './models/family.model'
+import { FamilyService } from './family.service'
+import { CreateFamilyInput } from './dto/create-family.input'
+import { InviteMemberInput } from './dto/invite-member.input'
+import { Member } from './models/member.model'
 
-  // Query : equivalent de GET /products
-  @Query(() => [Product], { name: 'products', description: 'Liste tous les produits' })
-  findAll(): Product[] {
-    return this.productsService.findAll();
+@Resolver(() => Family)
+export class FamilyResolver {
+  constructor(private readonly familyService: FamilyService) {}
+
+  // name: 'families' = nom du champ dans le schéma (sans ça, NestJS utilise 'findAll')
+  @Query(() => [Family], { name: 'families', description: 'Liste toutes les familles' })
+  findAll(): Promise<Family[]> {
+    return this.familyService.findAll()
   }
 
-  // Query avec argument : equivalent de GET /products/:id
-  @Query(() => Product, { name: 'product', nullable: true })
-  findOne(@Args('id', { type: () => ID }) id: string): Product | null {
-    return this.productsService.findOne(id);
+  // nullable: true = le champ peut retourner null dans le schéma (Family au lieu de Family!)
+  @Query(() => Family, { name: 'family', nullable: true })
+  findOne(@Args('id', { type: () => ID }) id: string): Promise<Family | null> {
+    return this.familyService.findOne(id)
   }
 
-  // Mutation : equivalent de POST /products
-  @Mutation(() => Product)
-  createProduct(@Args('input') input: CreateProductInput): Product {
-    return this.productsService.create(input);
+  @Mutation(() => Family)
+  createFamily(@Args('input') input: CreateFamilyInput): Promise<Family> {
+    return this.familyService.create(input)
+  }
+
+  @Mutation(() => Member, { description: 'Invite un utilisateur dans une famille' })
+  inviteMember(@Args('input') input: InviteMemberInput): Promise<Member> {
+    return this.familyService.inviteMember(input)
   }
 }
 ```
 
-### 3.5 @Args — Recuperer les arguments
+La propriété `name` dans `@Query({ name: 'families' })` définit le nom du champ dans le schéma GraphQL. Sans elle, NestJS utilise le nom de la méthode TypeScript (`findAll`) — qui expose un détail d'implémentation aux clients.
 
-```typescript
-// Argument simple
-@Query(() => [Product])
-products(
-  @Args('limit', { type: () => Int, defaultValue: 10 }) limit: number,
-  @Args('offset', { type: () => Int, defaultValue: 0 }) offset: number,
-): Product[] {
-  return this.productsService.findAll({ limit, offset });
-}
+### 2.5 Arguments et InputType
 
-// Argument complexe avec @ArgsType
-import { ArgsType, Field, Int } from '@nestjs/graphql';
-import { Min, Max } from 'class-validator';
+`@Args('nom')` extrait un argument scalaire de la requête GraphQL. Pour des arguments complexes (mutations), on utilise `@InputType()` — l'équivalent GraphQL du DTO REST.
 
-@ArgsType()
-export class ProductsArgs {
-  @Field(() => Int, { defaultValue: 0 })
-  @Min(0)
-  offset: number;
+```ts
+// src/family/dto/create-family.input.ts
+import { InputType, Field } from '@nestjs/graphql'
+import { IsNotEmpty, IsOptional, MaxLength } from 'class-validator'
 
-  @Field(() => Int, { defaultValue: 25 })
-  @Min(1)
-  @Max(100)
-  limit: number;
-}
-
-// Utilisation dans le resolver
-@Query(() => [Product])
-products(@Args() args: ProductsArgs): Product[] {
-  return this.productsService.findAll(args);
-}
-```
-
-### 3.6 @InputType — Donnees en entree
-
-Un `@InputType` est l'équivalent d'un DTO pour les mutations.
-
-```typescript
-// products/dto/create-product.input.ts
-import { InputType, Field, Float } from '@nestjs/graphql';
-import { IsNotEmpty, IsPositive, IsOptional, MaxLength } from 'class-validator';
-
-@InputType({ description: 'Donnees pour creer un produit' })
-export class CreateProductInput {
-  @Field({ description: 'Nom du produit' })
+@InputType()
+export class CreateFamilyInput {
+  @Field({ description: 'Nom de la famille' })
   @IsNotEmpty({ message: 'Le nom est obligatoire' })
-  @MaxLength(200)
-  name: string;
-
-  @Field({ nullable: true, description: 'Description du produit' })
-  @IsOptional()
-  @MaxLength(2000)
-  description?: string;
-
-  @Field(() => Float, { description: 'Prix en euros' })
-  @IsPositive({ message: 'Le prix doit etre positif' })
-  price: number;
-}
-```
-
-```typescript
-// products/dto/update-product.input.ts
-import { InputType, Field, Float, ID, PartialType } from '@nestjs/graphql';
-import { CreateProductInput } from './create-product.input';
-
-@InputType()
-export class UpdateProductInput extends PartialType(CreateProductInput) {
-  @Field(() => ID)
-  id: string;
-}
-```
-
-> **Bonne pratique** : Utilisez `PartialType()` de `@nestjs/graphql` (pas de `@nestjs/mapped-types`) pour les InputTypes partiels. Il rend tous les champs optionnels tout en gardant les decorateurs `@Field`.
-
-### 3.7 Enum GraphQL
-
-```typescript
-import { registerEnumType } from '@nestjs/graphql';
-
-export enum ProductStatus {
-  DRAFT = 'DRAFT',
-  PUBLISHED = 'PUBLISHED',
-  ARCHIVED = 'ARCHIVED',
-}
-
-registerEnumType(ProductStatus, {
-  name: 'ProductStatus',
-  description: 'Statut du produit dans le catalogue',
-  valuesMap: {
-    DRAFT: { description: 'Produit en brouillon, non visible' },
-    PUBLISHED: { description: 'Produit publie et visible' },
-    ARCHIVED: { description: 'Produit archive, non visible' },
-  },
-});
-```
-
-Utilisation :
-
-```typescript
-@ObjectType()
-export class Product {
-  @Field(() => ProductStatus)
-  status: ProductStatus;
-}
-```
-
----
-
-## 4. Schema-first — L'approche alternative
-
-### 4.1 Configuration Schema-first
-
-```typescript
-// app.module.ts
-GraphQLModule.forRoot<ApolloDriverConfig>({
-  driver: ApolloDriver,
-  typePaths: ['./**/*.graphql'],
-  definitions: {
-    path: join(process.cwd(), 'src/graphql.ts'),
-    outputAs: 'class',
-  },
-}),
-```
-
-### 4.2 Fichier .graphql
-
-```graphql
-# products/products.graphql
-type Product {
-  id: ID!
-  name: String!
-  description: String
-  price: Float!
-  reviews: [Review!]!
-}
-
-type Review {
-  id: ID!
-  rating: Int!
-  comment: String
-  productId: ID!
-}
-
-input CreateProductInput {
-  name: String!
-  description: String
-  price: Float!
-}
-
-type Query {
-  products: [Product!]!
-  product(id: ID!): Product
-}
-
-type Mutation {
-  createProduct(input: CreateProductInput!): Product!
-  removeProduct(id: ID!): Boolean!
-}
-```
-
-NestJS généré automatiquement les types TypeScript correspondants dans `src/graphql.ts`.
-
-### 4.3 Resolver Schema-first
-
-```typescript
-@Resolver('Product')
-export class ProductsResolver {
-  constructor(private readonly productsService: ProductsService) {}
-
-  @Query('products')
-  findAll() {
-    return this.productsService.findAll();
-  }
-
-  @Query('product')
-  findOne(@Args('id') id: string) {
-    return this.productsService.findOne(id);
-  }
-
-  @ResolveField('reviews')
-  getReviews(@Parent() product: Product) {
-    return this.reviewsService.findByProductId(product.id);
-  }
-}
-```
-
-> **Recommandation** : Sauf si votre équipe a déjà un workflow schema-first etabli (par exemple, un schema partage entre plusieurs services), preferez l'approche **code-first** avec NestJS. Elle est mieux intégrée et plus idiomatique.
-
----
-
-## 5. Resolvers avances — @ResolveField, @Parent, @Context
-
-### 5.1 @ResolveField — Resoudre des champs lies
-
-Quand un champ d'un type fait référence à un autre type, on utilise `@ResolveField` pour indiquer comment le résoudre.
-
-```typescript
-// products/models/product.model.ts
-@ObjectType()
-export class Product {
-  @Field(() => ID)
-  id: string;
-
-  @Field()
-  name: string;
-
-  @Field(() => Float)
-  price: number;
-
-  // Ce champ sera resolu par le resolver, pas par le service
-  @Field(() => [Review])
-  reviews: Review[];
-}
-```
-
-```typescript
-// products/products.resolver.ts
-import { Resolver, Query, ResolveField, Parent } from '@nestjs/graphql';
-
-@Resolver(() => Product)
-export class ProductsResolver {
-  constructor(
-    private readonly productsService: ProductsService,
-    private readonly reviewsService: ReviewsService,
-  ) {}
-
-  @Query(() => [Product])
-  products(): Product[] {
-    return this.productsService.findAll();
-  }
-
-  // Resout le champ "reviews" pour chaque Product
-  @ResolveField(() => [Review])
-  reviews(@Parent() product: Product): Review[] {
-    return this.reviewsService.findByProductId(product.id);
-  }
-
-  // Champ calcule : pas de correspondance directe dans les donnees
-  @ResolveField(() => Float)
-  averageRating(@Parent() product: Product): number {
-    const reviews = this.reviewsService.findByProductId(product.id);
-    if (reviews.length === 0) return 0;
-    const sum = reviews.reduce((acc, r) => acc + r.rating, 0);
-    return Math.round((sum / reviews.length) * 10) / 10;
-  }
-}
-```
-
-> **Analogie** : `@ResolveField` est comme un assistant specialise. Quand le resolver principal (le manager) livre un produit, il ne connait pas les avis. Il délégué à un assistant (le ResolveField) qui sait ou trouver les avis pour ce produit spécifique.
-
-### 5.2 @Parent — Acceder au parent
-
-`@Parent()` donne acces a l'objet parent dans l'arbre de résolution.
-
-```typescript
-@Resolver(() => Review)
-export class ReviewsResolver {
-  constructor(private readonly usersService: UsersService) {}
-
-  // Resout le champ "author" pour chaque Review
-  @ResolveField(() => User)
-  author(@Parent() review: Review): User {
-    return this.usersService.findOne(review.authorId);
-  }
-}
-```
-
-Le flux de résolution :
-
-```
-Query products
-  → ProductsResolver.products()         → retourne [Product]
-    → ProductsResolver.reviews(parent)  → pour chaque Product, retourne [Review]
-      → ReviewsResolver.author(parent)  → pour chaque Review, retourne User
-```
-
-### 5.3 @Context — Acceder au contexte de la requête
-
-Le contexte GraphQL donne acces à la requête HTTP, a l'utilisateur authentifie, etc.
-
-```typescript
-// Configuration du contexte
-GraphQLModule.forRoot<ApolloDriverConfig>({
-  driver: ApolloDriver,
-  autoSchemaFile: true,
-  context: ({ req, res }) => ({ req, res }),
-}),
-```
-
-```typescript
-import { Context } from '@nestjs/graphql';
-
-@Query(() => User)
-me(@Context() context: { req: Request }): User {
-  // context.req contient la requete HTTP (headers, cookies, etc.)
-  const userId = context.req.user?.id;
-  return this.usersService.findOne(userId);
-}
-```
-
----
-
-## 6. Le problème N+1 et DataLoader
-
-### 6.1 Le problème N+1 explique
-
-C'est le piege classique de GraphQL. Observons cette requête :
-
-```graphql
-query {
-  products {     # 1 requete pour charger 50 produits
-    name
-    reviews {    # 50 requetes supplementaires (1 par produit)
-      rating
-    }
-  }
-}
-```
-
-Résultat : **1 + 50 = 51 requêtes** à la base de donnees. C'est le problème **N+1**.
-
-Avec REST, le problème existe aussi, mais il est géré cote serveur (eager loading, joins). Avec GraphQL, le client peut demander n'importe quelle combinaison de champs, donc le problème est plus frequent.
-
-> **Analogie** : Imagine un professeur qui doit distribuer les copies a 30 eleves. Le problème N+1, c'est comme faire un aller-retour au casier pour chaque copie. La solution DataLoader, c'est comme aller au casier une seule fois et ramener toutes les copies d'un coup.
-
-### 6.2 DataLoader — La solution
-
-**DataLoader** est une bibliotheque qui regroupe (batch) et met en cache les requêtes pendant un même tick d'exécution.
-
-```bash
-npm install dataloader
-```
-
-```typescript
-// products/products.dataloader.ts
-import * as DataLoader from 'dataloader';
-import { Injectable, Scope } from '@nestjs/common';
-import { ReviewsService } from './reviews.service';
-import { Review } from './models/review.model';
-
-@Injectable({ scope: Scope.REQUEST })
-export class ReviewsLoader {
-  constructor(private readonly reviewsService: ReviewsService) {}
-
-  // Le DataLoader regroupe tous les IDs demandes pendant un tick
-  // et fait UN SEUL appel a la base de donnees
-  public readonly batchReviews = new DataLoader<string, Review[]>(
-    async (productIds: readonly string[]) => {
-      // Une seule requete pour tous les produits
-      const reviews = await this.reviewsService.findByProductIds([...productIds]);
-
-      // Reorganiser les resultats par productId
-      const reviewsMap = new Map<string, Review[]>();
-      for (const review of reviews) {
-        const existing = reviewsMap.get(review.productId) || [];
-        existing.push(review);
-        reviewsMap.set(review.productId, existing);
-      }
-
-      // Retourner dans le meme ordre que les IDs demandes
-      return productIds.map((id) => reviewsMap.get(id) || []);
-    },
-  );
-}
-```
-
-### 6.3 Utilisation du DataLoader dans le Resolver
-
-```typescript
-@Resolver(() => Product)
-export class ProductsResolver {
-  constructor(
-    private readonly productsService: ProductsService,
-    private readonly reviewsLoader: ReviewsLoader,
-  ) {}
-
-  @Query(() => [Product])
-  products(): Product[] {
-    return this.productsService.findAll();
-  }
-
-  @ResolveField(() => [Review])
-  reviews(@Parent() product: Product): Promise<Review[]> {
-    // Au lieu d'appeler directement le service,
-    // on delegue au DataLoader qui va regrouper les appels
-    return this.reviewsLoader.batchReviews.load(product.id);
-  }
-}
-```
-
-**Avant DataLoader** : 1 + N requêtes (51 pour 50 produits)
-**Après DataLoader** : 1 + 1 = 2 requêtes (une pour les produits, une pour toutes les reviews)
-
-### 6.4 Scope REQUEST — Pourquoi c'est important
-
-Le DataLoader doit etre en scope `REQUEST` pour deux raisons :
-
-1. **Cache par requête** : Chaque requête GraphQL a son propre cache. Sinon, un utilisateur pourrait voir des donnees cachees d'un autre utilisateur.
-2. **Batching par tick** : Le regroupement se fait pendant un seul tick d'exécution, qui correspond à une seule requête.
-
-```typescript
-@Injectable({ scope: Scope.REQUEST })
-export class ReviewsLoader {
-  // Cree un nouveau DataLoader pour chaque requete HTTP
-}
-```
-
-> **Attention** : Les providers en scope `REQUEST` impactent la performance car ils sont recrees à chaque requête. Utilisez-les uniquement pour les DataLoaders, pas pour les services classiques.
-
----
-
-## 7. Mutations et validation
-
-### 7.1 Mutations CRUD completes
-
-```typescript
-@Resolver(() => Product)
-export class ProductsResolver {
-  constructor(private readonly productsService: ProductsService) {}
-
-  @Mutation(() => Product, { description: 'Creer un nouveau produit' })
-  createProduct(
-    @Args('input') input: CreateProductInput,
-  ): Product {
-    return this.productsService.create(input);
-  }
-
-  @Mutation(() => Product, { description: 'Modifier un produit existant' })
-  updateProduct(
-    @Args('input') input: UpdateProductInput,
-  ): Product {
-    return this.productsService.update(input.id, input);
-  }
-
-  @Mutation(() => Boolean, { description: 'Supprimer un produit' })
-  removeProduct(
-    @Args('id', { type: () => ID }) id: string,
-  ): boolean {
-    return this.productsService.remove(id);
-  }
-}
-```
-
-### 7.2 Validation avec class-validator
-
-La validation fonctionne exactement comme en REST, grace au `ValidationPipe` global.
-
-```typescript
-// main.ts
-import { ValidationPipe } from '@nestjs/common';
-
-async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-  app.useGlobalPipes(new ValidationPipe({
-    whitelist: true,       // Supprime les champs non declares
-    forbidNonWhitelisted: true,  // Erreur si champ inconnu
-    transform: true,       // Transforme les types automatiquement
-  }));
-  await app.listen(3000);
-}
-```
-
-```typescript
-// dto/create-product.input.ts
-@InputType()
-export class CreateProductInput {
-  @Field()
-  @IsNotEmpty()
-  @MinLength(2)
-  @MaxLength(200)
-  name: string;
+  @MaxLength(80)
+  name: string
 
   @Field({ nullable: true })
   @IsOptional()
-  @MaxLength(2000)
-  description?: string;
-
-  @Field(() => Float)
-  @IsPositive()
-  @Max(99999.99)
-  price: number;
+  @MaxLength(300)
+  description?: string
 }
 ```
 
-Les erreurs de validation sont automatiquement formatees par NestJS :
+```ts
+// src/family/dto/invite-member.input.ts
+import { InputType, Field, ID } from '@nestjs/graphql'
+import { IsUUID } from 'class-validator'
 
-```json
-{
-  "errors": [
-    {
-      "message": "Bad Request Exception",
-      "extensions": {
-        "code": "BAD_USER_INPUT",
-        "response": {
-          "statusCode": 400,
-          "message": [
-            "name must be longer than or equal to 2 characters",
-            "price must be a positive number"
-          ]
-        }
-      }
-    }
-  ]
+@InputType()
+export class InviteMemberInput {
+  @Field(() => ID)
+  @IsUUID('4')
+  familyId: string
+
+  @Field(() => ID)
+  @IsUUID('4')
+  userId: string
 }
 ```
 
-### 7.3 Gestion des erreurs personnalisees
+Les décorateurs `class-validator` fonctionnent sur les `@InputType` exactement comme sur les DTOs REST, à condition que `ValidationPipe` soit actif globalement dans `main.ts`. Si `name` est vide, NestJS retourne une erreur GraphQL avant d'appeler le resolver.
 
-```typescript
-import { NotFoundException } from '@nestjs/common';
+Pour les arguments scalaires simples, `@Args` inline suffit :
 
-@Query(() => Product)
-product(@Args('id', { type: () => ID }) id: string): Product {
-  const product = this.productsService.findOne(id);
-  if (!product) {
-    throw new NotFoundException(`Produit avec l'id ${id} non trouve`);
+```ts
+// Argument scalaire : pas besoin de @InputType
+@Query(() => [Family])
+familiesByCity(@Args('city', { type: () => String }) city: string) {
+  return this.familyService.findByCity(city)
+}
+```
+
+### 2.6 Résolution de champs et ResolveField
+
+`@ResolveField` indique comment résoudre un champ d'un `@ObjectType` qui n'est pas directement dans l'objet retourné par la query principale. `@Parent()` donne accès à l'objet parent dans l'arbre de résolution.
+
+```ts
+import { ResolveField, Parent } from '@nestjs/graphql'
+import { MemberService } from '../member/member.service'
+
+@Resolver(() => Family)
+export class FamilyResolver {
+  constructor(
+    private readonly familyService: FamilyService,
+    private readonly memberService: MemberService,
+  ) {}
+
+  @Query(() => [Family])
+  families(): Promise<Family[]> {
+    // familyService.findAll() ne charge PAS les membres — juste l'entité Family
+    return this.familyService.findAll()
   }
-  return product;
+
+  // NestJS appelle cette méthode pour chaque Family si le client demande `members { ... }`
+  @ResolveField(() => [Member])
+  members(@Parent() family: Family): Promise<Member[]> {
+    // family.id provient de l'objet Family retourné par la Query parente
+    return this.memberService.findByFamilyId(family.id)
+  }
 }
 ```
 
-NestJS convertit automatiquement les exceptions HTTP en erreurs GraphQL.
-
-Pour des erreurs GraphQL personnalisees :
-
-```typescript
-import { GraphQLError } from 'graphql';
-
-throw new GraphQLError('Produit non trouve', {
-  extensions: {
-    code: 'PRODUCT_NOT_FOUND',
-    productId: id,
-  },
-});
+Flux de résolution pour `query { families { name members { displayName } } }` :
+```
+families()                       → retourne [Family] (50 familles)
+  members(parent: Family)        → appelé 50 fois, une par famille
 ```
 
----
+Sans DataLoader : 50 appels à `memberService.findByFamilyId()` = 50 requêtes DB supplémentaires. C'est le problème N+1.
 
-## 8. Subscriptions — Temps réel
+### 2.7 Problème N+1 et DataLoader
 
-### 8.1 Configuration
+Le N+1 : 1 requête pour charger N familles + N requêtes pour les membres = N+1 allers en base. Sur 50 familles, 51 requêtes au lieu de 2.
 
-Les subscriptions utilisent les WebSockets pour envoyer des donnees en temps réel au client.
+**DataLoader** regroupe (batch) tous les appels émis pendant un même tick d'exécution JavaScript et les consolide en un seul appel.
 
 ```bash
-npm install graphql-subscriptions
+pnpm add dataloader
 ```
 
-```typescript
-// app.module.ts
+```ts
+// src/member/member.loader.ts
+import DataLoader from 'dataloader'
+import { Injectable, Scope } from '@nestjs/common'
+import { MemberService } from './member.service'
+import { Member } from '../family/models/member.model'
+
+// Scope.REQUEST : un DataLoader distinct par requête GraphQL
+// → cache et batch isolés par requête — pas de fuite de données entre utilisateurs
+@Injectable({ scope: Scope.REQUEST })
+export class MemberLoader {
+  constructor(private readonly memberService: MemberService) {}
+
+  // DataLoader<KeyType, ValueType> : clé = familyId, valeur = Member[]
+  readonly byFamilyId = new DataLoader<string, Member[]>(
+    async (familyIds: readonly string[]) => {
+      // Une seule requête DB pour tous les familyId collectés pendant le tick
+      const members = await this.memberService.findByFamilyIds([...familyIds])
+
+      // Regrouper les membres par familyId pour le mapping
+      const map = new Map<string, Member[]>()
+      for (const m of members) {
+        const list = map.get(m.familyId) ?? []
+        list.push(m)
+        map.set(m.familyId, list)
+      }
+
+      // Retourner dans le MÊME ordre que familyIds — DataLoader l'exige
+      // Un ordre différent associerait silencieusement les mauvais membres aux mauvaises familles
+      return familyIds.map(id => map.get(id) ?? [])
+    },
+  )
+}
+```
+
+Dans le resolver, on remplace l'appel direct au service par le DataLoader :
+
+```ts
+@ResolveField(() => [Member])
+members(@Parent() family: Family): Promise<Member[]> {
+  // .load() met familyId en file d'attente — la batchFn sera appelée une seule fois
+  // avec tous les familyId collectés pendant le tick
+  return this.memberLoader.byFamilyId.load(family.id)
+}
+```
+
+Avant DataLoader : 51 requêtes pour 50 familles. Après : 2 requêtes (une pour les familles, une `IN (id1, id2, ...)` pour tous les membres).
+
+### 2.8 Subscriptions en survol
+
+Les subscriptions GraphQL envoient des données temps réel via WebSocket. NestJS les supporte avec `graphql-ws`.
+
+```ts
+// AppModule — activer les subscriptions
 GraphQLModule.forRoot<ApolloDriverConfig>({
   driver: ApolloDriver,
   autoSchemaFile: true,
-  subscriptions: {
-    'graphql-ws': true,    // Protocole moderne (recommande)
-    'subscriptions-transport-ws': false,  // Ancien protocole (deprecie)
-  },
-}),
+  subscriptions: { 'graphql-ws': true }, // protocole moderne recommandé
+})
 ```
 
-### 8.2 PubSub — Le système de publication
+```ts
+import { Subscription } from '@nestjs/graphql'
+import { PubSub } from 'graphql-subscriptions'
 
-```typescript
-// common/pubsub.provider.ts
-import { PubSub } from 'graphql-subscriptions';
+// PubSub en mémoire — uniquement pour développement (une seule instance)
+// En prod multi-instance : graphql-redis-subscriptions
+const pubSub = new PubSub()
 
-// En production, utilisez une implementation Redis
-// (graphql-redis-subscriptions) pour supporter plusieurs instances
-export const pubSub = new PubSub();
-```
+@Resolver(() => Family)
+export class FamilyResolver {
+  @Mutation(() => Member)
+  async inviteMember(@Args('input') input: InviteMemberInput): Promise<Member> {
+    const member = await this.familyService.inviteMember(input)
+    // Publier l'événement — tous les clients abonnés seront notifiés
+    await pubSub.publish('memberInvited', { memberInvited: member })
+    return member
+  }
 
-> **Attention** : `PubSub` de `graphql-subscriptions` est **uniquement pour le développement**. En production avec plusieurs instances du serveur, utilisez `graphql-redis-subscriptions` ou `graphql-kafka-subscriptions` pour que les messages soient distribues entre toutes les instances.
-
-### 8.3 Publication dans les mutations
-
-```typescript
-import { pubSub } from '../common/pubsub.provider';
-
-@Mutation(() => Product)
-async createProduct(
-  @Args('input') input: CreateProductInput,
-): Promise<Product> {
-  const product = this.productsService.create(input);
-
-  // Publier l'evenement
-  pubSub.publish('productCreated', { productCreated: product });
-
-  return product;
+  @Subscription(() => Member, { description: 'Notifié quand un membre est invité' })
+  memberInvited() {
+    return pubSub.asyncIterableIterator('memberInvited')
+  }
 }
 ```
 
-### 8.4 @Subscription — Ecouter les événements
+Le client s'abonne avec `subscription { memberInvited { displayName } }` — il reçoit une notification WebSocket à chaque `inviteMember`. En production, `PubSub` in-memory doit être remplacé par `graphql-redis-subscriptions` pour que les notifications soient distribuées entre toutes les instances serveur.
 
-```typescript
-import { Resolver, Subscription } from '@nestjs/graphql';
-import { pubSub } from '../common/pubsub.provider';
+## 3. Worked examples
 
-@Resolver(() => Product)
-export class ProductsResolver {
-  @Subscription(() => Product, {
-    description: 'Ecoute les nouveaux produits crees',
-  })
-  productCreated() {
-    return pubSub.asyncIterableIterator('productCreated');
+### Exemple A — FamilyResolver complet avec Query, Mutation et DataLoader
+
+```ts
+// src/family/models/member.model.ts
+import { ObjectType, Field, ID } from '@nestjs/graphql'
+
+@ObjectType()
+export class Member {
+  @Field(() => ID)
+  id: string
+
+  @Field()
+  displayName: string
+
+  @Field(() => ID)
+  familyId: string
+}
+```
+
+```ts
+// src/family/models/family.model.ts
+import { ObjectType, Field, ID, Int } from '@nestjs/graphql'
+import { Member } from './member.model'
+
+@ObjectType({ description: 'Une famille TribuZen' })
+export class Family {
+  @Field(() => ID)
+  id: string
+
+  @Field()
+  name: string
+
+  @Field({ nullable: true })
+  description?: string
+
+  @Field(() => Int)
+  memberCount: number
+
+  // Résolu par @ResolveField — absent du store, calculé à la demande
+  @Field(() => [Member])
+  members: Member[]
+}
+```
+
+```ts
+// src/family/dto/create-family.input.ts
+import { InputType, Field } from '@nestjs/graphql'
+import { IsNotEmpty, IsOptional, MaxLength } from 'class-validator'
+
+@InputType()
+export class CreateFamilyInput {
+  @Field()
+  @IsNotEmpty({ message: 'Le nom est obligatoire' })
+  @MaxLength(80)
+  name: string
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @MaxLength(300)
+  description?: string
+}
+```
+
+```ts
+// src/family/dto/invite-member.input.ts
+import { InputType, Field, ID } from '@nestjs/graphql'
+import { IsUUID } from 'class-validator'
+
+@InputType()
+export class InviteMemberInput {
+  @Field(() => ID)
+  @IsUUID('4')
+  familyId: string
+
+  @Field(() => ID)
+  @IsUUID('4')
+  userId: string
+}
+```
+
+```ts
+// src/family/family.resolver.ts
+import {
+  Resolver, Query, Mutation, Args, ResolveField, Parent, ID,
+} from '@nestjs/graphql'
+import { NotFoundException } from '@nestjs/common'
+import { Family } from './models/family.model'
+import { Member } from './models/member.model'
+import { FamilyService } from './family.service'
+import { MemberLoader } from '../member/member.loader'
+import { CreateFamilyInput } from './dto/create-family.input'
+import { InviteMemberInput } from './dto/invite-member.input'
+
+@Resolver(() => Family)
+export class FamilyResolver {
+  constructor(
+    private readonly familyService: FamilyService,
+    // MemberLoader est Scope.REQUEST — NestJS crée une instance par requête GraphQL
+    private readonly memberLoader: MemberLoader,
+  ) {}
+
+  @Query(() => [Family], { name: 'families', description: 'Liste toutes les familles TribuZen' })
+  findAll(): Promise<Family[]> {
+    // familyService.findAll() retourne les Family sans les membres — membres chargés par ResolveField
+    return this.familyService.findAll()
   }
 
-  // Subscription avec filtre
-  @Subscription(() => Product, {
-    filter: (payload, variables) => {
-      // Ne notifier que si le prix depasse le seuil demande
-      return payload.productCreated.price >= variables.minPrice;
+  @Query(() => Family, { name: 'family', nullable: true })
+  findOne(@Args('id', { type: () => ID }) id: string): Promise<Family | null> {
+    return this.familyService.findOne(id)
+  }
+
+  @Mutation(() => Family)
+  createFamily(@Args('input') input: CreateFamilyInput): Promise<Family> {
+    // ValidationPipe valide CreateFamilyInput avant que cette méthode soit appelée
+    return this.familyService.create(input)
+  }
+
+  @Mutation(() => Member, { description: 'Invite un utilisateur dans une famille' })
+  async inviteMember(@Args('input') input: InviteMemberInput): Promise<Member> {
+    const family = await this.familyService.findOne(input.familyId)
+    // NestJS convertit NotFoundException en erreur GraphQL avec le bon code
+    if (!family) throw new NotFoundException(`Famille ${input.familyId} introuvable`)
+    return this.familyService.inviteMember(input)
+  }
+
+  // Résout le champ members pour chaque Family — appelé par NestJS si le client demande members { ... }
+  @ResolveField(() => [Member], { description: 'Membres de la famille' })
+  members(@Parent() family: Family): Promise<Member[]> {
+    // DataLoader.load() met familyId en file d'attente — la batchFn consolidera tous les IDs
+    return this.memberLoader.byFamilyId.load(family.id)
+  }
+}
+```
+
+```ts
+// src/family/family.module.ts
+import { Module } from '@nestjs/common'
+import { FamilyResolver } from './family.resolver'
+import { FamilyService } from './family.service'
+import { MemberLoader } from '../member/member.loader'
+import { MemberService } from '../member/member.service'
+
+@Module({
+  // Le resolver doit figurer dans providers — @Resolver() seul ne suffit pas
+  providers: [FamilyResolver, FamilyService, MemberLoader, MemberService],
+})
+export class FamilyModule {}
+```
+
+**Pas-à-pas :**
+1. `@ObjectType()` sur `Family` et `Member` — NestJS intègre ces types dans le schéma SDL généré automatiquement.
+2. `@Resolver(() => Family)` — ce resolver gère tous les champs du type `Family`.
+3. `@Query(() => [Family], { name: 'families' })` — expose `query { families { ... } }` avec un nom explicite dans le schéma.
+4. `@Mutation(() => Member)` sur `inviteMember` — expose `mutation { inviteMember(input: {...}) { ... } }`.
+5. `@ResolveField(() => [Member])` sur `members` — NestJS appelle cette méthode pour chaque `Family` si le client inclut `members { ... }` dans sa requête.
+6. `this.memberLoader.byFamilyId.load(family.id)` — au lieu de 50 appels directs au service, DataLoader les regroupe en une seule requête batch.
+
+### Exemple B — MemberLoader DataLoader (élimination du N+1)
+
+```ts
+// src/member/member.loader.ts
+import DataLoader from 'dataloader'
+import { Injectable, Scope } from '@nestjs/common'
+import { MemberService } from './member.service'
+import { Member } from '../family/models/member.model'
+
+@Injectable({ scope: Scope.REQUEST })
+export class MemberLoader {
+  constructor(private readonly memberService: MemberService) {}
+
+  readonly byFamilyId = new DataLoader<string, Member[]>(
+    async (familyIds: readonly string[]) => {
+      // Une seule requête DB pour tous les familyId collectés pendant le tick
+      // memberService.findByFamilyIds génère : WHERE family_id IN ('fam-1', 'fam-2', ...)
+      const members = await this.memberService.findByFamilyIds([...familyIds])
+
+      const map = new Map<string, Member[]>()
+      for (const member of members) {
+        const existing = map.get(member.familyId) ?? []
+        existing.push(member)
+        map.set(member.familyId, existing)
+      }
+
+      // DataLoader exige le MÊME ordre que les clés entrantes
+      // familyIds.map(...) garantit la correspondance key→value
+      return familyIds.map(id => map.get(id) ?? [])
     },
-  })
-  productCreated(
-    @Args('minPrice', { type: () => Float, defaultValue: 0 }) _minPrice: number,
-  ) {
-    return pubSub.asyncIterableIterator('productCreated');
-  }
+  )
 }
 ```
 
-### 8.5 Cote client — Ecouter une subscription
+Requête illustrant le gain :
 
 ```graphql
-subscription {
-  productCreated {
+query {
+  families {
     id
     name
-    price
-  }
-}
-```
-
-Dans Apollo Client (React) :
-
-```typescript
-import { useSubscription, gql } from '@apollo/client';
-
-const PRODUCT_CREATED = gql`
-  subscription OnProductCreated {
-    productCreated {
-      id
-      name
-      price
-    }
-  }
-`;
-
-function ProductFeed() {
-  const { data, loading } = useSubscription(PRODUCT_CREATED);
-
-  if (loading) return <p>En attente de nouveaux produits...</p>;
-  return <p>Nouveau produit : {data.productCreated.name}</p>;
-}
-```
-
----
-
-## 9. Authentification et sécurité
-
-### 9.1 Guards avec GraphQL
-
-Les guards NestJS fonctionnent avec GraphQL, mais il faut adapter l'extraction du contexte.
-
-```typescript
-// auth/gql-auth.guard.ts
-import { ExecutionContext, Injectable } from '@nestjs/common';
-import { GqlExecutionContext } from '@nestjs/graphql';
-import { AuthGuard } from '@nestjs/passport';
-
-@Injectable()
-export class GqlAuthGuard extends AuthGuard('jwt') {
-  // Override pour extraire la requete HTTP du contexte GraphQL
-  getRequest(context: ExecutionContext) {
-    const ctx = GqlExecutionContext.create(context);
-    return ctx.getContext().req;
-  }
-}
-```
-
-Utilisation :
-
-```typescript
-@Resolver(() => Product)
-export class ProductsResolver {
-  // Query publique
-  @Query(() => [Product])
-  products(): Product[] {
-    return this.productsService.findAll();
-  }
-
-  // Mutation protegee
-  @UseGuards(GqlAuthGuard)
-  @Mutation(() => Product)
-  createProduct(
-    @Args('input') input: CreateProductInput,
-    @Context() context: any,
-  ): Product {
-    const userId = context.req.user.id;
-    return this.productsService.create(input, userId);
-  }
-}
-```
-
-### 9.2 Decorateur @CurrentUser personnalise
-
-```typescript
-// auth/current-user.decorator.ts
-import { createParamDecorator, ExecutionContext } from '@nestjs/common';
-import { GqlExecutionContext } from '@nestjs/graphql';
-
-export const CurrentUser = createParamDecorator(
-  (data: unknown, context: ExecutionContext) => {
-    const ctx = GqlExecutionContext.create(context);
-    return ctx.getContext().req.user;
-  },
-);
-```
-
-```typescript
-@UseGuards(GqlAuthGuard)
-@Mutation(() => Product)
-createProduct(
-  @Args('input') input: CreateProductInput,
-  @CurrentUser() user: User,
-): Product {
-  return this.productsService.create(input, user.id);
-}
-```
-
-### 9.3 Limitation de profondeur (Depth limiting)
-
-Sans protection, un client malveillant pourrait envoyer une requête très imbriquee :
-
-```graphql
-query {
-  products {
-    reviews {
-      author {
-        products {
-          reviews {
-            author {
-              products { ... }
-            }
-          }
-        }
-      }
+    members {
+      displayName
     }
   }
 }
 ```
 
-Cette requête pourrait mettre le serveur a genoux.
+Sans DataLoader (50 familles) : 51 requêtes DB. Avec DataLoader : 2 requêtes DB.
 
-```bash
-npm install graphql-depth-limit
+**Pas-à-pas :**
+1. `Scope.REQUEST` — NestJS crée une nouvelle instance de `MemberLoader` pour chaque requête HTTP. Le cache et le batch sont isolés par requête — pas de fuite de données entre clients simultanés.
+2. `new DataLoader<string, Member[]>(batchFn)` — le type générique indique la clé (`familyId: string`) et la valeur (`Member[]`).
+3. `findByFamilyIds([...familyIds])` — une requête `WHERE family_id IN (...)`. Le `[...]` spread convertit le `readonly string[]` en `string[]` mutable attendu par le service.
+4. La `Map` regroupe les membres par `familyId` en une passe.
+5. `familyIds.map(id => map.get(id) ?? [])` — retour ordonné comme les clés entrantes. Sans cet ordre, DataLoader associerait silencieusement les mauvais membres aux mauvaises familles.
+
+## 4. Pièges & misconceptions
+
+- **`@Field()` absent sur un champ.** Un champ de `@ObjectType` sans `@Field()` est invisible dans le schéma — le client ne peut pas le demander et NestJS ne lève pas d'erreur. Correction : chaque champ à exposer doit avoir `@Field()` explicitement.
+
+- **`Int` vs `Float` non précisé.** `@Field()` sur un `number` TypeScript infère `Float` par défaut. `memberCount: number` avec juste `@Field()` génère `Float!` dans le schéma — le client reçoit `3.0` au lieu de `3`. Correction : `@Field(() => Int)` pour tous les entiers.
+
+- **DataLoader en scope singleton.** Un `MemberLoader` sans `Scope.REQUEST` est un singleton partagé entre toutes les requêtes simultanées. Le cache DataLoader du singleton renvoie les membres d'un utilisateur A à l'utilisateur B. Correction : `@Injectable({ scope: Scope.REQUEST })` est obligatoire sur tout DataLoader.
+
+- **Ordre de retour de la batch function non respecté.** DataLoader exige que le tableau retourné soit dans le même ordre que les clés entrantes. Retourner les membres triés alphabétiquement par `familyId` au lieu de suivre l'ordre de `familyIds` produit des associations incorrectes silencieuses. Correction : toujours `keys.map(k => map.get(k) ?? [])`.
+
+- **`PartialType` importé depuis `@nestjs/mapped-types` pour un `@InputType`.** `PartialType` existe dans deux packages. Sur un `@InputType`, il faut impérativement l'importer depuis `@nestjs/graphql` — sinon les décorateurs `@Field` sont perdus et le schéma généré est incomplet sans erreur au démarrage. Correction : `import { PartialType } from '@nestjs/graphql'` sur les InputTypes.
+
+- **Resolver absent des `providers` du module.** `@Resolver()` seul ne suffit pas — le resolver doit figurer dans `providers: [FamilyResolver]` du module, exactement comme un service. Sans ça, NestJS ne le détecte pas et le schéma reste vide. Correction : ajouter le resolver dans `providers`.
+
+- **Playground actif en production.** Le playground Apollo expose le schéma complet et permet l'introspection à n'importe qui. Correction : `playground: process.env.NODE_ENV !== 'production'` dans `GraphQLModule.forRoot()`, et ajouter `introspection: false` pour bloquer l'introspection même sans playground.
+
+## 5. Ancrage TribuZen
+
+Couche fil-rouge : **exposer une API GraphQL de TribuZen (query familles avec membres, mutation d'invitation)** (`smaurier/tribuzen`).
+
+- `query families { id name memberCount }` permet à l'app mobile de charger uniquement les deux champs dont elle a besoin — zéro over-fetching, pas d'endpoint dédié à créer.
+- `query family(id) { name members { displayName } }` charge la famille et ses membres en une seule requête GraphQL — remplace les trois appels REST de la page de gestion web.
+- `mutation inviteMember(input: { familyId, userId })` remplace `POST /families/:id/invite` — le retour contient le `Member` créé avec les champs sélectionnés par le client.
+- `MemberLoader` élimine le N+1 sur les membres : toutes les familles d'une page sont résolues en une seule requête `WHERE family_id IN (...)` — performances stables quelle que soit la profondeur de la query.
+- `InviteMemberInput` partage ses contraintes `class-validator` avec les DTOs REST existants — la validation est unifiée, pas dupliquée.
+
+Structure cible dans `smaurier/tribuzen` :
+
+```
+apps/api/src/
+  family/
+    models/
+      family.model.ts          ← @ObjectType Family avec @Field(() => Int) memberCount
+      member.model.ts          ← @ObjectType Member
+    dto/
+      create-family.input.ts   ← @InputType avec class-validator
+      invite-member.input.ts   ← @InputType InviteMemberInput
+    family.resolver.ts         ← @Resolver avec @Query, @Mutation, @ResolveField
+    family.service.ts          ← findAll, findOne, create, inviteMember
+    family.module.ts           ← providers: [FamilyResolver, FamilyService, MemberLoader, ...]
+  member/
+    member.loader.ts           ← MemberLoader @Injectable({ scope: Scope.REQUEST })
+    member.service.ts          ← findByFamilyIds pour le batch DataLoader
 ```
 
-```typescript
-import depthLimit from 'graphql-depth-limit';
+## 6. Points clés
 
-GraphQLModule.forRoot<ApolloDriverConfig>({
-  driver: ApolloDriver,
-  autoSchemaFile: true,
-  validationRules: [depthLimit(5)],
-}),
+1. Code-first NestJS = `@ObjectType` + `@Field()` génèrent le schéma SDL via `autoSchemaFile` — le schéma est le résultat du code, pas la source.
+2. `@Field()` est obligatoire sur chaque champ à exposer ; `@Field(() => Int)` ou `@Field(() => Float)` obligatoire pour les `number` (défaut `Float` sinon).
+3. `@Resolver(() => Type)` déclare le responsable du type ; le resolver doit figurer dans `providers: [...]` du module comme tout provider.
+4. `@Query(() => ReturnType, { name: '...' })` pour les lectures ; `@Mutation(() => ReturnType)` pour les écritures — le `name` évite d'exposer les noms de méthodes TypeScript.
+5. `@Args('nom')` pour un scalaire ; `@Args('input') input: MyInput` pour un `@InputType` complexe — `class-validator` fonctionne si `ValidationPipe` est actif.
+6. `@ResolveField()` résout un champ après la query principale — s'exécute pour chaque objet retourné, ce qui crée le problème N+1 sans DataLoader.
+7. DataLoader batche les `.load(key)` émis pendant un même tick en un seul appel ; il doit être `Scope.REQUEST` pour isoler le cache par requête.
+8. La batch function doit retourner les résultats dans le même ordre que les clés entrantes — `keys.map(k => map.get(k) ?? [])` est le pattern canonique.
+
+## 7. Seeds Anki
+
+```
+Quelle différence entre @ObjectType et @InputType en GraphQL NestJS ?|@ObjectType définit un type de sortie (retourné par Query ou Mutation) ; @InputType définit un type d'entrée (passé en argument) — les deux sont distincts dans le schéma GraphQL
+Pourquoi faut-il @Field(() => Int) et non juste @Field() pour un entier ?|TypeScript n'a qu'un type number — sans précision NestJS infère Float par défaut ; @Field(() => Int) force le scalaire Int dans le schéma SDL généré
+Que fait autoSchemaFile dans GraphQLModule.forRoot ?|NestJS parcourt tous les @ObjectType et @Resolver au démarrage et génère le fichier schema.gql — le schéma est le résultat du code TypeScript, pas la source
+À quoi sert @ResolveField et quand est-il appelé ?|Il résout un champ d'un @ObjectType non retourné par la Query principale — NestJS l'appelle pour chaque objet parent si le client demande ce champ
+Quel est le problème N+1 en GraphQL et comment DataLoader le résout-il ?|Sans DataLoader, @ResolveField fait 1 requête DB par objet parent (N requêtes pour N objets) ; DataLoader collecte tous les IDs pendant un tick et fait une seule requête batch
+Pourquoi le DataLoader doit-il être en Scope.REQUEST et non singleton ?|Un DataLoader singleton partage son cache entre toutes les requêtes simultanées — risque de fuite de données entre utilisateurs ; Scope.REQUEST crée un DataLoader isolé par requête HTTP
+Quelle contrainte impose DataLoader sur le retour de la batch function ?|Le tableau retourné doit être dans le même ordre que le tableau de clés entrantes — keys.map(k => map.get(k) ?? []) est le pattern canonique
+Depuis quel package importer PartialType pour un @InputType GraphQL ?|Depuis @nestjs/graphql (pas @nestjs/mapped-types) — sinon les décorateurs @Field sont perdus et le schéma GraphQL généré est incomplet sans erreur au démarrage
+Pourquoi le name dans @Query(() => [Family], { name: 'families' }) est-il recommandé ?|Sans name NestJS expose le nom de la méthode TypeScript (findAll) dans le schéma — name: 'families' contrôle explicitement l'API publique indépendamment du nom de méthode
 ```
 
-### 9.4 Limitation de complexite (Query complexity)
+## Pont vers le lab
 
-La profondeur ne suffit pas. Une requête peu profonde mais avec beaucoup de champs peut aussi etre couteuse.
-
-```bash
-npm install graphql-query-complexity
-```
-
-```typescript
-import {
-  fieldExtensionsEstimator,
-  getComplexity,
-  simpleEstimator,
-} from 'graphql-query-complexity';
-
-GraphQLModule.forRoot<ApolloDriverConfig>({
-  driver: ApolloDriver,
-  autoSchemaFile: true,
-  plugins: [
-    {
-      async requestDidStart() {
-        return {
-          async didResolveOperation({ request, document, schema }) {
-            const complexity = getComplexity({
-              schema,
-              operationName: request.operationName,
-              query: document,
-              variables: request.variables,
-              estimators: [
-                fieldExtensionsEstimator(),
-                simpleEstimator({ defaultComplexity: 1 }),
-              ],
-            });
-
-            if (complexity > 50) {
-              throw new GraphQLError(
-                `Requete trop complexe : ${complexity}. Maximum autorise : 50.`,
-              );
-            }
-          },
-        };
-      },
-    },
-  ],
-}),
-```
-
-Définir la complexite par champ :
-
-```typescript
-@ObjectType()
-export class Product {
-  @Field()
-  name: string;
-
-  // Ce champ est couteux a resoudre
-  @Field(() => [Review], { complexity: 10 })
-  reviews: Review[];
-}
-```
-
-### 9.5 Rate limiting
-
-```typescript
-import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
-import { GqlExecutionContext } from '@nestjs/graphql';
-
-@Injectable()
-export class GqlThrottlerGuard extends ThrottlerGuard {
-  getRequestResponse(context: ExecutionContext) {
-    const gqlCtx = GqlExecutionContext.create(context);
-    const ctx = gqlCtx.getContext();
-    return { req: ctx.req, res: ctx.res };
-  }
-}
-```
-
-### 9.6 Checklist sécurité GraphQL
-
-| Mesure | Importance | Implementation |
-|---|---|---|
-| Desactiver l'introspection en prod | Critique | `introspection: false` |
-| Limiter la profondeur | Critique | `graphql-depth-limit` |
-| Limiter la complexite | Eleve | `graphql-query-complexity` |
-| Rate limiting | Eleve | `@nestjs/throttler` avec `GqlThrottlerGuard` |
-| Auth sur les mutations | Critique | `GqlAuthGuard` |
-| Validation des inputs | Critique | `class-validator` + `ValidationPipe` |
-| Desactiver le playground en prod | Eleve | `playground: false` |
-| CORS | Eleve | Configuration NestJS standard |
+> Lab associé : `09-nestjs/labs/lab-26-graphql/README.md`. Tu y exposes l'API GraphQL TribuZen code-first — `FamilyResolver` avec query familles et mutation d'invitation, `MemberLoader` DataLoader — code de A à Z, corrigé complet commenté + variante J+30 dans le README.
 
 ---
 
-## 10. Pagination — Cursor-based (Relay)
-
-### 10.1 Pourquoi la pagination cursor-based ?
-
-| Pagination | Avantages | Inconvenients |
-|---|---|---|
-| **Offset/Limit** | Simple, familier | Donnees dupliquees ou manquantes si les donnees changent |
-| **Cursor-based** | Stable, performant | Plus complexe a implementer |
-
-La pagination cursor-based utilise un **curseur opaque** (généralement un ID encode en base64) pour indiquer où reprendre la lecture.
-
-### 10.2 Types de pagination Relay
-
-Le standard Relay définit une structure de pagination reuilisable :
-
-```typescript
-// common/pagination/page-info.model.ts
-import { ObjectType, Field } from '@nestjs/graphql';
-
-@ObjectType()
-export class PageInfo {
-  @Field(() => Boolean)
-  hasNextPage: boolean;
-
-  @Field(() => Boolean)
-  hasPreviousPage: boolean;
-
-  @Field({ nullable: true })
-  startCursor?: string;
-
-  @Field({ nullable: true })
-  endCursor?: string;
-}
-```
-
-```typescript
-// common/pagination/paginated.type.ts
-import { Type } from '@nestjs/common';
-import { ObjectType, Field, Int } from '@nestjs/graphql';
-import { PageInfo } from './page-info.model';
-
-// Factory generique pour creer des types pagines
-export function Paginated<T>(classRef: Type<T>): any {
-  @ObjectType(`${classRef.name}Edge`)
-  abstract class EdgeType {
-    @Field(() => String)
-    cursor: string;
-
-    @Field(() => classRef)
-    node: T;
-  }
-
-  @ObjectType({ isAbstract: true })
-  abstract class PaginatedType {
-    @Field(() => [EdgeType])
-    edges: EdgeType[];
-
-    @Field(() => PageInfo)
-    pageInfo: PageInfo;
-
-    @Field(() => Int)
-    totalCount: number;
-  }
-
-  return PaginatedType;
-}
-```
-
-### 10.3 Utilisation
-
-```typescript
-// products/models/paginated-products.model.ts
-import { ObjectType } from '@nestjs/graphql';
-import { Paginated } from '../../common/pagination/paginated.type';
-import { Product } from './product.model';
-
-@ObjectType()
-export class PaginatedProducts extends Paginated(Product) {}
-```
-
-```typescript
-// products/products.resolver.ts
-@Query(() => PaginatedProducts)
-products(
-  @Args('first', { type: () => Int, defaultValue: 10 }) first: number,
-  @Args('after', { nullable: true }) after?: string,
-): PaginatedProducts {
-  return this.productsService.findPaginated(first, after);
-}
-```
-
-```typescript
-// products/products.service.ts
-findPaginated(first: number, after?: string): PaginatedProducts {
-  let startIndex = 0;
-
-  if (after) {
-    // Decoder le curseur (base64 de l'ID)
-    const decodedCursor = Buffer.from(after, 'base64').toString('utf-8');
-    const afterIndex = this.products.findIndex((p) => p.id === decodedCursor);
-    if (afterIndex >= 0) startIndex = afterIndex + 1;
-  }
-
-  const slice = this.products.slice(startIndex, startIndex + first);
-
-  const edges = slice.map((product) => ({
-    cursor: Buffer.from(product.id).toString('base64'),
-    node: product,
-  }));
-
-  return {
-    edges,
-    pageInfo: {
-      hasNextPage: startIndex + first < this.products.length,
-      hasPreviousPage: startIndex > 0,
-      startCursor: edges[0]?.cursor,
-      endCursor: edges[edges.length - 1]?.cursor,
-    },
-    totalCount: this.products.length,
-  };
-}
-```
-
-Requête cote client :
-
-```graphql
-query {
-  products(first: 5) {
-    edges {
-      cursor
-      node {
-        id
-        name
-        price
-      }
-    }
-    pageInfo {
-      hasNextPage
-      endCursor
-    }
-    totalCount
-  }
-}
-
-# Page suivante
-query {
-  products(first: 5, after: "cHJvZHVjdC0z") {
-    edges {
-      cursor
-      node {
-        id
-        name
-        price
-      }
-    }
-    pageInfo {
-      hasNextPage
-      endCursor
-    }
-  }
-}
-```
-
----
-
-## 11. Testing GraphQL APIs
-
-### 11.1 Tests E2E avec supertest
-
-Pour tester une API GraphQL, on envoie des requêtes POST au endpoint `/graphql`.
-
-```typescript
-// test/products.e2e-spec.ts
-import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication, ValidationPipe } from '@nestjs/common';
-import * as request from 'supertest';
-import { AppModule } from '../src/app.module';
-
-describe('Products GraphQL (e2e)', () => {
-  let app: INestApplication;
-
-  beforeAll(async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-
-    app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe());
-    await app.init();
-  });
-
-  afterAll(async () => {
-    await app.close();
-  });
-
-  it('should return all products', async () => {
-    const res = await request(app.getHttpServer())
-      .post('/graphql')
-      .send({
-        query: `
-          query {
-            products {
-              id
-              name
-              price
-            }
-          }
-        `,
-      })
-      .expect(200);
-
-    expect(res.body.data.products).toBeDefined();
-    expect(Array.isArray(res.body.data.products)).toBe(true);
-  });
-
-  it('should create a product', async () => {
-    const res = await request(app.getHttpServer())
-      .post('/graphql')
-      .send({
-        query: `
-          mutation {
-            createProduct(input: {
-              name: "Test Product"
-              price: 29.99
-            }) {
-              id
-              name
-              price
-            }
-          }
-        `,
-      })
-      .expect(200);
-
-    expect(res.body.data.createProduct.name).toBe('Test Product');
-    expect(res.body.data.createProduct.price).toBe(29.99);
-  });
-});
-```
-
-### 11.2 Tests unitaires d'un Resolver
-
-```typescript
-// products/products.resolver.spec.ts
-import { Test, TestingModule } from '@nestjs/testing';
-import { ProductsResolver } from './products.resolver';
-import { ProductsService } from './products.service';
-
-describe('ProductsResolver', () => {
-  let resolver: ProductsResolver;
-  let service: ProductsService;
-
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        ProductsResolver,
-        {
-          provide: ProductsService,
-          useValue: {
-            findAll: jest.fn().mockReturnValue([
-              { id: '1', name: 'Product 1', price: 10 },
-            ]),
-            findOne: jest.fn().mockReturnValue(
-              { id: '1', name: 'Product 1', price: 10 },
-            ),
-            create: jest.fn().mockImplementation((input) => ({
-              id: '2',
-              ...input,
-              createdAt: new Date(),
-            })),
-          },
-        },
-      ],
-    }).compile();
-
-    resolver = module.get<ProductsResolver>(ProductsResolver);
-    service = module.get<ProductsService>(ProductsService);
-  });
-
-  it('should return all products', () => {
-    const result = resolver.findAll();
-    expect(result).toHaveLength(1);
-    expect(service.findAll).toHaveBeenCalled();
-  });
-
-  it('should create a product', () => {
-    const input = { name: 'New Product', price: 25.99 };
-    const result = resolver.createProduct(input as any);
-    expect(result.name).toBe('New Product');
-    expect(service.create).toHaveBeenCalledWith(input);
-  });
-});
-```
-
-### 11.3 Tester les erreurs
-
-```typescript
-it('should return errors for invalid input', async () => {
-  const res = await request(app.getHttpServer())
-    .post('/graphql')
-    .send({
-      query: `
-        mutation {
-          createProduct(input: {
-            name: ""
-            price: -5
-          }) {
-            id
-          }
-        }
-      `,
-    })
-    .expect(200);
-
-  // GraphQL retourne toujours 200, les erreurs sont dans le body
-  expect(res.body.errors).toBeDefined();
-});
-
-it('should return null for non-existent product', async () => {
-  const res = await request(app.getHttpServer())
-    .post('/graphql')
-    .send({
-      query: `
-        query {
-          product(id: "non-existent") {
-            id
-            name
-          }
-        }
-      `,
-    })
-    .expect(200);
-
-  expect(res.body.data.product).toBeNull();
-});
-```
-
----
-
-## 12. Apollo Client — Vue d'ensemble
-
-### 12.1 Installation (React)
-
-```bash
-npm install @apollo/client graphql
-```
-
-### 12.2 Configuration
-
-```typescript
-// apollo-client.ts
-import { ApolloClient, InMemoryCache, HttpLink, split } from '@apollo/client';
-import { GraphQLWsLink } from '@apollo/client/link/subscriptions';
-import { createClient } from 'graphql-ws';
-import { getMainDefinition } from '@apollo/client/utilities';
-
-const httpLink = new HttpLink({
-  uri: 'http://localhost:3000/graphql',
-});
-
-const wsLink = new GraphQLWsLink(
-  createClient({
-    url: 'ws://localhost:3000/graphql',
-  }),
-);
-
-// Routage : WebSocket pour les subscriptions, HTTP pour le reste
-const splitLink = split(
-  ({ query }) => {
-    const definition = getMainDefinition(query);
-    return (
-      definition.kind === 'OperationDefinition' &&
-      definition.operation === 'subscription'
-    );
-  },
-  wsLink,
-  httpLink,
-);
-
-const client = new ApolloClient({
-  link: splitLink,
-  cache: new InMemoryCache(),
-});
-```
-
-### 12.3 useQuery — Lire des donnees
-
-```typescript
-import { useQuery, gql } from '@apollo/client';
-
-const GET_PRODUCTS = gql`
-  query GetProducts {
-    products {
-      id
-      name
-      price
-      reviews {
-        rating
-      }
-    }
-  }
-`;
-
-function ProductsList() {
-  const { loading, error, data, refetch } = useQuery(GET_PRODUCTS);
-
-  if (loading) return <p>Chargement...</p>;
-  if (error) return <p>Erreur : {error.message}</p>;
-
-  return (
-    <ul>
-      {data.products.map((product) => (
-        <li key={product.id}>
-          {product.name} — {product.price} euros
-        </li>
-      ))}
-    </ul>
-  );
-}
-```
-
-### 12.4 useMutation — Modifier des donnees
-
-```typescript
-import { useMutation, gql } from '@apollo/client';
-
-const CREATE_PRODUCT = gql`
-  mutation CreateProduct($input: CreateProductInput!) {
-    createProduct(input: $input) {
-      id
-      name
-      price
-    }
-  }
-`;
-
-function CreateProductForm() {
-  const [createProduct, { loading, error }] = useMutation(CREATE_PRODUCT, {
-    // Mettre a jour le cache apres la mutation
-    refetchQueries: ['GetProducts'],
-  });
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    await createProduct({
-      variables: {
-        input: {
-          name: 'Nouveau produit',
-          price: 49.99,
-        },
-      },
-    });
-  };
-
-  return (
-    <form onSubmit={handleSubmit}>
-      {/* ... champs du formulaire ... */}
-      <button type="submit" disabled={loading}>
-        {loading ? 'Creation...' : 'Creer'}
-      </button>
-      {error && <p>Erreur : {error.message}</p>}
-    </form>
-  );
-}
-```
-
-### 12.5 Cache et mise a jour optimiste
-
-```typescript
-const [createProduct] = useMutation(CREATE_PRODUCT, {
-  // Mise a jour optimiste : le UI est mis a jour avant la reponse du serveur
-  optimisticResponse: {
-    createProduct: {
-      __typename: 'Product',
-      id: 'temp-id',
-      name: 'Nouveau produit',
-      price: 49.99,
-    },
-  },
-  // Mettre a jour manuellement le cache
-  update(cache, { data: { createProduct } }) {
-    cache.modify({
-      fields: {
-        products(existingProducts = []) {
-          const newProductRef = cache.writeFragment({
-            data: createProduct,
-            fragment: gql`
-              fragment NewProduct on Product {
-                id
-                name
-                price
-              }
-            `,
-          });
-          return [...existingProducts, newProductRef];
-        },
-      },
-    });
-  },
-});
-```
-
----
-
-## 13. Patterns avances
-
-### 13.1 Federation — Microservices GraphQL
-
-Quand votre application est decomposee en microservices, Apollo Federation permet de combiner plusieurs sous-graphes en un seul schema unifie.
-
-```
-Client → Apollo Gateway → Service Produits (sous-graphe)
-                        → Service Utilisateurs (sous-graphe)
-                        → Service Commandes (sous-graphe)
-```
-
-Chaque service définit sa portion du schema, et le Gateway les combine automatiquement.
-
-```typescript
-// Installation pour un sous-graphe
-npm install @apollo/subgraph
-
-// Configuration NestJS
-GraphQLModule.forRoot<ApolloFederationDriverConfig>({
-  driver: ApolloFederationDriver,
-  autoSchemaFile: { federation: 2 },
-}),
-```
-
-### 13.2 Directives personnalisees
-
-```typescript
-import { SchemaDirectiveVisitor } from '@graphql-tools/utils';
-
-// Directive @upper qui met en majuscules
-@Directive('@upper')
-@ObjectType()
-export class Product {
-  @Field()
-  name: string; // Sera automatiquement en majuscules
-}
-```
-
-### 13.3 Interceptors GraphQL
-
-```typescript
-import {
-  CallHandler,
-  ExecutionContext,
-  Injectable,
-  NestInterceptor,
-} from '@nestjs/common';
-import { GqlExecutionContext } from '@nestjs/graphql';
-import { Observable, tap } from 'rxjs';
-
-@Injectable()
-export class LoggingInterceptor implements NestInterceptor {
-  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
-    const gqlContext = GqlExecutionContext.create(context);
-    const info = gqlContext.getInfo();
-    const now = Date.now();
-
-    return next.handle().pipe(
-      tap(() => {
-        console.log(
-          `${info.parentType.name}.${info.fieldName} — ${Date.now() - now}ms`,
-        );
-      }),
-    );
-  }
-}
-```
-
-### 13.4 Scalaires personnalises
-
-```typescript
-import { Scalar, CustomScalar } from '@nestjs/graphql';
-import { Kind, ValueNode } from 'graphql';
-
-@Scalar('Date', () => Date)
-export class DateScalar implements CustomScalar<string, Date> {
-  description = 'Date custom scalar type (ISO 8601)';
-
-  parseValue(value: string): Date {
-    return new Date(value);
-  }
-
-  serialize(value: Date): string {
-    return value.toISOString();
-  }
-
-  parseLiteral(ast: ValueNode): Date {
-    if (ast.kind === Kind.STRING) {
-      return new Date(ast.value);
-    }
-    return null;
-  }
-}
-```
-
----
-
-## 14. Récapitulatif et bonnes pratiques
-
-### 14.1 Architecture d'un module GraphQL NestJS
-
-```
-src/
-├── app.module.ts                 # GraphQLModule.forRoot
-├── common/
-│   ├── pagination/
-│   │   ├── page-info.model.ts
-│   │   └── paginated.type.ts
-│   └── pubsub.provider.ts
-├── products/
-│   ├── dto/
-│   │   ├── create-product.input.ts
-│   │   └── update-product.input.ts
-│   ├── models/
-│   │   ├── product.model.ts
-│   │   └── paginated-products.model.ts
-│   ├── products.dataloader.ts
-│   ├── products.module.ts
-│   ├── products.resolver.ts
-│   ├── products.resolver.spec.ts
-│   └── products.service.ts
-└── schema.gql                    # Genere automatiquement
-```
-
-### 14.2 Checklist avant mise en production
-
-| Élément | Description |
-|---|---|
-| Desactiver le playground | `playground: false` en production |
-| Desactiver l'introspection | `introspection: false` en production |
-| Limiter la profondeur | `graphql-depth-limit` (max 5-7 niveaux) |
-| Limiter la complexite | `graphql-query-complexity` (max 50-100) |
-| DataLoaders | Pour toutes les relations N+1 |
-| Validation des inputs | `class-validator` sur tous les `@InputType` |
-| Auth sur les mutations | `@UseGuards(GqlAuthGuard)` |
-| Rate limiting | `@nestjs/throttler` adapte pour GraphQL |
-| Logs et monitoring | `LoggingInterceptor` ou Apollo Studio |
-| Persisted queries | Limiter les requêtes aux requêtes connues |
-
-### 14.3 Comparaison finale REST vs GraphQL
-
-```
-REST                          GraphQL
-────────────────────          ────────────────────
-GET  /products                query { products { ... } }
-GET  /products/42             query { product(id: 42) { ... } }
-POST /products                mutation { createProduct(input: {...}) { ... } }
-PUT  /products/42             mutation { updateProduct(input: {...}) { ... } }
-DELETE /products/42           mutation { removeProduct(id: 42) }
-WebSocket /ws                 subscription { productCreated { ... } }
-```
-
-**Les deux approches ne sont pas mutuellement exclusives.** Beaucoup d'applications utilisent REST pour les operations simples et GraphQL pour les ecrans complexes qui necessitent des donnees de plusieurs sources.
-
----
-
-## 15. Exercices
-
-### Exercice 1 — Premier schema
-Creez un schema GraphQL code-first pour une application de gestion de livres avec :
-- `Book` (id, title, author, year, genre)
-- `Author` (id, name, birthYear)
-- Queries : `books`, `book(id)`, `booksByAuthor(authorId)`
-- Mutations : `createBook`, `updateBook`, `removeBook`
-
-### Exercice 2 — DataLoader
-Identifiez le problème N+1 dans cette requête et implementez un DataLoader :
-```graphql
-query {
-  books {
-    title
-    author {
-      name
-      books {
-        title
-      }
-    }
-  }
-}
-```
-
-### Exercice 3 — Pagination
-Implementez la pagination cursor-based (Relay) pour la query `books`.
-
-### Exercice 4 — Sécurité
-Ajoutez un guard d'authentification sur les mutations, la limitation de profondeur a 4, et la complexite maximale a 30.
-
----
-
-## 16. Ressources
-
-- [Documentation NestJS — GraphQL](https://docs.nestjs.com/graphql/quick-start)
-- [Apollo Server Documentation](https://www.apollographql.com/docs/apollo-server/)
-- [GraphQL Specification](https://spec.graphql.org/)
-- [How to GraphQL](https://www.howtographql.com/) — Tutoriel interactif
-- [DataLoader GitHub](https://github.com/graphql/dataloader)
-- [Relay Cursor Connections Specification](https://relay.dev/graphql/connections.htm)
-- [GraphQL Security — OWASP](https://cheatsheetseries.owasp.org/cheatsheets/GraphQL_Cheat_Sheet.html)
-
----
-
-<!-- parcours-recommande -->
-
-::: tip Parcours recommandé
-1. **Screencast** : [screencast 26 graphql](../screencasts/screencast-26-graphql.md)
-2. **Lab** : [lab-26-graphql](../labs/lab-26-graphql/README)
-3. **Quiz** : [quiz 26 graphql](../quizzes/quiz-26-graphql.html)
-:::
-
----
-
-<!-- navigation-inter-cours -->
-
-::: info Cours suivant
-Bravo, tu as termine le cours **NestJS** ! 
-Le prochain cours du curriculum est **PostgreSQL**.
-
-[Commencer PostgreSQL →](../../06-postgresql/modules/00-prerequis-et-vue-ensemble.md)
-:::
+> **Navigation**
+> ← [Module 25 — NestJS MongoDB Mongoose](./25-mongodb-mongoose.md) | **Dernier module du parcours 09-nestjs**

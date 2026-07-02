@@ -4,7 +4,7 @@ cours: 09-nestjs
 notions: [traitement en arrière-plan, files d'attente avec BullMQ et Redis, producteur et processor, options de job retries et backoff, tâches planifiées avec le module schedule, décorateur Cron, workers, monitoring des jobs]
 outcomes: [mettre un travail lourd en file avec BullMQ, écrire un processor, configurer retries et backoff, planifier une tâche récurrente avec Cron]
 prerequis: [21-nestjs-websockets-fichiers]
-next: 23-nestjs-performance-deploiement
+next: 23-performance-deploiement
 libs: [{ name: "@nestjs/bullmq", version: "^11" }, { name: bullmq, version: "^5" }, { name: "@nestjs/schedule", version: "^6" }]
 tribuzen: jobs TribuZen (envoi async des emails d'invitation, génération de la gazette hebdomadaire)
 last-reviewed: 2026-07
