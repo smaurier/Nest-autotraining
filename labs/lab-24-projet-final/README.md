@@ -1,5 +1,8 @@
 # Lab 24 — Projet final : API TribuZen complète
 
+> **Vrai outil :** API NestJS complète (Auth, Family, Post, Invitation) — du schéma Prisma aux tests e2e
+> **Feedback :** le coach valide en session
+
 > **Capstone.** Tu assembles ici les quatre modules de domaine TribuZen (Auth, Family, Post, Invitation) du schéma Prisma jusqu'aux tests e2e. Chaque étape s'appuie sur un concept du cours — aucun bloc nouveau, juste l'intégration.
 >
 > **Corrigé inline.** Chaque section TODO contient le corrigé commenté immédiatement après. Lis le TODO, essaie, puis compare.
@@ -649,6 +652,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common'
 import * as request from 'supertest'
 import { AppModule } from '../src/app.module'
 import { PrismaService } from '../src/prisma/prisma.service'
+import { JwtAuthGuard } from '../src/auth/guards/jwt-auth.guard'
 
 const mockPrisma = {
   family: {
@@ -664,9 +668,6 @@ const mockPrisma = {
   $transaction: jest.fn(),
 }
 
-// Token JWT valide pour les tests — généré avec le même JWT_SECRET que .env.test
-const TEST_TOKEN = 'Bearer test-jwt-token'
-
 describe('Flux invitation TribuZen (E2E)', () => {
   let app: INestApplication
 
@@ -677,6 +678,10 @@ describe('Flux invitation TribuZen (E2E)', () => {
       // overrideProvider remplace PrismaService dans tout l'arbre AppModule
       .overrideProvider(PrismaService)
       .useValue(mockPrisma)
+      // overrideGuard bypass le JwtAuthGuard global — les tests e2e valident
+      // la logique métier, pas l'auth (couverte par jwt-auth.guard.spec.ts)
+      .overrideGuard(JwtAuthGuard)
+      .useValue({ canActivate: () => true })
       .compile()
 
     app = moduleRef.createNestApplication()
@@ -715,9 +720,9 @@ describe('Flux invitation TribuZen (E2E)', () => {
         status: 'PENDING',
       })
 
+      // Pas de header Authorization nécessaire — JwtAuthGuard est overridé
       const res = await request(app.getHttpServer())
         .post('/families/fam-1/invitations')
-        .set('Authorization', TEST_TOKEN)
         .send({ email: 'bob@tribu.fr' })
         .expect(201)
 
@@ -727,7 +732,6 @@ describe('Flux invitation TribuZen (E2E)', () => {
     it('retourne 400 si email manquant (ValidationPipe)', () => {
       return request(app.getHttpServer())
         .post('/families/fam-1/invitations')
-        .set('Authorization', TEST_TOKEN)
         .send({}) // body vide → ValidationPipe rejette
         .expect(400)
     })
@@ -740,7 +744,6 @@ describe('Flux invitation TribuZen (E2E)', () => {
 
       await request(app.getHttpServer())
         .post('/families/fam-1/invitations')
-        .set('Authorization', TEST_TOKEN)
         .send({ email: 'bob@tribu.fr' })
         .expect(400)
     })
@@ -756,17 +759,14 @@ describe('Flux invitation TribuZen (E2E)', () => {
 
       await request(app.getHttpServer())
         .post('/families/fam-1/invitations')
-        .set('Authorization', TEST_TOKEN)
         .send({ email: 'bob@tribu.fr' })
         .expect(400)
     })
 
-    it('retourne 401 sans token JWT', () => {
-      return request(app.getHttpServer())
-        .post('/families/fam-1/invitations')
-        .send({ email: 'bob@tribu.fr' })
-        .expect(401) // JwtAuthGuard global bloque
-    })
+    // Le comportement 401 (token absent ou invalide) est couvert par
+    // src/auth/guards/jwt-auth.guard.spec.ts — tester le guard ici
+    // nécessiterait un JwtService.sign() réel avec JWT_SECRET de test,
+    // ce qui sort du périmètre de ce test de logique métier.
   })
 })
 ```

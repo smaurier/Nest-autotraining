@@ -393,7 +393,7 @@ TypeORM QueryBuilder est plus expressif pour les jointures complexes, requêtes 
 | Besoin de lazy loading | Type safety prioritaire |
 | Équipe avec background Java/C# (Active Record) | Expérience développeur optimale |
 | Requêtes SQL très complexes | Approche schema-first préférée |
-| MSSQL, Oracle, CockroachDB | PostgreSQL, MySQL, SQLite, MongoDB |
+| MSSQL, Oracle | PostgreSQL, MySQL, SQLite, MongoDB, CockroachDB |
 
 > **Avis honnête** : Prisma gagne sur type safety et DX. TypeORM gagne sur expressivité SQL et support de bases. Pour TribuZen (PostgreSQL, nouveau projet) → Prisma est le meilleur choix.
 
@@ -475,7 +475,11 @@ export class FamilyService {
   // Pagination par curseur — performante sur de grandes tables
   async findInvitationsCursor(familyId: string, cursor?: string, limit = 10) {
     const items = await this.prisma.invitation.findMany({
-      where: { familyId, status: 'PENDING', deletedAt: null },
+      where: {
+        familyId,
+        status: 'PENDING',
+        deletedAt: null, // explicite pour lisibilité — le middleware $use l'ajoute déjà sur findMany
+      },
       orderBy: { id: 'asc' },
       take: limit + 1,                             // prend un de plus pour savoir s'il y a la suite
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),

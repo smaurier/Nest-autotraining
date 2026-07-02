@@ -345,7 +345,9 @@ export class Post {
   familyId: string
 
   // ManyToMany avec table de liaison personnalisée
-  @ManyToMany(() => Post, (post) => post.likedBy, { cascade: ['insert'] })
+  // Premier argument = entité cible (User), pas l'entité courante (Post)
+  // likedBy: User[] → () => User, pas () => Post
+  @ManyToMany(() => User, { cascade: ['insert'] })
   @JoinTable({
     name: 'post_likes',
     joinColumn: { name: 'post_id', referencedColumnName: 'id' },
@@ -391,15 +393,18 @@ const posts = await user.posts   // SQL exécuté ici seulement
 **Explicite avec `relations` — recommandé**
 
 ```ts
-// choisir précisément quoi charger selon le cas d'usage
+// Exemple 1 — charger uniquement la family
 const user = await userRepo.findOne({
   where: { id },
-  relations: {
-    family: true,        // charge la family
-    family: {
-      members: true,     // charge aussi les membres de la family (imbriqué)
-    },
-  },
+  relations: { family: true },
+})
+
+// Exemple 2 — charger la family ET ses membres (relation imbriquée)
+// ⚠️ ne pas fusionner les deux dans un seul objet : JS écrase silencieusement
+//    la clé dupliquée → { family: true } serait perdu
+const userDeep = await userRepo.findOne({
+  where: { id },
+  relations: { family: { members: true } },
 })
 ```
 

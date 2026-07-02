@@ -1,5 +1,8 @@
 # Lab 25 — MongoDB et Mongoose
 
+> **Vrai outil :** MongoDB + Mongoose — base de documents pour les posts TribuZen (tags libres, sondages, populate auteur)
+> **Feedback :** le coach valide en session
+
 > **Fil-rouge TribuZen :** implémenter `PostSchema` et `PostsService` pour stocker les posts de famille en MongoDB, avec tags libres, sondage optionnel et populate de l'auteur.
 
 ## Objectifs

@@ -194,17 +194,17 @@ app.listen(3000)
 
 ```ts
 import express from 'express'
-import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
+// import.meta.dirname est disponible nativement depuis Node 22 —
+// plus besoin du polyfill fileURLToPath(import.meta.url) utilisé en Node < 22
 
 // Sert les fichiers du dossier public/ à la racine de l'URL
-app.use(express.static(path.join(__dirname, '../public')))
+app.use(express.static(path.join(import.meta.dirname, '../public')))
 // GET /logo.png → public/logo.png
 
 // Avec préfixe URL — les fichiers statiques sont accessibles sous /assets/
-app.use('/assets', express.static(path.join(__dirname, '../public')))
+app.use('/assets', express.static(path.join(import.meta.dirname, '../public')))
 // GET /assets/logo.png → public/logo.png
 ```
 

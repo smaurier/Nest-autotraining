@@ -5,7 +5,7 @@ notions: [GraphQL vs REST, approche code-first NestJS, resolvers et décorateurs
 outcomes: [exposer une API GraphQL code-first avec NestJS, écrire des resolvers query et mutation, typer schéma et inputs, éviter le N+1 avec DataLoader]
 prerequis: [25-mongodb-mongoose]
 next: fin-parcours-09-nestjs
-libs: [{ name: "@nestjs/graphql", version: "^13" }, { name: graphql, version: "^16" }]
+libs: [{ name: "@nestjs/graphql", version: "^13" }, { name: graphql, version: "^16" }, { name: "graphql-subscriptions", version: "^3" }]
 tribuzen: exposer une API GraphQL de TribuZen (query familles avec membres, mutation d'invitation)
 last-reviewed: 2026-07
 ---
@@ -380,6 +380,8 @@ export class FamilyResolver {
   }
 }
 ```
+
+> **Note version** : `asyncIterableIterator()` est l'API de `graphql-subscriptions` **v3**. La v2 utilisait `asyncIterator()` (sans `Iterable`) — si tu migres depuis v2, renommer l'appel suffit.
 
 Le client s'abonne avec `subscription { memberInvited { displayName } }` — il reçoit une notification WebSocket à chaque `inviteMember`. En production, `PubSub` in-memory doit être remplacé par `graphql-redis-subscriptions` pour que les notifications soient distribuées entre toutes les instances serveur.
 

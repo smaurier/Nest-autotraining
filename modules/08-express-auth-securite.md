@@ -124,8 +124,9 @@ function signAccessToken(userId: string, role: string): string {
 // Vérifier un token — jwt.verify() contrôle la signature ET le claim exp
 function verifyToken(token: string): jwt.JwtPayload {
   try {
-    // Lève une exception si la signature est invalide OU si le token est expiré
-    return jwt.verify(token, JWT_SECRET) as jwt.JwtPayload
+    // { algorithms: ['HS256'] } restreint explicitement l'algo accepté —
+    // défense en profondeur contre l'attaque "alg confusion" (ex. HS256 → RS256 ou alg:none)
+    return jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] }) as jwt.JwtPayload
   } catch (err) {
     if (err instanceof jwt.TokenExpiredError) {
       throw new Error('TOKEN_EXPIRED')   // access token expiré → demander un refresh
@@ -460,7 +461,9 @@ export function authenticate(req: Request, res: Response, next: NextFunction): v
 
   try {
     // jwt.verify() valide la signature HS256 ET le claim exp simultanément
-    const payload = jwt.verify(token, JWT_SECRET) as jwt.JwtPayload
+    // { algorithms: ['HS256'] } restreint l'algo accepté — défense en profondeur
+    // contre l'attaque "alg confusion" (ex. passage en RS256 ou injection alg:none)
+    const payload = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] }) as jwt.JwtPayload
 
     req.user = {
       userId: payload['userId'] as string,

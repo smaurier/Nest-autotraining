@@ -526,7 +526,7 @@ Réponse NestJS :
 
 - **`whitelist: true` sans `forbidNonWhitelisted`.** `whitelist: true` seul supprime silencieusement les champs inconnus. Si tu veux que le client sache qu'il envoie des champs invalides (meilleure DX), ajouter `forbidNonWhitelisted: true` : NestJS retourne alors une erreur 400 explicite.
 
-- **`@HttpCode` sur `@Post` manquant.** `@Post()` retourne 200 par défaut en NestJS 11 (le 201 était le comportement des versions antérieures — confirmation dans la doc officielle). *Toujours* décorer la méthode `create` avec `@HttpCode(HttpStatus.CREATED)` pour être explicite et indépendant des versions.
+- **`@HttpCode` sur `@Post` — intention implicite.** `@Post()` retourne **201** dans toutes les versions de NestJS — ce comportement n'a jamais changé. *Mais* omettre `@HttpCode(HttpStatus.CREATED)` laisse le code dépendre d'un comportement implicite du framework : un lecteur qui ne connaît pas la convention doit aller chercher la doc pour savoir quel code est renvoyé. *Bonne pratique* : toujours décorer la méthode `create` avec `@HttpCode(HttpStatus.CREATED)` pour que l'intention soit explicite et visible directement dans le code.
 
 - **Double body avec `@Res()`.** Utiliser `@Res() res: Response` et appeler `res.json()` ET `return` dans la même méthode envoie deux réponses — Express lève `Cannot set headers after they are sent`. Si tu dois utiliser `@Res()`, ajoute `{ passthrough: true }` pour que NestJS gère quand même la sérialisation : `@Res({ passthrough: true }) res: Response`.
 

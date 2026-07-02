@@ -522,3 +522,5 @@ Pourquoi chaîner DefaultValuePipe avant ParseIntPipe ?|DefaultValuePipe fournit
 ## Pont vers le lab
 
 > Lab associé : `09-nestjs/labs/lab-13-pipes-guards/README.md`. Tu y implémentes `ParsePositiveIntPipe`, `AuthGuard`, `RolesGuard`, `LoggingInterceptor`, `TransformInterceptor` et `HttpExceptionFilter` sur une API Items TribuZen — corrigé complet commenté + variante J+30 dans le README.
+
+> **Pont →** L'API TribuZen est désormais validée, protégée et transformée — mais les données vivent toujours en mémoire. Le module 14 (TypeORM) y remédie en les persistant dans PostgreSQL.

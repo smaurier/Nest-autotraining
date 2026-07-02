@@ -43,7 +43,7 @@ server.listen(3000, () => console.log('http://localhost:3000'))
 
 ### Le module `http`
 
-Node.js expose le module `http` en natif — aucun `npm install`. Import ESM avec le préfixe `node:` (recommandé depuis Node 14, préfixe obligatoire en Node 22 pour les modules built-in) :
+Node.js expose le module `http` en natif — aucun `npm install`. Import ESM avec le préfixe `node:` (recommandé depuis Node 14, fortement conseillé en Node 22 — fonctionne sans, mais le préfixe explicite lève toute ambiguïté avec un éventuel package npm du même nom) :
 
 ```ts
 import http from 'node:http'
@@ -408,7 +408,7 @@ tribuzen/
       server.ts    ← Exemple A de ce module (GET + POST /api/families)
 ```
 
-Au module 05 (Express), la même route `GET /api/families` sera réécrite en 4 lignes avec `app.get(...)`. L'écart de code illustre concrètement ce qu'un framework apporte. Au module 07 (NestJS), un `@Controller('families')` + `@Get()` remplacera le tout.
+Au module 05 (Express), la même route `GET /api/families` sera réécrite en 4 lignes avec `app.get(...)`. L'écart de code illustre concrètement ce qu'un framework apporte. Au module 09 (NestJS), un `@Controller('families')` + `@Get()` remplacera le tout.
 
 ## 6. Points clés
 

@@ -134,7 +134,9 @@ function authenticate(req: Request, res: Response, next: NextFunction): void {
 
   try {
     // jwt.verify() valide la signature HS256 ET le claim exp simultanément
-    const payload = jwt.verify(token, JWT_SECRET) as jwt.JwtPayload
+    // { algorithms: ['HS256'] } restreint l'algo accepté — défense en profondeur
+    // contre l'attaque "alg confusion" (ex. passage en RS256 ou injection alg:none)
+    const payload = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] }) as jwt.JwtPayload
     req.user = { userId: payload['userId'] as string, role: payload['role'] as string }
     next()
   } catch (err) {

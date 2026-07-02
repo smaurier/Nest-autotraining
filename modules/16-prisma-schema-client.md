@@ -439,7 +439,7 @@ npx prisma migrate dev --name init
 1. `datasource db` lit `DATABASE_URL` depuis `.env` — jamais hard-codé dans le schéma.
 2. `@id @default(cuid())` : clé primaire string courte, portable entre PostgreSQL, MySQL et SQLite.
 3. `@map("created_at")` + `@@map("users")` : snake_case en base, camelCase dans TypeScript — les deux conventions respectées.
-4. `@relation("FamilyMembers")` : nom explicite obligatoire car `User` a deux relations distinctes avec `Family` via `members` d'un côté et aucune autre — Prisma le demande pour lever l'ambiguïté de `sentInvitations` sur `InvitedBy`.
+4. `@relation("FamilyMembers")` : nom **documentaire** ici — `User` n'a qu'une seule relation avec `Family`, Prisma ne l'exige pas. Un nom de relation devient **obligatoire uniquement si le même couple de modèles est relié par plusieurs relations distinctes** (ex. `User` avec `sentInvitations Invitation[]` ET `receivedInvitations Invitation[]`, toutes deux vers `Invitation`). `"InvitedBy"` sur `Invitation.invitedBy` est lui aussi optionnel dans ce schéma car `User↔Invitation` ne compte qu'une relation.
 5. `@@unique([email, familyId])` sur `Invitation` : interdit deux invitations actives pour le même email dans la même famille — règle métier encodée dans le schéma.
 6. `migrate dev` crée un fichier SQL immuable versionné — **ne jamais le modifier manuellement**.
 
@@ -544,7 +544,7 @@ export class FamilyModule {}
 
 - **`.env` non chargé en production.** `prisma migrate deploy` lit `DATABASE_URL` depuis l'environnement processus, pas depuis `.env`. En production (Docker, Kubernetes), la variable doit être injectée via les secrets du cluster. Ajouter `.env` à `.gitignore` immédiatement après `prisma init` — ne jamais committer de credentials.
 
-- **Noms de relations ambiguës omis.** Si un modèle a deux relations vers le même autre modèle (ex. `User` a `posts` et `sentInvitations`, toutes deux vers des modèles qui referment sur `User`), Prisma exige un nom de relation explicite `@relation("NomDeRelation")` des deux côtés. Sans lui, Prisma lève une erreur de validation du schéma à la migration.
+- **Noms de relations ambiguës omis.** Un nom de relation `@relation("NomDeRelation")` n'est **obligatoire que si le même couple de modèles est relié par plusieurs relations distinctes**. Exemple correct : `User` avec `sentInvitations Invitation[]` et `receivedInvitations Invitation[]`, toutes deux vers `Invitation` — Prisma ne peut pas lever l'ambiguïté sans nom des deux côtés et lève une erreur de validation du schéma à la migration. Si une seule relation existe entre deux modèles (cas de `User↔Family` dans ce schéma), le nom est optionnel (documentaire). `posts` et `sentInvitations` ne sont **pas** un exemple valide : ils pointent vers deux modèles différents (`Post` et `Invitation`).
 
 ## 5. Ancrage TribuZen
 
