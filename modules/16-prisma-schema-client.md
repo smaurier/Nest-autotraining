@@ -1,356 +1,338 @@
-# Module 16 — Prisma — Schema, Client & Migrations
-
-> **Objectif** : Decouvrir Prisma, l'ORM moderne pour TypeScript, et apprendre a définir un schema, générer le client, effectuer des operations CRUD et gérer les migrations dans un projet NestJS.
-> **Difficulte** : ⭐⭐⭐ (avance)
-> **Prérequis** : Module 11 (Services & Providers), Module 12 (Modules), notions SQL de base
-> **Duree estimee** : 5 heures
-
+---
+titre: Prisma schema et client
+cours: 09-nestjs
+notions: [schéma Prisma, modèles et champs, attributs et types, relations Prisma, prisma migrate, génération du client, Prisma Client typé, CRUD type-safe, intégration NestJS via un service]
+outcomes: [écrire un schéma Prisma avec modèles et relations, générer et appliquer une migration, utiliser le Prisma Client typé pour du CRUD, intégrer Prisma dans un service NestJS]
+prerequis: [15-typeorm-requetes-migrations]
+next: 17-prisma-avance-comparaison
+libs: [{ name: prisma, version: "^6" }, { name: "@prisma/client", version: "^6" }]
+tribuzen: schéma Prisma de TribuZen (User, Family, Post, Invitation) et un PrismaService NestJS
+last-reviewed: 2026-07
 ---
 
-## 1. Introduction a Prisma
+# Prisma schema et client
 
-### 1.1 Qu'est-ce que Prisma ?
+> **Outcomes — tu sauras FAIRE :** écrire un schéma Prisma avec modèles et relations, générer et appliquer une migration, utiliser le Prisma Client typé pour du CRUD, intégrer Prisma dans un service NestJS.
+> **Difficulté :** :star::star::star:
 
-Prisma est un ORM de nouvelle génération pour Node.js et TypeScript. Contrairement a TypeORM qui utilise des decorateurs et le pattern Active Record/Data Mapper, Prisma adopte une approche **schema-first** : vous definissez votre schema dans un fichier declaratif, puis Prisma généré un client TypeScript entièrement type.
+## 1. Cas concret d'abord
 
-> **Analogie** : Si TypeORM est comme un architecte qui dessine les plans au fur et à mesure de la construction (decorateurs dans le code), Prisma est comme un architecte qui fait d'abord un plan complet (schema.prisma), puis généré automatiquement les outils de construction (PrismaClient).
+TribuZen a besoin d'une vraie base de données. Tu viens de travailler avec TypeORM au module 15 — décorateurs sur les classes, `@Entity()`, `@Column()`, `@ManyToOne()`. La question naturelle est : existe-t-il une approche où le modèle de données est déclaré une seule fois dans un fichier central, et où TypeScript connaît exactement les types retournés par chaque requête ?
 
-### 1.2 L'ecosysteme Prisma
+C'est le pari de Prisma : un seul fichier `schema.prisma`, une migration générée automatiquement, et un client TypeScript où chaque appel est entièrement typé à la compilation.
 
-| Composant | Role |
-|-----------|------|
-| **Prisma Schema** | Fichier declaratif pour définir le modèle de donnees |
-| **Prisma Client** | Client auto-généré avec types TypeScript complets |
-| **Prisma Migrate** | Système de migration declaratif |
-| **Prisma Studio** | Interface graphique pour explorer les donnees |
-| **Prisma CLI** | Outil en ligne de commande |
+Concrètement, tu essaies de modéliser `User` + `Family` en TypeORM :
 
-### 1.3 Installation
+```ts
+// ❌ TypeORM — les types sont déclarés deux fois : décorateur + propriété TypeScript
+@Entity('users')
+export class User {
+  @PrimaryGeneratedColumn('uuid')
+  id: string  // déclaré ici aussi — risque de désynchronisation avec le décorateur
 
-```bash
-# Installation des dependances
-npm install prisma --save-dev
-npm install @prisma/client
-
-# Initialisation de Prisma (cree le dossier prisma/ et le schema)
-npx prisma init
-
-# Avec PostgreSQL specifiquement
-npx prisma init --datasource-provider postgresql
+  @ManyToOne(() => Family, family => family.members)
+  family: Family  // findOne() ne garantit pas que family est chargée — type trompeur
+}
 ```
 
-Cette commande créé :
-
-```
-projet/
-├── prisma/
-│   └── schema.prisma    ← Le fichier de schema
-├── .env                  ← Variables d'environnement (DATABASE_URL)
-```
-
----
-
-## 2. Le fichier schema.prisma
-
-### 2.1 Anatomie du schema
-
-Le fichier `schema.prisma` contient trois sections principales :
+Avec Prisma, une seule source de vérité :
 
 ```prisma
-// === 1. Configuration de la source de donnees ===
-datasource db {
-  provider = "postgresql"  // postgresql, mysql, sqlite, sqlserver, mongodb
-  url      = env("DATABASE_URL")  // Lit la variable d'environnement
-}
-
-// === 2. Configuration du generateur ===
-generator client {
-  provider = "prisma-client-js"  // Genere le PrismaClient JavaScript/TypeScript
-  // Options supplementaires :
-  // binaryTargets = ["native", "linux-musl"]  // Pour Docker
-  // previewFeatures = ["fullTextSearch"]       // Fonctionnalites en preview
-}
-
-// === 3. Definition des modeles (vos tables) ===
+// schema.prisma — déclaration unique, client TypeScript généré depuis ce fichier
 model User {
-  id        Int      @id @default(autoincrement())
+  id       String  @id @default(cuid())
+  email    String  @unique
+  family   Family? @relation(fields: [familyId], references: [id])
+  familyId String?
+}
+```
+
+Prisma génère un client où `prisma.user.findUnique({ where: { id } })` retourne `User | null` avec tous les champs corrects, sans décorateur supplémentaire ni interface manuelle. Si `familyId` est `String?`, TypeScript le sait automatiquement.
+
+Ce module couvre la déclaration du schéma, les relations, les migrations, la génération du client, et l'intégration dans NestJS via `PrismaService`.
+
+## 2. Théorie complète, concise
+
+### 2.1 Schema-first — différence clé avec TypeORM
+
+TypeORM est **code-first** : les classes TypeScript annotées *sont* le schéma. Prisma est **schema-first** : `schema.prisma` *est* la source de vérité, le code TypeScript en est dérivé.
+
+| Aspect | TypeORM | Prisma 6 |
+|--------|---------|----------|
+| Source de vérité | Classes annotées `@Entity` | `schema.prisma` déclaratif |
+| Types retournés | Partiellement inférés | 100 % inférés à la génération |
+| Migrations | Générées depuis le code | Générées depuis le diff du schéma |
+| Requêtes avec relations | `relations`, `leftJoinAndSelect` | `include`, `select` |
+
+### 2.2 Anatomie de schema.prisma
+
+Le fichier contient trois blocs :
+
+```prisma
+// 1. Source de données
+datasource db {
+  provider = "postgresql"       // postgresql, mysql, sqlite, sqlserver, mongodb
+  url      = env("DATABASE_URL") // lit depuis .env — jamais hard-codé
+}
+
+// 2. Générateur — produit le client TypeScript
+generator client {
+  provider = "prisma-client-js"
+}
+
+// 3. Modèles — décrivent les tables et leurs champs
+model User {
+  id        String   @id @default(cuid())
   email     String   @unique
-  nom       String
+  name      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 ```
 
-Le fichier `.env` :
+`prisma-client-js` génère le client dans `node_modules/@prisma/client`, importable via `import { PrismaClient } from '@prisma/client'`.
 
-```env
-DATABASE_URL="postgresql://postgres:postgres@localhost:5432/nest_course?schema=public"
-```
-
-### 2.2 Les types de champs
+### 2.3 Types de champs et attributs courants
 
 ```prisma
-model ExempleTypes {
-  // --- Types de base ---
-  id          Int       @id @default(autoincrement())
-  nom         String    // VARCHAR(191) par defaut
-  description String?   // Le ? rend le champ optionnel (nullable)
-  contenu     String    @db.Text  // Type TEXT en base
-  resume      String    @db.VarChar(500)  // VARCHAR(500)
+model Post {
+  // Scalaires courants
+  id        String   @id @default(cuid())  // clé primaire string, générée par Prisma
+  title     String                          // NOT NULL, type TEXT par défaut
+  content   String?  @db.Text              // nullable, type TEXT natif PostgreSQL
+  views     Int      @default(0)           // entier avec valeur par défaut
+  published Boolean  @default(false)
 
-  // --- Nombres ---
-  age         Int       // INTEGER
-  stock       Int       @default(0)  // Valeur par defaut
-  prix        Float     // DOUBLE PRECISION
-  prixExact   Decimal   @db.Decimal(10, 2)  // DECIMAL(10,2) pour les prix
-  grandeVal   BigInt    // BIGINT
+  // Dates
+  createdAt DateTime @default(now())  // timestamp côté serveur à l'insertion
+  updatedAt DateTime @updatedAt       // mis à jour automatiquement à chaque update
 
-  // --- Booleens ---
-  actif       Boolean   @default(true)
-
-  // --- Dates ---
-  createdAt   DateTime  @default(now())    // TIMESTAMP + valeur par defaut
-  updatedAt   DateTime  @updatedAt         // Mis a jour automatiquement
-  dateDebut   DateTime  @db.Date           // DATE sans heure
-  heureRdv    DateTime  @db.Time           // HEURE sans date
-
-  // --- JSON ---
-  metadata    Json?     // Stocke du JSON directement
-  tags        Json      @default("[]")
-
-  // --- Bytes ---
-  avatar      Bytes?    // Pour les fichiers binaires (rarement utilise)
+  // Clé étrangère scalaire (toujours accompagnée du champ de relation)
+  authorId  String   @map("author_id") // @map = nom de colonne SQL différent
 }
 ```
 
-### 2.3 Les attributs de champs
+**Attributs de champ fréquents :**
 
-| Attribut | Description | Exemple |
-|----------|-------------|---------|
-| `@id` | Cle primaire | `id Int @id` |
-| `@default()` | Valeur par defaut | `@default(0)`, `@default(now())`, `@default(uuid())` |
-| `@unique` | Contrainte d'unicite | `email String @unique` |
-| `@map("nom_colonne")` | Renomme la colonne en base | `@map("nom_complet")` |
-| `@relation` | Definit une relation | `@relation(fields: [userId], references: [id])` |
-| `@updatedAt` | Mise a jour automatique | `updatedAt DateTime @updatedAt` |
-| `@db.xxx` | Type natif de la base | `@db.Text`, `@db.VarChar(100)` |
-| `@ignore` | Ignore le champ dans Prisma | Pour les colonnes legacy |
+| Attribut | Effet |
+|----------|-------|
+| `@id` | Clé primaire |
+| `@default(cuid())` | ID court généré côté Prisma |
+| `@default(uuid())` | UUID v4 généré côté Prisma |
+| `@default(now())` | Timestamp à l'insertion |
+| `@updatedAt` | Mis à jour à chaque opération `update` |
+| `@unique` | Contrainte d'unicité sur la colonne |
+| `@map("col_name")` | Nom de colonne SQL personnalisé |
+| `@db.Text` | Type natif PostgreSQL TEXT (vs VARCHAR par défaut) |
 
-### 2.4 Les attributs de modèle
+**Attributs de modèle (niveau table) :**
 
 ```prisma
-model Article {
-  id        Int    @id @default(autoincrement())
-  titre     String
-  slug      String
-  auteurId  Int    @map("auteur_id")  // Renomme la colonne
+model Family {
+  id   String @id @default(cuid())
+  name String
 
-  auteur    User   @relation(fields: [auteurId], references: [id])
-
-  // Index composites
-  @@unique([auteurId, slug])           // Contrainte unique composite
-  @@index([titre])                     // Index simple
-  @@index([auteurId, createdAt])       // Index composite
-  @@map("articles")                    // Renomme la table en base
+  @@unique([name])         // contrainte unique sur la table
+  @@index([createdAt])     // index simple
+  @@map("families")        // nom de table SQL personnalisé
 }
 ```
 
-| Attribut | Description | Exemple |
-|----------|-------------|---------|
-| `@@id([...])` | Cle primaire composite | `@@id([postId, tagId])` |
-| `@@unique([...])` | Contrainte unique composite | `@@unique([email, tenant])` |
-| `@@index([...])` | Index composite | `@@index([auteurId, createdAt])` |
-| `@@map("nom_table")` | Renomme la table en base | `@@map("mes_articles")` |
-
-### 2.5 Les enums
+**Enums :**
 
 ```prisma
 enum Role {
+  OWNER
   ADMIN
-  MODERATEUR
-  UTILISATEUR
+  MEMBER
+  GUEST
 }
 
-enum ArticleStatut {
-  BROUILLON
-  PUBLIE
-  ARCHIVE
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
 }
 
 model User {
-  id   Int    @id @default(autoincrement())
-  nom  String
-  role Role   @default(UTILISATEUR)
-}
-
-model Article {
-  id     Int            @id @default(autoincrement())
-  titre  String
-  statut ArticleStatut  @default(BROUILLON)
+  id   String @id @default(cuid())
+  role Role   @default(MEMBER)  // valeur par défaut de l'enum
 }
 ```
 
----
+### 2.4 Relations Prisma
 
-## 3. Les Relations dans Prisma
-
-### 3.1 Relation One-to-Many (la plus courante)
+#### One-to-Many (le plus courant)
 
 ```prisma
-model User {
-  id       Int       @id @default(autoincrement())
-  email    String    @unique
-  nom      String
-
-  // Un utilisateur a plusieurs articles (cote "Many")
-  articles Article[]
+model Family {
+  id      String @id @default(cuid())
+  name    String
+  members User[]  // champ virtuel — aucune colonne en base
 }
 
-model Article {
-  id       Int    @id @default(autoincrement())
-  titre    String
-  contenu  String @db.Text
-
-  // Chaque article appartient a un utilisateur (cote "One")
-  auteur   User   @relation(fields: [auteurId], references: [id], onDelete: Cascade)
-  auteurId Int    @map("auteur_id")
+model User {
+  id       String  @id @default(cuid())
+  // Le côté "many" porte @relation + la clé étrangère scalaire
+  family   Family? @relation(fields: [familyId], references: [id], onDelete: SetNull)
+  familyId String?  // colonne réelle en base
 }
 ```
 
-Regles :
-- Le cote "One" (`Article.auteur`) a le `@relation` avec `fields` et `references`
-- Le cote "Many" (`User.articles`) est un simple tableau `Article[]`
-- `auteurId` est la clé etrangere stockee en base
+- Le côté "many" (`User`) porte `@relation(fields, references)` et la FK scalaire.
+- Le côté "one" (`Family`) expose un tableau virtuel — zéro colonne supplémentaire en base.
+- `onDelete: SetNull` : si la famille est supprimée, `familyId` des membres passe à `null`.
 
-### 3.2 Relation One-to-One
+#### One-to-One
 
 ```prisma
 model User {
-  id      Int      @id @default(autoincrement())
-  email   String   @unique
-  nom     String
-
-  // Un utilisateur a un seul profil
-  profile Profile?  // Le ? signifie que le profil est optionnel
+  id      String   @id @default(cuid())
+  profile Profile? // virtuel — côté "one" sans FK
 }
 
 model Profile {
-  id       Int     @id @default(autoincrement())
-  bio      String? @db.Text
-  avatar   String?
-  siteWeb  String?
-
-  // Le profil appartient a un utilisateur
-  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId   Int     @unique  // @unique force la relation 1-1
+  id     String  @id @default(cuid())
+  bio    String? @db.Text
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String  @unique  // @unique force la cardinalité 1-1 — unique différence vs 1-N
 }
 ```
 
-> **A retenir** : La différence entre One-to-One et One-to-Many dans Prisma est le `@unique` sur la clé etrangere. Avec `@unique`, c'est une relation 1-1. Sans, c'est une relation 1-N.
-
-### 3.3 Relation Many-to-Many
-
-#### Implicite (Prisma géré la table de liaison)
+#### Many-to-Many implicite
 
 ```prisma
-model Article {
-  id    Int    @id @default(autoincrement())
-  titre String
-
-  // Relation Many-to-Many implicite
-  tags  Tag[]
+model Post {
+  id   String @id @default(cuid())
+  tags Tag[]
 }
 
 model Tag {
-  id       Int       @id @default(autoincrement())
-  nom      String    @unique
-
-  // Cote inverse
-  articles Article[]
+  id    String @id @default(cuid())
+  name  String @unique
+  posts Post[]
 }
-// Prisma cree automatiquement une table _ArticleToTag
+// Prisma crée automatiquement la table de jointure _PostToTag
 ```
 
-#### Explicite (vous controlez la table de liaison)
+#### Comportements onDelete
 
-```prisma
-model Article {
-  id    Int    @id @default(autoincrement())
-  titre String
-
-  articleTags ArticleTag[]
-}
-
-model Tag {
-  id  Int    @id @default(autoincrement())
-  nom String @unique
-
-  articleTags ArticleTag[]
-}
-
-// Table de liaison explicite — permet d'ajouter des champs
-model ArticleTag {
-  article   Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
-  articleId Int
-  tag       Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
-  tagId     Int
-  ajouteLe  DateTime @default(now())  // Champ supplementaire sur la relation
-
-  @@id([articleId, tagId])  // Cle primaire composite
-}
-```
-
-> **Bonne pratique** : Utilisez la relation Many-to-Many explicite si vous avez besoin de stocker des donnees supplementaires sur la relation (date d'ajout, ordre, metadata). Sinon, la forme implicite est plus simple.
-
-### 3.4 Relations auto-referencantes
-
-```prisma
-model Comment {
-  id       Int       @id @default(autoincrement())
-  contenu  String    @db.Text
-
-  // Relation auto-referencante pour les reponses
-  parent   Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
-  parentId Int?
-
-  reponses Comment[] @relation("CommentReplies")
-}
-
-model Employee {
-  id          Int        @id @default(autoincrement())
-  nom         String
-
-  // Un manager est aussi un employe
-  manager     Employee?  @relation("ManagerSubordinates", fields: [managerId], references: [id])
-  managerId   Int?
-
-  subordonnes Employee[] @relation("ManagerSubordinates")
-}
-```
-
-### 3.5 Comportement onDelete
-
-```prisma
-model Article {
-  auteur   User @relation(fields: [auteurId], references: [id], onDelete: Cascade)
-  auteurId Int
-}
-```
-
-| Valeur | Description |
+| Valeur | Comportement |
 |--------|-------------|
 | `Cascade` | Supprime les enfants avec le parent |
-| `SetNull` | Met la FK a null (le champ doit etre nullable) |
-| `Restrict` | Empeche la suppression du parent |
-| `NoAction` | Similaire a Restrict (defaut) |
-| `SetDefault` | Met la FK a sa valeur par defaut |
+| `SetNull` | Met la FK à null (champ nullable requis) |
+| `Restrict` | Bloque la suppression du parent si des enfants existent |
+| `NoAction` | Similaire à Restrict (défaut) |
 
----
+### 2.5 Migrations avec prisma migrate
 
-## 4. Schema complet — Exemple de blog
+```bash
+# Développement : crée le SQL, l'applique, et regénère le client en une commande
+npx prisma migrate dev --name init
+
+# Production : applique les migrations en attente (sans en créer de nouvelles)
+npx prisma migrate deploy
+
+# Réinitialiser la base (supprime toutes les données — dev seulement)
+npx prisma migrate reset
+
+# Pousser le schéma sans créer de migration (prototypage rapide)
+npx prisma db push
+```
+
+`migrate dev` crée un fichier SQL versionné dans `prisma/migrations/`. Ces fichiers sont **immuables** — ne jamais les modifier après application. Pour corriger quelque chose, créer une nouvelle migration.
+
+Structure générée :
+
+```
+prisma/
+  schema.prisma
+  migrations/
+    20260701000000_init/
+      migration.sql
+    20260702090000_add_invitation/
+      migration.sql
+    migration_lock.toml
+```
+
+### 2.6 prisma generate et le client typé
+
+```bash
+npx prisma generate
+```
+
+Lit `schema.prisma` et génère le client TypeScript dans `node_modules/@prisma/client`. À relancer après chaque modification du schéma. En pratique, `migrate dev` le fait automatiquement.
+
+Le client expose un namespace `Prisma` avec tous les types inférés :
+
+```ts
+import { PrismaClient, Prisma } from '@prisma/client'
+
+// Type inféré automatiquement — pas d'interface manuelle
+type FamilyWithMembers = Prisma.FamilyGetPayload<{
+  include: { members: true }
+}>
+// → { id: string; name: string; members: User[]; createdAt: Date; ... }
+
+// Input types générés — utilisables directement dans les services
+type CreateFamilyInput = Prisma.FamilyCreateInput
+// → { name: string; members?: UserCreateNestedManyWithoutFamilyInput; ... }
+```
+
+### 2.7 PrismaService NestJS
+
+NestJS fournit des hooks de cycle de vie. `PrismaService` les implémente pour gérer la connexion proprement :
+
+```ts
+// src/prisma/prisma.service.ts
+import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common'
+import { PrismaClient } from '@prisma/client'
+
+@Injectable()
+// extends PrismaClient : PrismaService hérite de toutes les méthodes du client
+export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
+  async onModuleInit(): Promise<void> {
+    // NestJS appelle ce hook quand le module est initialisé
+    await this.$connect()
+  }
+
+  async onModuleDestroy(): Promise<void> {
+    // NestJS appelle ce hook à l'arrêt propre (SIGTERM, Ctrl+C)
+    await this.$disconnect()
+  }
+}
+```
+
+```ts
+// src/prisma/prisma.module.ts
+import { Global, Module } from '@nestjs/common'
+import { PrismaService } from './prisma.service'
+
+@Global()  // PrismaService injectable partout sans import répété
+@Module({
+  providers: [PrismaService],
+  exports: [PrismaService],
+})
+export class PrismaModule {}
+```
+
+```ts
+// src/app.module.ts (extrait)
+import { PrismaModule } from './prisma/prisma.module'
+
+@Module({
+  imports: [PrismaModule],  // un seul import — @Global() distribue PrismaService
+})
+export class AppModule {}
+```
+
+## 3. Worked examples
+
+### Exemple A — Schéma TribuZen complet et première migration
 
 ```prisma
-// schema.prisma
+// prisma/schema.prisma
 
 datasource db {
   provider = "postgresql"
@@ -361,748 +343,263 @@ generator client {
   provider = "prisma-client-js"
 }
 
-// === Enums ===
+// ── Enums ──────────────────────────────────────────────────────
 
 enum Role {
+  OWNER
   ADMIN
-  AUTEUR
-  LECTEUR
+  MEMBER
+  GUEST
 }
 
-enum ArticleStatut {
-  BROUILLON
-  PUBLIE
-  ARCHIVE
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
 }
 
-// === Modeles ===
+// ── Modèles ────────────────────────────────────────────────────
 
 model User {
-  id           Int       @id @default(autoincrement())
-  email        String    @unique
-  nom          String
-  motDePasse   String    @map("mot_de_passe")
-  role         Role      @default(LECTEUR)
-  actif        Boolean   @default(true)
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  role      Role     @default(MEMBER)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt      @map("updated_at")
 
-  profile      Profile?
-  articles     Article[]
-  commentaires Comment[]
+  // Clé étrangère nullable — un User peut exister sans famille
+  familyId        String?      @map("family_id")
+  // SetNull : si la famille est supprimée, le User reste, familyId → null
+  family          Family?      @relation("FamilyMembers", fields: [familyId], references: [id], onDelete: SetNull)
+  posts           Post[]
+  sentInvitations Invitation[] @relation("InvitedBy")
 
   @@map("users")
 }
 
-model Profile {
-  id       Int     @id @default(autoincrement())
-  bio      String? @db.Text
-  avatar   String?
-  siteWeb  String? @map("site_web")
-  twitter  String?
-  github   String?
+model Family {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt      @map("updated_at")
 
-  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId   Int     @unique @map("user_id")
+  // Champs virtuels — zéro colonne en base
+  members     User[]       @relation("FamilyMembers")
+  posts       Post[]
+  invitations Invitation[]
 
-  @@map("profiles")
+  @@map("families")
 }
 
-model Article {
-  id          Int            @id @default(autoincrement())
-  titre       String         @db.VarChar(200)
-  slug        String         @unique
-  resume      String?        @db.Text
-  contenu     String         @db.Text
-  statut      ArticleStatut  @default(BROUILLON)
-  nombreVues  Int            @default(0) @map("nombre_vues")
-  createdAt   DateTime       @default(now()) @map("created_at")
-  updatedAt   DateTime       @updatedAt @map("updated_at")
-
-  auteur      User           @relation(fields: [auteurId], references: [id], onDelete: Cascade)
-  auteurId    Int            @map("auteur_id")
-
-  commentaires Comment[]
-  tags         Tag[]
-
-  @@index([slug])
-  @@index([auteurId, createdAt])
-  @@map("articles")
-}
-
-model Comment {
-  id        Int      @id @default(autoincrement())
-  contenu   String   @db.Text
+model Post {
+  id        String   @id @default(cuid())
+  content   String   @db.Text
   createdAt DateTime @default(now()) @map("created_at")
 
-  auteur    User     @relation(fields: [auteurId], references: [id], onDelete: Cascade)
-  auteurId  Int      @map("auteur_id")
+  // Cascade : si l'auteur ou la famille disparaît, les posts aussi
+  authorId String @map("author_id")
+  author   User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  familyId String @map("family_id")
+  family   Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
 
-  article   Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
-  articleId Int      @map("article_id")
-
-  // Reponses (relation auto-referencante)
-  parent    Comment? @relation("CommentReplies", fields: [parentId], references: [id])
-  parentId  Int?     @map("parent_id")
-  reponses  Comment[] @relation("CommentReplies")
-
-  @@map("comments")
+  @@index([familyId, createdAt])  // index composite pour le feed chronologique
+  @@map("posts")
 }
 
-model Tag {
-  id          Int       @id @default(autoincrement())
-  nom         String    @unique @db.VarChar(50)
-  description String?
-  couleur     String?   @db.VarChar(7)  // Code couleur hex
+model Invitation {
+  id        String           @id @default(cuid())
+  email     String
+  status    InvitationStatus @default(PENDING)
+  expiresAt DateTime         @map("expires_at")
+  createdAt DateTime         @default(now()) @map("created_at")
 
-  articles    Article[]
+  familyId    String @map("family_id")
+  family      Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  invitedById String @map("invited_by_id")
+  // Nom de relation explicite : User a deux relations différentes vers Invitation
+  invitedBy   User   @relation("InvitedBy", fields: [invitedById], references: [id], onDelete: Cascade)
 
-  @@map("tags")
+  // Contrainte composite : pas deux invitations pour le même email dans la même famille
+  @@unique([email, familyId])
+  @@map("invitations")
 }
 ```
 
----
-
-## 5. Prisma Generate et PrismaClient
-
-### 5.1 Générer le client
+Créer et appliquer la migration initiale :
 
 ```bash
-# Genere le PrismaClient a partir du schema
-npx prisma generate
-```
-
-Cette commande lit `schema.prisma` et généré le code TypeScript dans `node_modules/@prisma/client/`. Le client est entièrement type : chaque modèle, chaque champ, chaque relation a ses types corrects.
-
-### 5.2 PrismaClient — Operations CRUD
-
-```typescript
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
-
-// === CREATE ===
-
-// Creer un utilisateur
-const user = await prisma.user.create({
-  data: {
-    email: 'alice@example.com',
-    nom: 'Alice Dupont',
-    motDePasse: 'hashDuMotDePasse',
-    role: 'AUTEUR',
-  },
-});
-
-// Creer avec des relations imbriquees
-const userAvecProfil = await prisma.user.create({
-  data: {
-    email: 'bob@example.com',
-    nom: 'Bob Martin',
-    motDePasse: 'hashDuMotDePasse',
-    profile: {
-      create: {  // Cree le profil en meme temps
-        bio: 'Developpeur passione',
-        twitter: '@bob_martin',
-      },
-    },
-  },
-  include: {
-    profile: true,  // Inclut le profil dans la reponse
-  },
-});
-
-// Creer plusieurs enregistrements
-const result = await prisma.user.createMany({
-  data: [
-    { email: 'user1@example.com', nom: 'User 1', motDePasse: 'hash1' },
-    { email: 'user2@example.com', nom: 'User 2', motDePasse: 'hash2' },
-    { email: 'user3@example.com', nom: 'User 3', motDePasse: 'hash3' },
-  ],
-  skipDuplicates: true,  // Ignore les doublons (email unique)
-});
-// result.count = 3
-
-// === READ ===
-
-// Trouver un par ID
-const user = await prisma.user.findUnique({
-  where: { id: 1 },
-});
-
-// Trouver un par champ unique
-const user = await prisma.user.findUnique({
-  where: { email: 'alice@example.com' },
-});
-
-// Trouver le premier qui matche
-const article = await prisma.article.findFirst({
-  where: { statut: 'PUBLIE' },
-  orderBy: { createdAt: 'desc' },
-});
-
-// Trouver tous
-const articles = await prisma.article.findMany({
-  where: { statut: 'PUBLIE' },
-  orderBy: { createdAt: 'desc' },
-  skip: 0,   // Pagination : offset
-  take: 10,  // Pagination : limit
-});
-
-// findUniqueOrThrow — lance une erreur si pas trouve
-const user = await prisma.user.findUniqueOrThrow({
-  where: { id: 999 },
-});
-// Lance PrismaClientKnownRequestError si pas trouve
-
-// === UPDATE ===
-
-// Mettre a jour un enregistrement
-const updatedUser = await prisma.user.update({
-  where: { id: 1 },
-  data: {
-    nom: 'Alice Martin',
-    actif: false,
-  },
-});
-
-// Mettre a jour plusieurs
-const result = await prisma.article.updateMany({
-  where: { statut: 'BROUILLON', auteurId: 1 },
-  data: { statut: 'ARCHIVE' },
-});
-// result.count = nombre de lignes modifiees
-
-// === DELETE ===
-
-// Supprimer un enregistrement
-const deletedUser = await prisma.user.delete({
-  where: { id: 1 },
-});
-
-// Supprimer plusieurs
-const result = await prisma.article.deleteMany({
-  where: { statut: 'ARCHIVE' },
-});
-
-// === UPSERT ===
-// Creer si n'existe pas, mettre a jour sinon
-
-const user = await prisma.user.upsert({
-  where: { email: 'alice@example.com' },
-  create: {
-    email: 'alice@example.com',
-    nom: 'Alice',
-    motDePasse: 'hash',
-  },
-  update: {
-    nom: 'Alice (mis a jour)',
-  },
-});
-
-// === COMPTAGE ===
-
-const count = await prisma.article.count({
-  where: { statut: 'PUBLIE' },
-});
-
-// === AGREGATION ===
-
-const stats = await prisma.article.aggregate({
-  _avg: { nombreVues: true },
-  _sum: { nombreVues: true },
-  _min: { nombreVues: true },
-  _max: { nombreVues: true },
-  _count: true,
-  where: { statut: 'PUBLIE' },
-});
-// { _avg: { nombreVues: 150.5 }, _sum: { nombreVues: 3010 }, ... }
-
-// === GROUP BY ===
-
-const statsByStatut = await prisma.article.groupBy({
-  by: ['statut'],
-  _count: { id: true },
-  _avg: { nombreVues: true },
-  orderBy: { _count: { id: 'desc' } },
-});
-// [{ statut: 'PUBLIE', _count: { id: 15 }, _avg: { nombreVues: 200 } }, ...]
-```
-
----
-
-## 6. Prisma Migrate — Gestion du schema
-
-### 6.1 Les commandes de migration
-
-```bash
-# Creer et appliquer une migration (developpement)
+# Génère prisma/migrations/20260701000000_init/migration.sql et l'applique
 npx prisma migrate dev --name init
-# 1. Compare le schema actuel avec la base
-# 2. Genere le fichier SQL de migration
-# 3. Applique la migration
-# 4. Regenere le PrismaClient
-
-# Appliquer les migrations en production
-npx prisma migrate deploy
-# Applique toutes les migrations en attente (sans generer de nouvelles)
-
-# Reinitialiser la base (ATTENTION : supprime toutes les donnees !)
-npx prisma migrate reset
-# 1. Supprime la base
-# 2. Recree la base
-# 3. Applique toutes les migrations
-# 4. Execute le seed si configure
-
-# Pousser le schema sans migration (prototypage rapide)
-npx prisma db push
-# Synchronise le schema avec la base sans creer de fichier de migration
-# Utile en phase de prototypage, pas en production
-
-# Tirer le schema de la base existante
-npx prisma db pull
-# Genere le schema.prisma a partir de la base de donnees existante
-# Utile pour les projets existants
-
-# Ouvrir Prisma Studio (interface graphique)
-npx prisma studio
-# Ouvre un navigateur web pour explorer et modifier les donnees
+# Regénère automatiquement @prisma/client avec tous les types TribuZen
 ```
 
-### 6.2 Structure des migrations
+**Pas-à-pas :**
+1. `datasource db` lit `DATABASE_URL` depuis `.env` — jamais hard-codé dans le schéma.
+2. `@id @default(cuid())` : clé primaire string courte, portable entre PostgreSQL, MySQL et SQLite.
+3. `@map("created_at")` + `@@map("users")` : snake_case en base, camelCase dans TypeScript — les deux conventions respectées.
+4. `@relation("FamilyMembers")` : nom explicite obligatoire car `User` a deux relations distinctes avec `Family` via `members` d'un côté et aucune autre — Prisma le demande pour lever l'ambiguïté de `sentInvitations` sur `InvitedBy`.
+5. `@@unique([email, familyId])` sur `Invitation` : interdit deux invitations actives pour le même email dans la même famille — règle métier encodée dans le schéma.
+6. `migrate dev` crée un fichier SQL immuable versionné — **ne jamais le modifier manuellement**.
 
-```
-prisma/
-├── schema.prisma
-├── migrations/
-│   ├── 20240115100000_init/
-│   │   └── migration.sql
-│   ├── 20240120150000_add_tags/
-│   │   └── migration.sql
-│   └── migration_lock.toml
-```
+### Exemple B — FamilyService avec CRUD type-safe via PrismaService
 
-Exemple de fichier de migration généré :
+```ts
+// src/family/family.service.ts
+import { Injectable, NotFoundException } from '@nestjs/common'
+import { PrismaService } from '../prisma/prisma.service'
+import { Prisma } from '@prisma/client'
 
-```sql
--- prisma/migrations/20240115100000_init/migration.sql
-
--- CreateEnum
-CREATE TYPE "Role" AS ENUM ('ADMIN', 'AUTEUR', 'LECTEUR');
-CREATE TYPE "ArticleStatut" AS ENUM ('BROUILLON', 'PUBLIE', 'ARCHIVE');
-
--- CreateTable
-CREATE TABLE "users" (
-    "id" SERIAL NOT NULL,
-    "email" TEXT NOT NULL,
-    "nom" TEXT NOT NULL,
-    "mot_de_passe" TEXT NOT NULL,
-    "role" "Role" NOT NULL DEFAULT 'LECTEUR',
-    "actif" BOOLEAN NOT NULL DEFAULT true,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "users_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "articles" (
-    "id" SERIAL NOT NULL,
-    "titre" VARCHAR(200) NOT NULL,
-    "slug" TEXT NOT NULL,
-    "resume" TEXT,
-    "contenu" TEXT NOT NULL,
-    "statut" "ArticleStatut" NOT NULL DEFAULT 'BROUILLON',
-    "nombre_vues" INTEGER NOT NULL DEFAULT 0,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
-    "auteur_id" INTEGER NOT NULL,
-
-    CONSTRAINT "articles_pkey" PRIMARY KEY ("id")
-);
-
--- CreateIndex
-CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
-CREATE UNIQUE INDEX "articles_slug_key" ON "articles"("slug");
-CREATE INDEX "articles_slug_idx" ON "articles"("slug");
-CREATE INDEX "articles_auteur_id_created_at_idx" ON "articles"("auteur_id", "created_at");
-
--- AddForeignKey
-ALTER TABLE "articles" ADD CONSTRAINT "articles_auteur_id_fkey"
-    FOREIGN KEY ("auteur_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-```
-
-> **Piege classique** : Ne modifiez **jamais** un fichier de migration déjà applique. Si vous avez besoin de corriger quelque chose, creez une nouvelle migration. Les migrations appliquees sont immuables.
-
-### 6.3 Seeding (donnees initiales)
-
-```typescript
-// prisma/seed.ts
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
-
-async function main() {
-  console.log('Debut du seeding...');
-
-  // Creer des utilisateurs
-  const alice = await prisma.user.upsert({
-    where: { email: 'alice@example.com' },
-    update: {},
-    create: {
-      email: 'alice@example.com',
-      nom: 'Alice Dupont',
-      motDePasse: '$2b$10$hashDuMotDePasse',
-      role: 'ADMIN',
-      profile: {
-        create: {
-          bio: 'Administratrice du site',
-          twitter: '@alice_dupont',
-        },
-      },
-    },
-  });
-
-  const bob = await prisma.user.upsert({
-    where: { email: 'bob@example.com' },
-    update: {},
-    create: {
-      email: 'bob@example.com',
-      nom: 'Bob Martin',
-      motDePasse: '$2b$10$hashDuMotDePasse',
-      role: 'AUTEUR',
-    },
-  });
-
-  // Creer des tags
-  const tagTS = await prisma.tag.upsert({
-    where: { nom: 'TypeScript' },
-    update: {},
-    create: { nom: 'TypeScript', couleur: '#3178C6' },
-  });
-
-  const tagNest = await prisma.tag.upsert({
-    where: { nom: 'NestJS' },
-    update: {},
-    create: { nom: 'NestJS', couleur: '#E0234E' },
-  });
-
-  // Creer des articles
-  await prisma.article.create({
-    data: {
-      titre: 'Introduction a NestJS',
-      slug: 'introduction-nestjs',
-      contenu: 'NestJS est un framework Node.js progressif...',
-      statut: 'PUBLIE',
-      auteurId: alice.id,
-      tags: {
-        connect: [{ id: tagTS.id }, { id: tagNest.id }],
-      },
-    },
-  });
-
-  console.log('Seeding termine !');
-}
-
-main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
-```
-
-Configuration dans `package.json` :
-
-```json
-{
-  "prisma": {
-    "seed": "ts-node prisma/seed.ts"
-  }
-}
-```
-
-```bash
-# Executer le seed manuellement
-npx prisma db seed
-
-# Le seed est aussi execute automatiquement avec :
-npx prisma migrate reset
-```
-
----
-
-## 7. Intégration avec NestJS
-
-### 7.1 Créer le PrismaService
-
-```typescript
-// prisma/prisma.service.ts
-import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
+// Type inféré depuis le schéma — pas d'interface manuelle
+type FamilyWithMembers = Prisma.FamilyGetPayload<{
+  include: { members: true }
+}>
 
 @Injectable()
-export class PrismaService
-  extends PrismaClient
-  implements OnModuleInit, OnModuleDestroy
-{
-  constructor() {
-    super({
-      // Options de logging
-      log: [
-        { emit: 'stdout', level: 'query' },   // Log toutes les requetes
-        { emit: 'stdout', level: 'info' },
-        { emit: 'stdout', level: 'warn' },
-        { emit: 'stdout', level: 'error' },
-      ],
-    });
-  }
-
-  // Connexion automatique au demarrage du module
-  async onModuleInit() {
-    await this.$connect();
-  }
-
-  // Deconnexion propre a l'arret de l'application
-  async onModuleDestroy() {
-    await this.$disconnect();
-  }
-}
-```
-
-### 7.2 Créer le PrismaModule global
-
-```typescript
-// prisma/prisma.module.ts
-import { Global, Module } from '@nestjs/common';
-import { PrismaService } from './prisma.service';
-
-@Global() // Rend le module disponible partout sans import
-@Module({
-  providers: [PrismaService],
-  exports: [PrismaService],
-})
-export class PrismaModule {}
-```
-
-### 7.3 Importer dans AppModule
-
-```typescript
-// app.module.ts
-import { Module } from '@nestjs/common';
-import { PrismaModule } from './prisma/prisma.module';
-import { ArticlesModule } from './articles/articles.module';
-import { UsersModule } from './users/users.module';
-
-@Module({
-  imports: [
-    PrismaModule, // Disponible globalement grace a @Global()
-    ArticlesModule,
-    UsersModule,
-  ],
-})
-export class AppModule {}
-```
-
-### 7.4 Utiliser PrismaService dans un service
-
-```typescript
-// articles/articles.service.ts
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { CreateArticleDto } from './dto/create-article.dto';
-import { UpdateArticleDto } from './dto/update-article.dto';
-import { Prisma } from '@prisma/client';
-
-@Injectable()
-export class ArticlesService {
+export class FamilyService {
+  // PrismaService disponible via @Global() PrismaModule — pas d'import dans FamilyModule
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(auteurId: number, dto: CreateArticleDto) {
-    return this.prisma.article.create({
-      data: {
-        titre: dto.titre,
-        slug: this.generateSlug(dto.titre),
-        contenu: dto.contenu,
-        resume: dto.resume,
-        auteurId,
-        tags: dto.tagIds
-          ? { connect: dto.tagIds.map((id) => ({ id })) }
-          : undefined,
-      },
-      include: {
-        auteur: { select: { id: true, nom: true, email: true } },
-        tags: true,
-      },
-    });
+  // CREATE — Prisma.FamilyCreateInput garantit les champs requis à la compilation
+  async create(data: Prisma.FamilyCreateInput) {
+    return this.prisma.family.create({ data })
   }
 
-  async findAll(page: number = 1, limit: number = 10) {
-    const skip = (page - 1) * limit;
-
-    const [articles, total] = await Promise.all([
-      this.prisma.article.findMany({
-        where: { statut: 'PUBLIE' },
-        include: {
-          auteur: { select: { id: true, nom: true } },
-          tags: true,
-          _count: { select: { commentaires: true } },
-        },
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit,
-      }),
-      this.prisma.article.count({ where: { statut: 'PUBLIE' } }),
-    ]);
-
-    return {
-      data: articles,
-      meta: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-      },
-    };
+  // READ LIST — include évite le N+1 sans jointure manuelle
+  async findAll(): Promise<FamilyWithMembers[]> {
+    return this.prisma.family.findMany({
+      include: { members: true },
+      orderBy: { createdAt: 'desc' },
+    })
   }
 
-  async findOne(id: number) {
-    const article = await this.prisma.article.findUnique({
+  // READ ONE — findUnique + null check explicite → NotFoundException
+  async findOne(id: string) {
+    const family = await this.prisma.family.findUnique({
       where: { id },
       include: {
-        auteur: {
-          select: { id: true, nom: true, email: true },
-        },
-        tags: true,
-        commentaires: {
-          include: {
-            auteur: { select: { id: true, nom: true } },
-          },
-          orderBy: { createdAt: 'asc' },
-        },
+        // select dans include : charge uniquement les champs nécessaires
+        members: { select: { id: true, name: true, role: true } },
+        posts: { orderBy: { createdAt: 'desc' }, take: 10 },
       },
-    });
-
-    if (!article) {
-      throw new NotFoundException(`Article #${id} introuvable`);
-    }
-
-    return article;
+    })
+    if (!family) throw new NotFoundException(`Famille ${id} introuvable`)
+    return family
   }
 
-  async findBySlug(slug: string) {
-    const article = await this.prisma.article.findUnique({
-      where: { slug },
-      include: {
-        auteur: { select: { id: true, nom: true } },
-        tags: true,
-      },
-    });
-
-    if (!article) {
-      throw new NotFoundException(`Article avec le slug "${slug}" introuvable`);
-    }
-
-    // Incrementer les vues
-    await this.prisma.article.update({
-      where: { id: article.id },
-      data: { nombreVues: { increment: 1 } },
-    });
-
-    return article;
+  // UPDATE
+  async update(id: string, data: Prisma.FamilyUpdateInput) {
+    await this.findOne(id)  // valide l'existence avant update — lève NotFoundException
+    return this.prisma.family.update({ where: { id }, data })
   }
 
-  async update(id: number, dto: UpdateArticleDto) {
-    // Verifier que l'article existe
-    await this.findOne(id);
-
-    return this.prisma.article.update({
-      where: { id },
-      data: {
-        titre: dto.titre,
-        contenu: dto.contenu,
-        resume: dto.resume,
-        statut: dto.statut,
-        tags: dto.tagIds
-          ? { set: dto.tagIds.map((id) => ({ id })) } // set remplace tous les tags
-          : undefined,
-      },
-      include: {
-        auteur: { select: { id: true, nom: true } },
-        tags: true,
-      },
-    });
+  // DELETE
+  async remove(id: string) {
+    await this.findOne(id)
+    return this.prisma.family.delete({ where: { id } })
   }
 
-  async remove(id: number) {
-    await this.findOne(id); // Verifie l'existence
-    return this.prisma.article.delete({ where: { id } });
-  }
-
-  private generateSlug(titre: string): string {
-    return titre
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '');
+  // Règle métier TribuZen : count() en base, pas de chargement de tous les membres
+  async canJoin(familyId: string, maxMembers = 12): Promise<boolean> {
+    const count = await this.prisma.user.count({ where: { familyId } })
+    return count < maxMembers  // false si la famille est pleine
   }
 }
 ```
 
-> **Bonne pratique** : Utilisez `include` pour charger les relations dont vous avez besoin, et `select` pour limiter les champs retournes. Ne chargez jamais plus de donnees que nécessaire.
+```ts
+// src/family/family.module.ts
+import { Module } from '@nestjs/common'
+import { FamilyService } from './family.service'
+import { FamilyController } from './family.controller'
 
----
+@Module({
+  controllers: [FamilyController],
+  providers: [FamilyService],
+  exports: [FamilyService],
+})
+export class FamilyModule {}
+// Pas d'import de PrismaModule ici — @Global() le rend disponible automatiquement
+```
 
-## 8. Comparaison rapide Prisma vs TypeORM (CRUD)
+**Pas-à-pas :**
+1. `constructor(private readonly prisma: PrismaService)` — injection standard NestJS ; `PrismaModule @Global()` fait que NestJS trouve `PrismaService` sans import dans ce module.
+2. `Prisma.FamilyCreateInput` — type généré : champs requis sont obligatoires, optionnels sont `?`. Pas d'interface DTO manuelle dans la couche service.
+3. `include: { members: true }` dans `findAll` — jointure SQL automatique ; le type retourné est `Family & { members: User[] }`, inféré sans déclaration.
+4. `select: { id: true, name: true, role: true }` à l'intérieur de l'`include` — ne transfère que les colonnes utiles, réduit la charge réseau.
+5. `prisma.user.count({ where: { familyId } })` dans `canJoin` — agrégation en base ; pas de `findMany` suivi de `.length` en mémoire.
 
-| Operation | TypeORM | Prisma |
-|-----------|---------|--------|
-| Trouver par ID | `repo.findOne({ where: { id } })` | `prisma.user.findUnique({ where: { id } })` |
-| Trouver tous | `repo.find()` | `prisma.user.findMany()` |
-| Créer | `repo.save(repo.create(data))` | `prisma.user.create({ data })` |
-| Mettre a jour | `repo.save({ id, ...data })` | `prisma.user.update({ where: { id }, data })` |
-| Supprimer | `repo.delete(id)` | `prisma.user.delete({ where: { id } })` |
-| Compter | `repo.count()` | `prisma.user.count()` |
-| Relations | `relations: { profile: true }` | `include: { profile: true }` |
+## 4. Pièges & misconceptions
 
----
+- **Oublier `npx prisma generate` après une modification du schéma.** `@prisma/client` est un package dans `node_modules`. Si tu ajoutes un champ `avatar` à `User` dans le schéma sans relancer `generate`, TypeScript ne connaît pas `avatar` et l'IDE n'autocomplète pas. `migrate dev` le fait automatiquement. En CI : ajouter `npx prisma generate` explicitement dans le step de build, après `npm install`.
 
-## 9. Exercices pratiques
+- **Modifier un fichier de migration déjà appliqué.** Prisma stocke un hash du SQL dans la table `_prisma_migrations`. Si tu modifies le fichier après application, la prochaine commande lève `P3006: migration was modified after it was applied`. Correction : créer une nouvelle migration pour tout changement additionnel. Les fichiers dans `prisma/migrations/` sont immuables par design.
 
-### Exercice 1 : Schema e-commerce
+- **`findUnique` vs `findUniqueOrThrow`.** `prisma.family.findUnique({ where: { id } })` retourne `Family | null`. Beaucoup de développeurs ajoutent `!` (non-null assertion) au lieu de gérer le null — TypeScript ne protège plus. Deux alternatives propres : (1) `findUniqueOrThrow` qui lève `PrismaClientKnownRequestError` (code `P2025`) automatiquement, (2) vérification explicite `if (!family) throw new NotFoundException(...)`.
 
-Creez un schema Prisma avec les modèles : `Category`, `Product`, `ProductImage`. Relations : une categorie a plusieurs produits, un produit a plusieurs images. Ajoutez les enums nécessaires et les index pertinents.
+- **Instance `PrismaClient` dupliquée en développement.** Le hot-reload de NestJS peut créer plusieurs instances `PrismaClient`, épuisant le pool de connexions. `PrismaService extends PrismaClient` dans un `@Global()` singleton évite ce problème : NestJS maintient une seule instance. Ne jamais écrire `new PrismaClient()` directement dans un service — toujours injecter `PrismaService`.
 
-### Exercice 2 : CRUD complet
+- **`include` sans `take` sur des listes volumineuses.** `include: { posts: true }` sans limite charge tous les posts d'une famille — 10 000 lignes si la famille est active. Toujours combiner `include` avec `take` (limite) et éventuellement `skip` (offset) pour les relations de type liste. Pour les endpoints publics, favoriser des routes dédiées (`GET /families/:id/posts`) avec pagination explicite.
 
-Implementez un `ProductsService` complet avec : create (avec images imbriquees), findAll (avec pagination et filtre par categorie), findOne (avec relations), update (avec gestion des tags), remove.
+- **`.env` non chargé en production.** `prisma migrate deploy` lit `DATABASE_URL` depuis l'environnement processus, pas depuis `.env`. En production (Docker, Kubernetes), la variable doit être injectée via les secrets du cluster. Ajouter `.env` à `.gitignore` immédiatement après `prisma init` — ne jamais committer de credentials.
 
-### Exercice 3 : Seed
+- **Noms de relations ambiguës omis.** Si un modèle a deux relations vers le même autre modèle (ex. `User` a `posts` et `sentInvitations`, toutes deux vers des modèles qui referment sur `User`), Prisma exige un nom de relation explicite `@relation("NomDeRelation")` des deux côtés. Sans lui, Prisma lève une erreur de validation du schéma à la migration.
 
-Creez un fichier seed qui insere 3 categories, 10 produits et 20 images de produits.
+## 5. Ancrage TribuZen
 
----
+Couche fil-rouge : **schéma Prisma de TribuZen (User, Family, Post, Invitation) et un PrismaService NestJS** (`smaurier/tribuzen`).
 
-## Liens
+- Le schéma de l'Exemple A est la structure exacte de TribuZen : `User` appartient à une `Family`, publie des `Post`, envoie des `Invitation`. Les enums `Role` et `InvitationStatus` encodent les règles métier directement dans le schéma — une contrainte `@@unique([email, familyId])` remplace une validation applicative.
+- `PrismaModule @Global()` est importé une seule fois dans `AppModule` — tous les modules domain (`FamilyModule`, `PostModule`, `InvitationModule`) injectent `PrismaService` sans import répété ni couplage entre modules.
+- `FamilyService.canJoin()` utilise `prisma.user.count({ where: { familyId } })` — la règle métier TribuZen "famille pleine" est vérifiable sans charger 100 membres en mémoire.
+- Les `@map("snake_case")` + `@@map("table_name")` assurent que PostgreSQL suit les conventions SQL standard (`created_at`, `family_id`) pendant que TypeScript utilise camelCase (`createdAt`, `familyId`) — zéro friction entre les deux mondes.
+- La migration `init` est commitée avec le schéma dans `smaurier/tribuzen` — tout développeur rejoignant le projet recrée la base identique avec `npx prisma migrate dev`.
 
-| Ressource | Lien |
-|-----------|------|
-| Quiz Module 16 | `quiz/16-quiz.md` |
-| Lab Module 16 | `labs/16-lab-prisma-crud.md` |
-| Screencast | `screencasts/16-screencast.md` |
-| Module précédent | [Module 15 — TypeORM Requetes & Migrations](15-typeorm-requetes-migrations.md) |
-| Module suivant | [Module 17 — Prisma Requetes avancees & Comparaison](17-prisma-avance-comparaison.md) |
-| Documentation Prisma | https://www.prisma.io/docs |
-| Prisma Schema Référence | https://www.prisma.io/docs/référence/api-référence/prisma-schema-référence |
-| Prisma Client API | https://www.prisma.io/docs/référence/api-référence/prisma-client-référence |
+Structure cible dans `smaurier/tribuzen` :
 
----
+```
+apps/api/src/
+  prisma/
+    prisma.service.ts    ← PrismaService extends PrismaClient
+    prisma.module.ts     ← @Global() module, un seul import dans AppModule
+  family/
+    family.service.ts    ← CRUD via PrismaService, types Prisma.FamilyCreateInput
+    family.controller.ts
+    family.module.ts
+prisma/
+  schema.prisma          ← source de vérité — User, Family, Post, Invitation
+  migrations/
+    20260701000000_init/
+      migration.sql
+```
 
-<!-- parcours-recommande -->
+## 6. Points clés
 
-::: tip Parcours recommandé
-1. **Screencast** : [screencast 16 prisma setup](../screencasts/screencast-16-prisma-setup.md)
-2. **Lab** : [lab-16-prisma-setup](../labs/lab-16-prisma-setup/README)
-3. **Visualisation** : [ORM Query Flow](../visualizations/orm-query-flow.html)
-4. **Quiz** : [quiz 16 prisma schema](../quizzes/quiz-16-prisma-schema.html)
-:::
+1. Prisma 6 est **schema-first** : `schema.prisma` est la source de vérité ; client TypeScript et migrations en sont dérivés automatiquement.
+2. `datasource db` + `generator client { provider = "prisma-client-js" }` = structure minimale obligatoire dans tout schéma Prisma.
+3. `@id @default(cuid())` pour une clé primaire string portable ; `@updatedAt` pour le timestamp automatique à chaque update.
+4. Le côté "many" d'une relation porte `@relation(fields, references)` et la FK scalaire ; le côté "one" expose un tableau virtuel sans colonne en base.
+5. `@unique` sur une FK = relation 1-1 ; sans `@unique` = relation 1-N — c'est la seule différence syntaxique.
+6. `@@unique([a, b])` sur un modèle crée une contrainte composite ; `@unique` sur un champ crée une contrainte simple.
+7. `npx prisma migrate dev --name <nom>` crée le SQL, l'applique, et regénère le client en une commande — ne jamais modifier un fichier de migration après application.
+8. `PrismaService extends PrismaClient` avec `onModuleInit/$connect` et `onModuleDestroy/$disconnect` = pattern NestJS officiel pour la gestion du cycle de vie.
+9. `Prisma.ModelCreateInput`, `Prisma.ModelUpdateInput`, `Prisma.ModelGetPayload<{...}>` = types générés à utiliser dans les services — pas d'interfaces TypeScript manuelles.
+10. `include` joint des données supplémentaires — toujours combiner avec `take` et `select` pour éviter les payloads explosifs sur les relations de type liste.
+
+## 7. Seeds Anki
+
+```
+Quelle est la différence fondamentale entre Prisma et TypeORM ?|Prisma est schema-first — schema.prisma est la source de vérité, le client TypeScript en est dérivé ; TypeORM est code-first — les classes annotées sont le schéma
+Que fait npx prisma migrate dev --name init ?|Génère le SQL de migration depuis le diff avec la base, l'applique, et regénère @prisma/client — trois opérations en une seule commande
+Pourquoi ne faut-il jamais modifier un fichier de migration après application ?|Prisma stocke le hash du SQL dans _prisma_migrations — une modification casse la vérification d'intégrité et bloque migrate deploy avec P3006
+Quel est le pattern NestJS officiel pour intégrer PrismaClient ?|PrismaService extends PrismaClient, implémente OnModuleInit ($connect) et OnModuleDestroy ($disconnect), exposé via @Global() PrismaModule
+Comment obtenir le type TypeScript d'une Family avec ses membres inclus ?|Prisma.FamilyGetPayload<{ include: { members: true } }> — type inféré automatiquement à la génération, zéro interface manuelle
+Quelle propriété syntaxique distingue une relation 1-1 d'une 1-N dans Prisma ?|@unique sur la clé étrangère — c'est la seule différence, sans @unique c'est une relation 1-N
+Comment éviter de charger des centaines de lignes liées dans un findMany ?|Ajouter take (limite) et select (champs choisis) dans le include — ex. include: { posts: { take: 10, select: { id: true, content: true } } }
+Quand un nom de relation @relation("NomExplicite") est-il obligatoire ?|Quand un modèle a deux relations distinctes vers le même autre modèle — Prisma ne peut pas lever l'ambiguïté sans nom explicite des deux côtés
+```
+
+## Pont vers le lab
+
+> Lab associé : `09-nestjs/labs/lab-16-prisma-setup/README.md`. Tu y définis le schéma Prisma de TribuZen (User, Family, Post, Invitation), appliques la première migration, et implémentes `PrismaService` + `FamilyService` avec CRUD type-safe — corrigé complet commenté + variante J+30 dans le README du lab.

@@ -1,1014 +1,580 @@
-# Module 17 — Prisma — Requetes avancees & Comparaison TypeORM vs Prisma
-
-> **Objectif** : Maîtriser les requêtes avancees de Prisma (ecritures imbriquees, filtrage complexe, transactions, SQL brut) et comparer objectivement TypeORM et Prisma pour faire un choix eclaire.
-> **Difficulte** : ⭐⭐⭐ (avance)
-> **Prérequis** : Module 14 (TypeORM Entites), Module 15 (TypeORM Requetes), Module 16 (Prisma Schema & Client)
-> **Duree estimee** : 5 heures
-
+---
+titre: Prisma avancé et comparaison
+cours: 09-nestjs
+notions: [requêtes de relations et nested writes, transactions interactives et batch, requêtes brutes, extensions et middleware Prisma, pagination, connection pooling, Prisma vs TypeORM, quand choisir chaque ORM]
+outcomes: [écrire des requêtes de relations et des nested writes, exécuter une transaction Prisma, paginer, comparer Prisma et TypeORM pour choisir]
+prerequis: [16-prisma-schema-client]
+next: 18-nestjs-testing
+libs: [{ name: prisma, version: "^6" }]
+tribuzen: transaction Prisma atomique de l'invitation TribuZen (créer invitation + notifier)
+last-reviewed: 2026-07
 ---
 
-## 1. Ecritures imbriquees (Nested Writes)
+# Prisma avancé et comparaison
 
-### 1.1 Créer avec des relations
+> **Outcomes — tu sauras FAIRE :** écrire des requêtes de relations et des nested writes, exécuter une transaction Prisma interactive, paginer avec offset et curseur, comparer Prisma et TypeORM pour choisir le bon outil.
+> **Difficulté :** :star::star::star::star:
 
-Prisma permet de créer des enregistrements et leurs relations en une seule operation.
+## 1. Cas concret d'abord
 
-```typescript
-// Creer un utilisateur avec son profil et un premier article
-const user = await prisma.user.create({
-  data: {
-    email: 'alice@example.com',
-    nom: 'Alice Dupont',
-    motDePasse: 'hashSecurise',
+Dans TribuZen, quand un admin invite quelqu'un dans une famille, deux choses doivent se passer **ensemble** : créer une ligne dans `Invitation` et créer une ligne dans `Notification`. Si la notification échoue, l'invitation ne doit pas être persistée — c'est une opération atomique.
 
-    // Creer le profil en meme temps (One-to-One)
-    profile: {
-      create: {
-        bio: 'Developpeuse full-stack passionee par NestJS',
-        avatar: '/uploads/alice.jpg',
-        twitter: '@alice_dev',
-      },
-    },
+Tu essaies de l'écrire naïvement :
 
-    // Creer des articles en meme temps (One-to-Many)
-    articles: {
-      create: [
-        {
-          titre: 'Mon premier article',
-          slug: 'mon-premier-article',
-          contenu: 'Contenu de mon premier article...',
-          statut: 'PUBLIE',
-        },
-        {
-          titre: 'Deuxieme article',
-          slug: 'deuxieme-article',
-          contenu: 'Contenu du deuxieme article...',
-          statut: 'BROUILLON',
-        },
-      ],
-    },
-  },
-  include: {
-    profile: true,
-    articles: true,
-  },
-});
+```ts
+// ❌ non atomique — si notifier() plante, l'invitation est déjà en base
+async createInvitation(familyId: string, email: string) {
+  const inv = await this.prisma.invitation.create({
+    data: { familyId, email, status: 'PENDING' },
+  })
+  // si cette ligne plante → invitation orpheline persistée
+  await this.prisma.notification.create({ data: { type: 'INVITE', refId: inv.id } })
+  return inv
+}
 ```
 
-### 1.2 connect — Lier à un enregistrement existant
+Avec une transaction interactive Prisma 6, les deux opérations sont atomiques :
 
-```typescript
-// Creer un article lie a un utilisateur existant
-const article = await prisma.article.create({
-  data: {
-    titre: 'Nouvel article',
-    slug: 'nouvel-article',
-    contenu: 'Contenu...',
-
-    // Lier a un utilisateur existant par son ID
-    auteur: {
-      connect: { id: 1 },
-    },
-
-    // Lier a des tags existants (Many-to-Many)
-    tags: {
-      connect: [
-        { id: 1 },    // Tag #1
-        { id: 3 },    // Tag #3
-        { nom: 'NestJS' },  // Ou par un champ unique
-      ],
-    },
-  },
-});
+```ts
+// ✅ atomique — si notification.create échoue, invitation est rollbackée
+async createInvitation(familyId: string, email: string) {
+  return this.prisma.$transaction(async (tx) => {
+    const inv = await tx.invitation.create({
+      data: {
+        familyId,
+        email,
+        status: 'PENDING',
+        notifications: { create: { type: 'INVITE', read: false } }, // nested write
+      },
+    })
+    return inv
+  })
+}
 ```
 
-### 1.3 connectOrCreate — Lier ou créer
+Ce module explique comment ça marche et couvre l'ensemble de l'API Prisma avancée : nested writes, transactions, raw SQL, extensions, pagination, connection pooling, et la comparaison honnête avec TypeORM.
 
-```typescript
-// Creer un article avec des tags : les creer s'ils n'existent pas
-const article = await prisma.article.create({
+## 2. Théorie complète, concise
+
+### 2.1 Requêtes de relations et nested writes
+
+Un **nested write** crée ou modifie un enregistrement et ses relations en une seule opération.
+
+**create imbriqué — créer avec relations**
+
+```ts
+// Créer une invitation avec sa notification en une seule requête
+const invitation = await prisma.invitation.create({
   data: {
-    titre: 'Guide TypeScript',
-    slug: 'guide-typescript',
-    contenu: 'Contenu complet...',
-    auteurId: 1,
-
-    tags: {
-      connectOrCreate: [
-        {
-          where: { nom: 'TypeScript' },        // Cherche par nom
-          create: { nom: 'TypeScript', couleur: '#3178C6' },  // Cree si absent
-        },
-        {
-          where: { nom: 'JavaScript' },
-          create: { nom: 'JavaScript', couleur: '#F7DF1E' },
-        },
-      ],
+    email: 'bob@tribu.fr',
+    status: 'PENDING',
+    family: {
+      connect: { id: familyId },         // lier à une famille existante par id
+    },
+    notifications: {
+      create: { type: 'INVITE', read: false }, // créer la notification en même temps
     },
   },
-  include: { tags: true },
-});
+  include: { notifications: true },      // retourner avec les notifications créées
+})
 ```
 
-> **Bonne pratique** : `connectOrCreate` est très utile pour les tags, categories et autres entites de référence. Il evite de faire un `findUnique` suivi d'un `create` conditionnel.
+**Opérations disponibles dans un nested write**
 
-### 1.4 Mise a jour des relations
+| Opération | Sens | Exemple |
+|-----------|------|---------|
+| `create` | Créer l'enregistrement lié | `profile: { create: { bio: '...' } }` |
+| `connect` | Lier à un existant par clé unique | `family: { connect: { id: 1 } }` |
+| `connectOrCreate` | Lier ou créer s'il n'existe pas | Tags, catégories |
+| `set` | Remplacer toute la liste de liens M-M | `tags: { set: [{ id: 2 }] }` |
+| `disconnect` | Retirer un lien M-M | `tags: { disconnect: { id: 3 } }` |
+| `update` | Mettre à jour l'enregistrement lié | `profile: { update: { bio: 'nouveau' } }` |
+| `upsert` | Update si existe, create sinon | `profile: { upsert: { create: {...}, update: {...} } }` |
+| `delete` | Supprimer l'enregistrement lié One-to-One | `profile: { delete: true }` |
 
-```typescript
-// Mettre a jour les tags d'un article
+> **Piège** : `set` sur une relation Many-to-Many **remplace toute la liste**. Pour ajouter un lien, utiliser `connect`. Pour retirer un lien, utiliser `disconnect`.
 
-// set — remplacer TOUS les tags par une nouvelle liste
-const article = await prisma.article.update({
+**select vs include**
+
+`include` charge les relations en plus de tous les champs. `select` ne charge que les champs explicitement listés. Les deux sont **mutuellement exclusifs** au même niveau.
+
+```ts
+// include : tous les champs du modèle + les relations demandées
+const user = await prisma.user.findUnique({
   where: { id: 1 },
-  data: {
-    tags: {
-      set: [{ id: 2 }, { id: 5 }],  // Remplace tous les tags
-    },
-  },
-});
+  include: { invitations: true }, // user.email ✓, user.invitations ✓
+})
 
-// connect — ajouter un tag supplementaire
-const article = await prisma.article.update({
-  where: { id: 1 },
-  data: {
-    tags: {
-      connect: { id: 3 },  // Ajoute le tag #3
-    },
-  },
-});
-
-// disconnect — retirer un tag
-const article = await prisma.article.update({
-  where: { id: 1 },
-  data: {
-    tags: {
-      disconnect: { id: 2 },  // Retire le tag #2
-    },
-  },
-});
-
-// Mise a jour imbriquee d'un One-to-One
-const user = await prisma.user.update({
-  where: { id: 1 },
-  data: {
-    nom: 'Alice Martin',
-    profile: {
-      update: {  // Met a jour le profil existant
-        bio: 'Nouvelle bio mise a jour',
-      },
-    },
-  },
-});
-
-// upsert imbrique — creer le profil s'il n'existe pas, le mettre a jour sinon
-const user = await prisma.user.update({
-  where: { id: 1 },
-  data: {
-    profile: {
-      upsert: {
-        create: { bio: 'Nouveau profil' },
-        update: { bio: 'Profil mis a jour' },
-      },
-    },
-  },
-});
-```
-
-> **Piege classique** : `set` sur une relation Many-to-Many **remplace** tous les liens existants. Si vous voulez seulement **ajouter** un lien, utilisez `connect`. Si vous voulez **retirer** un lien, utilisez `disconnect`.
-
----
-
-## 2. include vs select — Stratégies de chargement
-
-### 2.1 include — Charger les relations
-
-`include` charge les relations en plus de tous les champs du modèle principal.
-
-```typescript
-// Charge l'article avec TOUS ses champs + les relations specifiees
-const article = await prisma.article.findUnique({
-  where: { id: 1 },
-  include: {
-    auteur: true,           // Charge tous les champs de l'auteur
-    tags: true,              // Charge tous les tags
-    commentaires: {
-      include: {
-        auteur: true,        // Charge l'auteur de chaque commentaire
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 10,              // Limite a 10 commentaires
-    },
-    _count: {                // Comptage des relations
-      select: {
-        commentaires: true,  // Nombre de commentaires
-      },
-    },
-  },
-});
-// article.titre ✓ (tous les champs)
-// article.auteur.nom ✓
-// article.commentaires[0].auteur.nom ✓
-// article._count.commentaires = 42
-```
-
-### 2.2 select — Selectionner des champs spécifiques
-
-`select` permet de choisir exactement quels champs retourner. C'est une **optimisation importante** pour éviter de charger des donnees inutiles.
-
-```typescript
-// Ne charge QUE les champs specifies
-const article = await prisma.article.findUnique({
+// select : uniquement les champs listés — le reste est absent du type retourné
+const user = await prisma.user.findUnique({
   where: { id: 1 },
   select: {
     id: true,
-    titre: true,
-    slug: true,
-    createdAt: true,
-    // contenu: false (implicitement exclu)
-
-    auteur: {
-      select: {
-        id: true,
-        nom: true,
-        // email, motDePasse etc. ne sont PAS charges
-      },
-    },
-
-    tags: {
-      select: {
-        id: true,
-        nom: true,
-        couleur: true,
-      },
-    },
-
-    _count: {
-      select: { commentaires: true },
-    },
+    email: true,
+    invitations: { select: { status: true } },
+    // user.passwordHash → absent du type (pas listé)
   },
-});
-// article.titre ✓
-// article.contenu ✗ (non selectionne → undefined)
-// article.auteur.nom ✓
-// article.auteur.email ✗ (non selectionne)
+})
 ```
 
-> **A retenir** : `include` et `select` sont **mutuellement exclusifs** au même niveau. Vous ne pouvez pas utiliser les deux en même temps sur le même objet. `include` charge TOUT + les relations. `select` ne charge QUE ce que vous demandez.
+### 2.2 Transactions interactives et batch
 
-### 2.3 Tableau comparatif
+**Batch (tableau) — requêtes indépendantes**
 
-| Critere | `include` | `select` |
-|---------|-----------|----------|
-| Champs du modèle | Tous | Seulement ceux specifies |
-| Relations | Ajoutees aux champs existants | Doivent etre explicitement demandees |
-| Performance | Peut charger trop de donnees | Optimise le transfert |
-| Cas d'usage | Quand on veut tout + relations | API publiques, listes, performances |
-
----
-
-## 3. Filtrage et tri avances
-
-### 3.1 Operateurs de filtrage
-
-```typescript
-// Tous les operateurs de filtrage disponibles
-const articles = await prisma.article.findMany({
-  where: {
-    // Egalite (implicite)
-    statut: 'PUBLIE',
-
-    // Comparaisons numeriques
-    nombreVues: {
-      gt: 100,      // Greater than (>)
-      gte: 100,     // Greater than or equal (>=)
-      lt: 1000,     // Less than (<)
-      lte: 1000,    // Less than or equal (<=)
-    },
-
-    // Recherche textuelle
-    titre: {
-      contains: 'NestJS',       // LIKE '%NestJS%'
-      startsWith: 'Guide',      // LIKE 'Guide%'
-      endsWith: 'avance',       // LIKE '%avance'
-      // Mode insensible a la casse (PostgreSQL)
-      mode: 'insensitive',
-    },
-
-    // Inclusion dans une liste
-    auteurId: {
-      in: [1, 2, 3],            // IN (1, 2, 3)
-      notIn: [4, 5],            // NOT IN (4, 5)
-    },
-
-    // Negation
-    slug: {
-      not: 'brouillon',         // != 'brouillon'
-    },
-
-    // Null check
-    resume: {
-      not: null,                 // IS NOT NULL
-    },
-    // Equivalent plus court :
-    // resume: { not: null }
-
-    // Dates
-    createdAt: {
-      gte: new Date('2024-01-01'),
-      lt: new Date('2025-01-01'),
-    },
-  },
-});
-```
-
-### 3.2 Operateurs logiques AND, OR, NOT
-
-```typescript
-// Operateur OR
-const articles = await prisma.article.findMany({
-  where: {
-    OR: [
-      { titre: { contains: 'NestJS', mode: 'insensitive' } },
-      { contenu: { contains: 'NestJS', mode: 'insensitive' } },
-      { tags: { some: { nom: 'NestJS' } } },
-    ],
-  },
-});
-
-// Operateur AND (implicite par defaut, mais peut etre explicite)
-const articles = await prisma.article.findMany({
-  where: {
-    AND: [
-      { statut: 'PUBLIE' },
-      { nombreVues: { gte: 100 } },
-      { auteurId: 1 },
-    ],
-  },
-});
-
-// Operateur NOT
-const articles = await prisma.article.findMany({
-  where: {
-    NOT: {
-      statut: 'ARCHIVE',
-    },
-  },
-});
-
-// Combinaison complexe
-const articles = await prisma.article.findMany({
-  where: {
-    statut: 'PUBLIE',
-    AND: [
-      {
-        OR: [
-          { titre: { contains: 'TypeScript', mode: 'insensitive' } },
-          { titre: { contains: 'NestJS', mode: 'insensitive' } },
-        ],
-      },
-      { nombreVues: { gte: 50 } },
-    ],
-    NOT: {
-      auteurId: { in: [10, 11, 12] }, // Exclure certains auteurs
-    },
-  },
-});
-```
-
-### 3.3 Filtrage sur les relations
-
-```typescript
-// Articles qui ONT au moins un tag "NestJS"
-const articles = await prisma.article.findMany({
-  where: {
-    tags: {
-      some: { nom: 'NestJS' },  // Au moins un tag matche
-    },
-  },
-});
-
-// Articles dont TOUS les commentaires sont recents
-const articles = await prisma.article.findMany({
-  where: {
-    commentaires: {
-      every: {
-        createdAt: { gte: new Date('2024-01-01') },
-      },
-    },
-  },
-});
-
-// Articles SANS commentaires
-const articles = await prisma.article.findMany({
-  where: {
-    commentaires: {
-      none: {},  // Aucun commentaire
-    },
-  },
-});
-
-// Utilisateurs dont au moins un article est publie
-const users = await prisma.user.findMany({
-  where: {
-    articles: {
-      some: { statut: 'PUBLIE' },
-    },
-  },
-});
-```
-
-| Operateur relation | Description |
-|-------------------|-------------|
-| `some` | Au moins un enregistrement relie matche |
-| `every` | Tous les enregistrements relies matchent |
-| `none` | Aucun enregistrement relie ne matche |
-| `is` | L'enregistrement relie (singulier) matche |
-| `isNot` | L'enregistrement relie (singulier) ne matche pas |
-
-### 3.4 Tri avance
-
-```typescript
-// Tri simple
-const articles = await prisma.article.findMany({
-  orderBy: { createdAt: 'desc' },
-});
-
-// Tri multiple
-const articles = await prisma.article.findMany({
-  orderBy: [
-    { statut: 'asc' },
-    { createdAt: 'desc' },
-  ],
-});
-
-// Tri par relation
-const articles = await prisma.article.findMany({
-  orderBy: {
-    auteur: { nom: 'asc' },  // Trier par nom de l'auteur
-  },
-});
-
-// Tri par comptage de relations
-const articles = await prisma.article.findMany({
-  orderBy: {
-    commentaires: { _count: 'desc' },  // Les plus commentes d'abord
-  },
-});
-
-// Tri avec nulls en premier ou en dernier
-const articles = await prisma.article.findMany({
-  orderBy: {
-    resume: { sort: 'asc', nulls: 'last' },
-  },
-});
-```
-
----
-
-## 4. Pagination
-
-### 4.1 Pagination par offset (classique)
-
-```typescript
-async function findAllPaginated(page: number = 1, limit: number = 10) {
-  const skip = (page - 1) * limit;
-
-  const [articles, total] = await Promise.all([
-    prisma.article.findMany({
-      where: { statut: 'PUBLIE' },
-      orderBy: { createdAt: 'desc' },
-      skip,
-      take: limit,
-      include: {
-        auteur: { select: { id: true, nom: true } },
-        _count: { select: { commentaires: true } },
-      },
-    }),
-    prisma.article.count({ where: { statut: 'PUBLIE' } }),
-  ]);
-
-  return {
-    data: articles,
-    meta: {
-      total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit),
-      hasNextPage: page * limit < total,
-      hasPreviousPage: page > 1,
-    },
-  };
-}
-```
-
-### 4.2 Pagination par curseur (performante)
-
-La pagination par curseur est plus performante pour les grands ensembles de donnees car elle n'a pas besoin de compter les lignes a sauter.
-
-```typescript
-async function findAllCursorPaginated(
-  cursor?: number,
-  limit: number = 10,
-) {
-  const articles = await prisma.article.findMany({
-    where: { statut: 'PUBLIE' },
-    orderBy: { id: 'asc' },
-    take: limit + 1, // On prend un de plus pour savoir s'il y a une page suivante
-    ...(cursor
-      ? {
-          cursor: { id: cursor },
-          skip: 1, // Saute le curseur lui-meme
-        }
-      : {}),
-    include: {
-      auteur: { select: { id: true, nom: true } },
-    },
-  });
-
-  const hasNextPage = articles.length > limit;
-  const data = hasNextPage ? articles.slice(0, limit) : articles;
-  const nextCursor = hasNextPage ? data[data.length - 1].id : null;
-
-  return {
-    data,
-    meta: {
-      nextCursor,
-      hasNextPage,
-    },
-  };
-}
-
-// Utilisation :
-// Page 1 : findAllCursorPaginated()
-// Page 2 : findAllCursorPaginated(lastArticle.id)
-```
-
-> **Bonne pratique** : Utilisez la pagination par offset pour les interfaces avec des numéros de page (page 1, 2, 3...). Utilisez la pagination par curseur pour le scroll infini ou les grandes tables (performances superieures car pas de `OFFSET`).
-
----
-
-## 5. Les Transactions
-
-### 5.1 Transaction sequentielle
-
-```typescript
-// Les requetes sont executees dans l'ordre, dans une seule transaction
-const [updatedArticle, newComment] = await prisma.$transaction([
-  prisma.article.update({
-    where: { id: 1 },
-    data: { nombreVues: { increment: 1 } },
+```ts
+// Les deux requêtes s'exécutent dans la même transaction, dans l'ordre
+const [invitation, count] = await prisma.$transaction([
+  prisma.invitation.create({
+    data: { email: 'bob@tribu.fr', familyId: 'fam-1', status: 'PENDING' },
   }),
-  prisma.comment.create({
-    data: {
-      contenu: 'Super article !',
-      auteurId: 2,
-      articleId: 1,
-    },
-  }),
-]);
+  prisma.invitation.count({ where: { familyId: 'fam-1' } }),
+])
 ```
 
-### 5.2 Transaction interactive
+**Interactive (callback) — requêtes interdépendantes**
 
-Pour les cas plus complexes ou les operations dependent les unes des autres :
-
-```typescript
-// Creer une commande avec gestion du stock
-async function createOrder(
-  userId: number,
-  items: { productId: number; quantite: number }[],
-) {
-  return prisma.$transaction(async (tx) => {
-    // tx est un PrismaClient transactionnel
-    let total = 0;
-
-    // Creer la commande
-    const order = await tx.order.create({
-      data: {
-        userId,
-        statut: 'EN_ATTENTE',
-        total: 0,
-      },
-    });
-
-    // Traiter chaque article
-    for (const item of items) {
-      // Verifier le stock (avec verrouillage implicite dans la transaction)
-      const product = await tx.product.findUniqueOrThrow({
-        where: { id: item.productId },
-      });
-
-      if (product.stock < item.quantite) {
-        // Lancer une erreur annule toute la transaction
-        throw new Error(
-          `Stock insuffisant pour "${product.nom}". ` +
-          `Demande: ${item.quantite}, Disponible: ${product.stock}`,
-        );
-      }
-
-      // Decrementer le stock
-      await tx.product.update({
-        where: { id: item.productId },
-        data: { stock: { decrement: item.quantite } },
-      });
-
-      // Creer la ligne de commande
-      await tx.orderItem.create({
-        data: {
-          orderId: order.id,
-          productId: item.productId,
-          quantite: item.quantite,
-          prixUnitaire: product.prix,
-        },
-      });
-
-      total += product.prix * item.quantite;
+```ts
+// tx est un PrismaClient transactionnel — tout passe via tx, atomique
+const result = await prisma.$transaction(
+  async (tx) => {
+    // 1. Vérifier la capacité de la famille (lecture cohérente dans la transaction)
+    const family = await tx.family.findUniqueOrThrow({
+      where: { id: familyId },
+      select: { memberCount: true, maxSize: true },
+    })
+    if (family.memberCount >= family.maxSize) {
+      throw new Error('FAMILY_FULL') // ROLLBACK automatique — rien n'est écrit
     }
 
-    // Mettre a jour le total de la commande
-    const finalOrder = await tx.order.update({
-      where: { id: order.id },
-      data: { total },
-      include: {
-        items: {
-          include: { product: true },
-        },
+    // 2. Créer l'invitation (nested write avec notification)
+    const invitation = await tx.invitation.create({
+      data: {
+        email,
+        familyId,
+        status: 'PENDING',
+        notifications: { create: { type: 'INVITE', read: false } },
       },
-    });
+    })
 
-    return finalOrder;
-  }, {
-    maxWait: 5000,     // Temps max d'attente pour obtenir la transaction (ms)
-    timeout: 10000,    // Temps max d'execution de la transaction (ms)
-    isolationLevel: 'Serializable', // Niveau d'isolation (optionnel)
-  });
-}
+    return invitation // COMMIT si aucune exception levée
+  },
+  {
+    maxWait: 5000,               // ms max pour obtenir une connexion disponible
+    timeout: 10000,              // ms max pour exécuter toute la transaction
+    isolationLevel: 'ReadCommitted', // niveau d'isolation PostgreSQL
+  },
+)
 ```
 
-> **A retenir** : Dans une transaction interactive (`$transaction(async (tx) => {...})`), si une erreur est lancee (throw), **toute la transaction est annulee** (ROLLBACK). Sinon, elle est validee (COMMIT).
+Si une exception est levée dans le callback, Prisma émet un `ROLLBACK`. Sans exception → `COMMIT`.
 
-### 5.3 Niveaux d'isolation
+**Niveaux d'isolation**
 
-| Niveau | Description | Cas d'usage |
-|--------|-------------|-------------|
-| `ReadUncommitted` | Peut lire des donnees non commitees | Rarement utile |
-| `ReadCommitted` | Lit seulement les donnees commitees | Defaut PostgreSQL |
-| `RepeatableRead` | Garantit la même lecture dans la transaction | Rapports |
-| `Serializable` | Isolation maximale | Operations financieres critiques |
+| Niveau | Cas d'usage |
+|--------|-------------|
+| `ReadCommitted` | Défaut PostgreSQL — convient à la majorité des cas |
+| `RepeatableRead` | Rapports qui lisent plusieurs fois les mêmes données |
+| `Serializable` | Opérations financières critiques — risque de deadlock élevé |
 
----
+### 2.3 Requêtes brutes
 
-## 6. Requetes SQL brutes
+À utiliser quand l'API Prisma ne couvre pas un besoin SQL (fonctions agrégées avancées, `ON CONFLICT`, `RETURNING`, `FILTER`, etc.).
 
-### 6.1 $queryRaw — Requetes SELECT brutes
+```ts
+import { Prisma } from '@prisma/client'
 
-```typescript
-import { Prisma } from '@prisma/client';
-
-// Requete typee avec le tagged template Prisma.sql
-const articles = await prisma.$queryRaw<
-  { id: number; titre: string; total_vues: number }[]
->(Prisma.sql`
-  SELECT a.id, a.titre, a.nombre_vues AS total_vues
-  FROM articles a
-  WHERE a.statut = ${ArticleStatut.PUBLIE}
-  AND a.nombre_vues > ${100}
-  ORDER BY a.nombre_vues DESC
-  LIMIT ${10}
-`);
-// Les variables sont automatiquement parametrees (protection SQL injection)
-
-// Requete avec jointure complexe
+// $queryRaw — SELECT, retourne un tableau avec le type générique
 const stats = await prisma.$queryRaw<
-  { tag_nom: string; nombre_articles: number; vues_moyennes: number }[]
+  { family_id: string; invite_count: number }[]
 >(Prisma.sql`
-  SELECT t.nom AS tag_nom,
-         COUNT(at.article_id)::int AS nombre_articles,
-         COALESCE(AVG(a.nombre_vues), 0)::float AS vues_moyennes
-  FROM tags t
-  LEFT JOIN "_ArticleToTag" at ON at."B" = t.id
-  LEFT JOIN articles a ON a.id = at."A"
-  WHERE a.statut = 'PUBLIE' OR a.statut IS NULL
-  GROUP BY t.id, t.nom
-  ORDER BY nombre_articles DESC
-`);
+  SELECT family_id, COUNT(*)::int AS invite_count
+  FROM "Invitation"
+  WHERE status = ${InvitationStatus.PENDING}
+  GROUP BY family_id
+  HAVING COUNT(*) > ${5}
+  ORDER BY invite_count DESC
+`)
+// Les paramètres ${...} sont automatiquement paramétrés → protection SQL injection
+
+// $executeRaw — INSERT/UPDATE/DELETE, retourne le nombre de lignes affectées
+const affected = await prisma.$executeRaw(Prisma.sql`
+  UPDATE "Invitation"
+  SET status = 'EXPIRED'
+  WHERE status = 'PENDING'
+  AND created_at < NOW() - INTERVAL '7 days'
+`)
+// affected = nombre de lignes modifiées
 ```
 
-### 6.2 $executeRaw — Requetes de modification brutes
+> **Règle absolue** : toujours `Prisma.sql` (tagged template). Jamais de concaténation de chaînes — c'est une faille d'injection SQL.
 
-```typescript
-// Mise a jour brute
-const affectedRows = await prisma.$executeRaw(Prisma.sql`
-  UPDATE articles
-  SET nombre_vues = nombre_vues + 1
-  WHERE id = ${articleId}
-`);
-// affectedRows = nombre de lignes modifiees
+Les requêtes brutes fonctionnent aussi dans une transaction interactive via `tx.$queryRaw` et `tx.$executeRaw`.
 
-// Requete d'insertion brute
-await prisma.$executeRaw(Prisma.sql`
-  INSERT INTO article_views (article_id, viewed_at, ip_address)
-  VALUES (${articleId}, NOW(), ${ipAddress})
-  ON CONFLICT (article_id, ip_address)
-  DO UPDATE SET viewed_at = NOW()
-`);
-```
+### 2.4 Extensions et middleware Prisma
 
-> **Piege classique** : Utilisez **toujours** `Prisma.sql` (tagged template) pour les requêtes brutes. Ne construisez jamais des requêtes par concatenation de chaines — c'est une faille d'injection SQL.
+**Middleware `$use` (Prisma 6 — compatible, marqué déprécié en v7)**
 
----
+`$use` intercepte toutes les requêtes Prisma avant et après exécution — logique transversale (logging, soft delete).
 
-## 7. Prisma Middleware
-
-### 7.1 Qu'est-ce qu'un middleware Prisma ?
-
-Les middlewares Prisma interceptent les requêtes avant et après leur exécution. Ils permettent d'ajouter de la logique transversale.
-
-```typescript
-// prisma/prisma.service.ts
-import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
-import { PrismaClient, Prisma } from '@prisma/client';
+```ts
+// src/prisma/prisma.service.ts
+import { Injectable, OnModuleInit, Logger } from '@nestjs/common'
+import { PrismaClient } from '@prisma/client'
 
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit {
-  private readonly logger = new Logger('PrismaService');
+  private readonly logger = new Logger('PrismaService')
 
   constructor() {
-    super();
+    super()
 
-    // Middleware de logging
-    this.$use(async (params: Prisma.MiddlewareParams, next) => {
-      const before = Date.now();
-      const result = await next(params);
-      const after = Date.now();
+    // Middleware de logging des requêtes lentes
+    this.$use(async (params, next) => {
+      const start = Date.now()
+      const result = await next(params)
+      const ms = Date.now() - start
+      if (ms > 200) {
+        this.logger.warn(`Lent: ${params.model}.${params.action} — ${ms}ms`)
+      }
+      return result
+    })
 
-      this.logger.log(
-        `${params.model}.${params.action} — ${after - before}ms`,
-      );
-
-      return result;
-    });
-
-    // Middleware de soft delete
-    this.$use(async (params: Prisma.MiddlewareParams, next) => {
-      // Intercepter les delete sur les modeles avec deletedAt
-      if (params.model === 'Article') {
+    // Middleware de soft delete sur Invitation
+    this.$use(async (params, next) => {
+      if (params.model === 'Invitation') {
         if (params.action === 'delete') {
           // Transformer delete en update (soft delete)
-          params.action = 'update';
-          params.args['data'] = { deletedAt: new Date() };
+          params.action = 'update'
+          params.args['data'] = { deletedAt: new Date() }
         }
-
-        if (params.action === 'deleteMany') {
-          params.action = 'updateMany';
-          if (params.args.data !== undefined) {
-            params.args.data['deletedAt'] = new Date();
-          } else {
-            params.args['data'] = { deletedAt: new Date() };
-          }
-        }
-
-        // Filtrer automatiquement les enregistrements soft-deleted
         if (params.action === 'findMany' || params.action === 'findFirst') {
-          if (!params.args) params.args = {};
-          if (!params.args.where) params.args.where = {};
-          params.args.where.deletedAt = null;
+          params.args ??= {}
+          // Filtrer automatiquement les enregistrements soft-deleted
+          params.args.where = { ...params.args.where, deletedAt: null }
         }
       }
-
-      return next(params);
-    });
+      return next(params)
+    })
   }
 
   async onModuleInit() {
-    await this.$connect();
+    await this.$connect()
   }
 }
 ```
 
-### 7.2 Middleware de timing
+**Extensions `$extends` (Prisma 5+ / 6 — approche recommandée pour méthodes custom)**
 
-```typescript
-// Middleware qui log les requetes lentes
-this.$use(async (params, next) => {
-  const start = Date.now();
-  const result = await next(params);
-  const duration = Date.now() - start;
+```ts
+// Ajouter une méthode softDelete directement sur le modèle invitation
+const extendedPrisma = prisma.$extends({
+  model: {
+    invitation: {
+      async softDelete(id: string) {
+        return prisma.invitation.update({
+          where: { id },
+          data: { deletedAt: new Date() },
+        })
+      },
+    },
+  },
+})
 
-  if (duration > 200) {
-    this.logger.warn(
-      `Requete lente detectee : ${params.model}.${params.action} — ${duration}ms`,
-    );
+// Utilisation
+await extendedPrisma.invitation.softDelete('inv-123')
+```
+
+### 2.5 Pagination
+
+**Offset — pages numérotées**
+
+```ts
+async findPaginated(page = 1, limit = 10) {
+  const skip = (page - 1) * limit
+  const [invitations, total] = await Promise.all([
+    prisma.invitation.findMany({
+      where: { status: 'PENDING', deletedAt: null },
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: limit,
+    }),
+    prisma.invitation.count({ where: { status: 'PENDING', deletedAt: null } }),
+  ])
+  return {
+    data: invitations,
+    meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+  }
+}
+```
+
+**Curseur — scroll infini ou grandes tables**
+
+```ts
+async findWithCursor(familyId: string, cursor?: string, limit = 10) {
+  const items = await prisma.invitation.findMany({
+    where: { familyId, status: 'PENDING', deletedAt: null },
+    orderBy: { id: 'asc' },
+    take: limit + 1,                         // prend un de plus pour détecter la suite
+    ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    select: { id: true, email: true, createdAt: true },
+  })
+
+  const hasNext = items.length > limit
+  const data = hasNext ? items.slice(0, limit) : items
+  return { data, nextCursor: hasNext ? data.at(-1)!.id : null }
+}
+```
+
+| Critère | Offset | Curseur |
+|---------|--------|---------|
+| Grandes tables | Lent — `OFFSET N` parcourt N lignes | Performant — index sur l'id |
+| Pages numérotées | Oui | Non |
+| Scroll infini / API mobile | Déconseillé | Idéal |
+| Insertions pendant la pagination | Doublons ou lignes sautées possibles | Stable |
+
+### 2.6 Connection pooling
+
+Par défaut, Prisma ouvre un pool de connexions vers PostgreSQL configurable via la `DATABASE_URL`.
+
+```ts
+// connection_limit dans la chaîne de connexion
+// DATABASE_URL="postgresql://user:pwd@host/db?connection_limit=5&pool_timeout=10"
+```
+
+En production serverless (Vercel, AWS Lambda), chaque instance ouvre son propre pool → saturation PostgreSQL rapide. Solution : **Prisma Accelerate** (proxy managé côté Prisma) ou `pgBouncer` (proxy indépendant).
+
+### 2.7 Prisma vs TypeORM — comparaison honnête
+
+**Approche et philosophie**
+
+| Aspect | TypeORM | Prisma |
+|--------|---------|--------|
+| Définition du schéma | Décorateurs dans les classes TS | Fichier `schema.prisma` déclaratif |
+| Pattern | Active Record + Data Mapper | Client généré unique |
+| Lazy loading | Oui (via Promises) | Non — eager via `include` uniquement |
+| Bases supportées | PostgreSQL, MySQL, SQLite, MSSQL, Oracle... | PostgreSQL, MySQL, SQLite, MongoDB |
+
+**Type safety — Prisma gagne**
+
+```ts
+// TypeORM — type retourné = toujours l'entité complète, même si join non chargé
+const user = await userRepo.findOne({ where: { id: 1 } })
+user.invitations // TypeScript le permet → mais erreur à l'exécution si relation non chargée
+
+// Prisma — type retourné = exactement ce qui est demandé
+const user = await prisma.user.findUnique({ where: { id: 1 } })
+// user.invitations → n'existe pas dans le type → erreur de compilation
+
+const userWithInv = await prisma.user.findUnique({
+  where: { id: 1 },
+  include: { invitations: true },
+})
+// userWithInv.invitations → Invitation[] dans le type
+```
+
+**Migrations**
+
+| Aspect | TypeORM | Prisma |
+|--------|---------|--------|
+| Format | TypeScript (QueryRunner up/down) | SQL pur |
+| Génération | `migration:generate` | `prisma migrate dev` |
+| Prototypage | `synchronize: true` | `prisma db push` |
+| Seed intégré | Non | `prisma db seed` |
+
+**Requêtes complexes**
+
+TypeORM QueryBuilder est plus expressif pour les jointures complexes, requêtes récursives, et les bases legacy. Prisma est plus intuitif pour les cas courants mais impose le raw SQL pour les cas extrêmes.
+
+**Quand choisir**
+
+| Choisir TypeORM si... | Choisir Prisma si... |
+|----------------------|---------------------|
+| Base existante complexe | Nouveau projet |
+| Besoin de lazy loading | Type safety prioritaire |
+| Équipe avec background Java/C# (Active Record) | Expérience développeur optimale |
+| Requêtes SQL très complexes | Approche schema-first préférée |
+| MSSQL, Oracle, CockroachDB | PostgreSQL, MySQL, SQLite, MongoDB |
+
+> **Avis honnête** : Prisma gagne sur type safety et DX. TypeORM gagne sur expressivité SQL et support de bases. Pour TribuZen (PostgreSQL, nouveau projet) → Prisma est le meilleur choix.
+
+## 3. Worked examples
+
+### Exemple A — Transaction atomique invitation + notification (TribuZen)
+
+```ts
+// src/invitation/invitation.service.ts
+import { Injectable } from '@nestjs/common'
+import { Prisma } from '@prisma/client'
+import { PrismaService } from '../prisma/prisma.service'
+
+@Injectable()
+export class InvitationService {
+  constructor(private readonly prisma: PrismaService) {}
+
+  async createInvitation(
+    familyId: string,
+    email: string,
+  ): Promise<{ id: string; status: string }> {
+    return this.prisma.$transaction(
+      async (tx) => {
+        // Étape 1 — vérifier la capacité dans la transaction (lecture cohérente)
+        const family = await tx.family.findUniqueOrThrow({
+          where: { id: familyId },
+          select: { memberCount: true, maxSize: true },
+        })
+        if (family.memberCount >= family.maxSize) {
+          throw new Error('FAMILY_FULL') // ROLLBACK — rien n'est écrit
+        }
+
+        // Étape 2 — nested write : invitation + notification en une seule opération
+        const invitation = await tx.invitation.create({
+          data: {
+            email,
+            status: 'PENDING',
+            family: { connect: { id: familyId } },
+            notifications: {
+              create: { type: 'INVITE', read: false },
+              // si la contrainte de clé ici échoue → ROLLBACK sur l'invitation aussi
+            },
+          },
+          select: { id: true, status: true },
+        })
+
+        return invitation // COMMIT si aucune exception
+      },
+      { maxWait: 5000, timeout: 10000 },
+    )
   }
 
-  return result;
-});
+  async cancelExpiredInvitations(): Promise<number> {
+    // $executeRaw : une seule requête SQL au lieu de findMany + N update
+    return this.prisma.$executeRaw(Prisma.sql`
+      UPDATE "Invitation"
+      SET status = 'EXPIRED'
+      WHERE status = 'PENDING'
+      AND created_at < NOW() - INTERVAL '7 days'
+    `)
+  }
+}
 ```
 
----
+Pas-à-pas : (1) `$transaction(async (tx) => {...})` — Prisma émet `BEGIN` à l'entrée du callback ; toutes les requêtes via `tx` sont dans la même transaction ; (2) `tx.family.findUniqueOrThrow` dans la transaction — la lecture est cohérente avec les écritures suivantes, pas de race condition entre la vérification et l'insertion ; (3) `throw new Error('FAMILY_FULL')` — Prisma émet `ROLLBACK`, aucune ligne n'est persistée ; (4) nested write `notifications: { create: {...} }` — invitation et notification dans une seule opération, si la contrainte sur notification échoue le `ROLLBACK` couvre aussi l'invitation ; (5) `$executeRaw` avec `Prisma.sql` tagged template — met à jour toutes les invitations expirées en une seule requête SQL, sans charger chaque ligne en mémoire.
 
-## 8. Comparaison complete : TypeORM vs Prisma
+### Exemple B — Pagination curseur + stats SQL brutes
 
-### 8.1 Approche et philosophie
+```ts
+// src/family/family.service.ts (extrait)
+import { Injectable } from '@nestjs/common'
+import { Prisma } from '@prisma/client'
+import { PrismaService } from '../prisma/prisma.service'
 
-| Aspect | TypeORM | Prisma |
-|--------|---------|--------|
-| Approche | Code-first (decorateurs) | Schema-first (fichier .prisma) |
-| Pattern | Active Record + Data Mapper | Client généré unique |
-| Definition du schema | Decorateurs dans les classes TypeScript | Fichier schema.prisma declaratif |
-| Client | `Repository<Entity>` générique | PrismaClient généré et entièrement type |
-| Communaute | Plus ancienne, plus large | En forte croissance |
-| Mainteneur | Communaute open-source | Prisma (entreprise) |
+@Injectable()
+export class FamilyService {
+  constructor(private readonly prisma: PrismaService) {}
 
-### 8.2 Type Safety
+  // Pagination par curseur — performante sur de grandes tables
+  async findInvitationsCursor(familyId: string, cursor?: string, limit = 10) {
+    const items = await this.prisma.invitation.findMany({
+      where: { familyId, status: 'PENDING', deletedAt: null },
+      orderBy: { id: 'asc' },
+      take: limit + 1,                             // prend un de plus pour savoir s'il y a la suite
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      select: { id: true, email: true, createdAt: true },
+    })
 
-```typescript
-// === TypeORM — Types approximatifs ===
+    const hasNext = items.length > limit
+    const data = hasNext ? items.slice(0, limit) : items
+    return { data, nextCursor: hasNext ? data.at(-1)!.id : null }
+  }
 
-// Le retour de findOne est Entity | null — correct
-const user = await userRepo.findOne({ where: { id: 1 } });
-// user.nom ← TypeScript ne sait pas quelles relations sont chargees
-
-// Avec relations — PAS de type-safety
-const user = await userRepo.findOne({
-  where: { id: 1 },
-  relations: { articles: true },
-});
-// user.articles ← Toujours type Article[] meme si pas charge
-// → Risque d'erreur a l'execution si on oublie 'relations'
-
-// === Prisma — Types precis ===
-
-// Sans include
-const user = await prisma.user.findUnique({ where: { id: 1 } });
-// user.articles ← N'EXISTE PAS dans le type (pas de propriete articles)
-// → Erreur de compilation si on essaye d'y acceder
-
-// Avec include
-const user = await prisma.user.findUnique({
-  where: { id: 1 },
-  include: { articles: true },
-});
-// user.articles ← Article[] (existe dans le type)
-
-// Avec select
-const user = await prisma.user.findUnique({
-  where: { id: 1 },
-  select: { id: true, nom: true },
-});
-// user.id ← number (existe)
-// user.email ← ERREUR de compilation (pas selectionne)
+  // Stats SQL brutes — agrégation FILTER non disponible via l'API Prisma standard
+  async getInviteStats(): Promise<
+    { familyId: string; pending: number; total: number }[]
+  > {
+    return this.prisma.$queryRaw<
+      { familyId: string; pending: number; total: number }[]
+    >(Prisma.sql`
+      SELECT
+        family_id                                             AS "familyId",
+        COUNT(*) FILTER (WHERE status = 'PENDING')::int      AS pending,
+        COUNT(*)::int                                         AS total
+      FROM "Invitation"
+      WHERE deleted_at IS NULL
+      GROUP BY family_id
+      ORDER BY pending DESC
+    `)
+  }
+}
 ```
 
-> **A retenir** : Prisma offre une type-safety **superieure** a TypeORM. Le type de retour de Prisma reflete exactement les champs et relations que vous avez demandes. Avec TypeORM, le type retourne est toujours l'entite complete, même si certaines relations ne sont pas chargees.
+Pas-à-pas : (1) `take: limit + 1` — Prisma récupère un élément supplémentaire pour détecter la page suivante sans faire un `COUNT(*)` ; (2) `cursor: { id: cursor }, skip: 1` — Prisma génère `WHERE id > cursor` via un index, pas de `OFFSET` coûteux ; (3) `data.at(-1)!.id` — dernier élément de la page courante = curseur de la page suivante ; (4) `$queryRaw<T[]>(Prisma.sql\`...\`)` — le type générique `T[]` est fourni car Prisma ne peut pas inférer le type d'une requête brute ; (5) `COUNT(*)::int` cast PostgreSQL — `COUNT(*)` retourne `bigint` en PostgreSQL, TypeScript attend `number`, le cast `::int` est nécessaire pour la concordance de types.
 
-### 8.3 Migration
+## 4. Pièges & misconceptions
 
-| Aspect | TypeORM | Prisma |
-|--------|---------|--------|
-| Génération | `migration:generate` (compare entites vs DB) | `prisma migrate dev` (compare schema vs DB) |
-| Format | Fichier TypeScript avec QueryRunner | Fichier SQL pur |
-| Approche | Imperative (up/down en code) | Declarative (SQL généré) |
-| Revert | Méthode `down()` dans la migration | `prisma migrate reset` (reapplique tout) |
-| Seed | Pas de système intégré | `prisma db seed` intégré |
-| Prototypage | `synchronize: true` | `prisma db push` |
+- **`set` remplace toute la liste M-M.** `tags: { set: [{ id: 1 }] }` sur une relation Many-to-Many efface tous les liens existants et ne garde que le tag `id: 1`. Pour ajouter un lien sans toucher les autres, utiliser `connect`. Pour retirer un lien précis, utiliser `disconnect`. Confondre `set` et `connect` entraîne une perte silencieuse de données.
 
-### 8.4 Requetes
+- **Await manquant dans `$transaction` interactive.** Si une opération asynchrone dans le callback n'est pas `await`ée, Prisma peut émettre `COMMIT` avant que l'opération ait eu le temps d'échouer. Toujours `await` chaque opération dans le callback.
 
-```typescript
-// === Requete complexe avec TypeORM (QueryBuilder) ===
-const articles = await articleRepo
-  .createQueryBuilder('article')
-  .leftJoinAndSelect('article.auteur', 'auteur')
-  .leftJoinAndSelect('article.tags', 'tag')
-  .where('article.statut = :statut', { statut: 'publie' })
-  .andWhere('article.titre ILIKE :terme', { terme: `%${terme}%` })
-  .orderBy('article.createdAt', 'DESC')
-  .skip(0)
-  .take(10)
-  .getMany();
+- **Concaténation de chaîne avec `$queryRaw`.** Construire une requête par concaténation `` `SELECT * FROM users WHERE id = ${userId}` `` sans `Prisma.sql` est une faille SQL injection si `userId` vient de l'utilisateur. Toujours utiliser le tagged template `Prisma.sql` qui paramètre automatiquement les interpolations.
 
-// === Meme requete avec Prisma ===
-const articles = await prisma.article.findMany({
-  where: {
-    statut: 'PUBLIE',
-    titre: { contains: terme, mode: 'insensitive' },
-  },
-  include: {
-    auteur: true,
-    tags: true,
-  },
-  orderBy: { createdAt: 'desc' },
-  skip: 0,
-  take: 10,
-});
+- **`include` et `select` simultanés au même niveau.** Utiliser les deux au même niveau lève une erreur TypeScript au compile-time. `include` est un raccourci pour sélectionner tous les champs scalaires et ajouter des relations. Choisir l'un ou l'autre.
+
+- **Timeout trop court sur `$transaction` interactive.** Le timeout par défaut est 5 000 ms. Une transaction qui fait plusieurs appels réseau ou plusieurs opérations en boucle dépasse facilement ce délai. Augmenter via l'option `timeout` ou déplacer les appels réseau hors de la transaction.
+
+- **Pagination offset sur grandes tables.** `skip: 10_000` force PostgreSQL à parcourir 10 000 lignes pour n'en retourner que 10. Sur une table de millions de lignes, la page 1 000 peut prendre plusieurs secondes. Migrer vers la pagination curseur dès que la table dépasse ~100 000 lignes.
+
+- **Ordre des middlewares `$use`.** Les middlewares s'exécutent dans l'ordre d'enregistrement. Un middleware de soft delete qui modifie `findMany` enregistré après un middleware de logging verra la requête déjà filtrée par le soft delete. Si l'ordre est inversé, le log verra une requête différente de celle réellement exécutée. Toujours documenter et tester l'ordre d'enregistrement.
+
+## 5. Ancrage TribuZen
+
+Couche fil-rouge : **transaction Prisma atomique de l'invitation TribuZen (créer invitation + notifier)** (`smaurier/tribuzen`).
+
+- `InvitationService.createInvitation()` utilise `$transaction` interactive — si la création de `Notification` échoue (contrainte de clé étrangère, bug de logique), l'invitation est rollbackée. Aucune invitation orpheline en base de production.
+- Nested write `notifications: { create: {...} }` dans `invitation.create` — une seule requête SQL plutôt que deux `INSERT` séquentiels, réduction de latence réseau et atomicité garantie sans transaction explicite sur ce chemin simple.
+- `$executeRaw(Prisma.sql...)` pour `cancelExpiredInvitations()` — une seule requête SQL au lieu d'un `findMany` + N `update`. Critique si TribuZen accumule des milliers d'invitations expirées à purger périodiquement.
+- Pagination curseur sur `GET /families/:id/invitations` — les familles actives peuvent avoir des centaines d'invitations, la pagination offset deviendrait lente au-delà de la page 10.
+- Soft delete via `$use` middleware sur `Invitation` — `DELETE /invitations/:id` en API ne supprime pas réellement la ligne, permettant l'audit et la restauration en cas d'erreur utilisateur.
+
+Structure cible dans `smaurier/tribuzen` :
+
+```
+apps/api/src/
+  invitation/
+    invitation.service.ts     ← $transaction + nested write + $executeRaw
+    invitation.controller.ts  ← GET /invitations?cursor=&take=
+    invitation.module.ts
+  family/
+    family.service.ts         ← findInvitationsCursor, getInviteStats
+  prisma/
+    prisma.service.ts         ← PrismaService avec $use soft delete + logging
 ```
 
-### 8.5 Performance
+## 6. Points clés
 
-| Aspect | TypeORM | Prisma |
-|--------|---------|--------|
-| Temps de démarrage | Rapide | Plus lent (chargement du client généré) |
-| Exécution des requêtes | SQL standard | SQL optimise via moteur Rust |
-| Lazy loading | Supporte (via Promises) | Non supporte (par design) |
-| Eager loading | Supporte | Via include/select |
-| N+1 queries | Possible si mal utilise | Evite par design (include fait des JOINs) |
-| Connection pooling | Via le driver (pg) | Integre dans le moteur Prisma |
+1. **Nested write** : créer ou modifier des relations imbriquées en une seule opération — `create`, `connect`, `connectOrCreate`, `set`, `disconnect`, `update`, `upsert`, `delete`. `set` sur M-M remplace toute la liste.
+2. `$transaction([...])` **batch** : N requêtes indépendantes dans la même transaction, retourne un tableau dans l'ordre.
+3. `$transaction(async (tx) => {...}, opts)` **interactive** : requêtes interdépendantes, `throw` = `ROLLBACK` automatique, options `maxWait`, `timeout`, `isolationLevel`.
+4. `$queryRaw<T[]>(Prisma.sql...)` pour les SELECT bruts typés ; `$executeRaw(Prisma.sql...)` pour les INSERT/UPDATE/DELETE bruts — toujours `Prisma.sql` tagged template, jamais de concaténation.
+5. `$use(async (params, next) => {...})` middleware (Prisma 6) pour la logique transversale (soft delete, logging) ; `$extends` pour les méthodes custom sur les modèles.
+6. **Pagination offset** : `skip` + `take` + `count` en parallèle — lisible mais lent sur grandes tables. **Pagination curseur** : `cursor` + `skip: 1` + `take: n+1` — performant, basé sur un index.
+7. **Prisma vs TypeORM** : Prisma gagne sur type safety (type du retour = exactement ce qui est sélectionné) et DX. TypeORM gagne sur expressivité SQL complexe et support de bases (MSSQL, Oracle).
+8. En production serverless, gérer le connection pooling via **Prisma Accelerate** ou `pgBouncer` pour éviter la saturation de PostgreSQL.
 
-### 8.6 Experience développeur
+## 7. Seeds Anki
 
-| Aspect | TypeORM | Prisma |
-|--------|---------|--------|
-| Autocompletion IDE | Bonne | Excellente |
-| Documentation | Correcte mais parfois datee | Excellente et a jour |
-| Courbe d'apprentissage | Moyenne (beaucoup de concepts) | Douce (API intuitive) |
-| Debugging | Les requêtes SQL sont visibles | Logging intégré, Prisma Studio |
-| Outil visuel | Pas d'outil officiel | Prisma Studio (navigateur web) |
-| Ecosysteme | TypeORM CLI | Prisma CLI, Prisma Studio, Prisma Accelerate |
+```
+Différence $transaction batch vs $transaction interactive en Prisma ?|Batch = tableau de requêtes indépendantes exécutées dans une transaction, retourne un tableau. Interactive = callback async (tx) avec logique conditionnelle, throw déclenche ROLLBACK automatique
+Que fait set sur une relation Many-to-Many dans un nested write Prisma ?|set remplace TOUTE la liste de liens existants par la nouvelle liste — les liens non inclus sont supprimés silencieusement. Utiliser connect pour ajouter sans effacer, disconnect pour retirer un lien précis
+Comment protéger une requête brute $queryRaw contre l'injection SQL en Prisma 6 ?|Toujours utiliser le tagged template Prisma.sql`...` qui paramètre automatiquement les interpolations ${...} — jamais de concaténation de chaîne
+Différence include et select en Prisma et pourquoi ne peut-on pas combiner les deux au même niveau ?|include = tous les champs scalaires + relations demandées. select = uniquement les champs listés. Les deux sont mutuellement exclusifs car include est un raccourci de select avec tous les champs scalaires activés
+Pourquoi la pagination curseur est plus performante que l'offset sur une grande table ?|OFFSET N force le moteur SQL à parcourir N lignes pour les ignorer. Le curseur génère WHERE id > cursor qui s'appuie sur l'index B-tree — temps constant quel que soit le numéro de page
+Quelle est la différence entre $use middleware et $extends en Prisma ?|$use intercepte toutes les requêtes Prisma globalement (soft delete, logging). $extends ajoute des méthodes custom sur les modèles sans intercepter les requêtes existantes — recommandé pour des ajouts ciblés
+Pourquoi COUNT(*) PostgreSQL nécessite-t-il un cast ::int dans $queryRaw Prisma ?|COUNT(*) retourne bigint en PostgreSQL. Le type générique TypeScript attendu est number. Sans le cast ::int, Prisma reçoit un BigInt que TypeScript ne peut pas assigner à number
+Comment gérer le connection pooling en production serverless avec Prisma ?|Utiliser Prisma Accelerate (proxy managé) ou pgBouncer (proxy indépendant) — sans pooler externe, chaque instance Lambda ouvre son propre pool et sature les connexions PostgreSQL autorisées
+```
 
-### 8.7 Quand choisir lequel ?
+## Pont vers le lab
 
-#### Choisissez TypeORM si :
+> Lab associé : `09-nestjs/labs/lab-17-prisma-avance/README.md`. Tu y implémentes `InvitationService` avec transaction interactive et nested write, une pagination curseur sur les invitations de famille, un middleware soft delete dans `PrismaService`, et une requête brute de stats — corrigé complet commenté + variante J+30 dans le README.
 
-- Vous venez du monde Java/C# et connaissez les patterns Active Record/Data Mapper
-- Vous avez besoin de requêtes SQL très complexes (QueryBuilder est très puissant)
-- Vous travaillez avec une base de donnees existante avec un schema complexe
-- Vous avez besoin du lazy loading
-- Votre équipe connait déjà TypeORM
-- Vous voulez un ORM entièrement en TypeScript sans dépendance binaire
-
-#### Choisissez Prisma si :
-
-- Vous commencez un nouveau projet
-- La type-safety est une priorite
-- Vous voulez une experience développeur optimale
-- Vous preferez une approche declarative (schema-first)
-- Vous voulez un outil visuel pour explorer les donnees (Prisma Studio)
-- Vous travaillez avec PostgreSQL, MySQL ou SQLite
-- Vous voulez des migrations en SQL pur
-
-### 8.8 Tableau récapitulatif final
-
-| Critere | TypeORM | Prisma | Gagnant |
-|---------|---------|--------|---------|
-| Type Safety | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ | Prisma |
-| API intuitive | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ | Prisma |
-| Requetes complexes | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | TypeORM |
-| Migrations | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | Egal |
-| Performance | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | Egal |
-| Documentation | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ | Prisma |
-| Ecosysteme NestJS | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | TypeORM |
-| Bases supportees | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | TypeORM |
-| Outils visuels | ⭐⭐ | ⭐⭐⭐⭐⭐ | Prisma |
-
----
-
-## 9. Exercices pratiques
-
-### Exercice 1 : Requetes avancees
-
-Avec Prisma, implementez :
-1. Une recherche d'articles par terme (titre ou contenu) avec pagination par curseur
-2. Un classement des auteurs par nombre d'articles publies
-3. Une requête qui retourne les tags les plus utilises
-
-### Exercice 2 : Transaction
-
-Implementez avec Prisma une transaction interactive pour :
-1. Créer un nouvel utilisateur
-2. Lui créer un profil
-3. Lui créer 3 articles brouillon
-4. Si une étape echoue, tout est annule
-
-### Exercice 3 : Migration comparative
-
-1. Creez le même schema (User, Article, Tag) avec TypeORM ET Prisma
-2. Comparez le code nécessaire, la type-safety et la facilite de requetage
-3. Notez vos observations
-
----
-
-## Liens
-
-| Ressource | Lien |
-|-----------|------|
-| Quiz Module 17 | `quiz/17-quiz.md` |
-| Lab Module 17 | `labs/17-lab-prisma-avance.md` |
-| Screencast | `screencasts/17-screencast.md` |
-| Module précédent | [Module 16 — Prisma Schema & Client](16-prisma-schema-client.md) |
-| Module suivant | [Module 18 — NestJS Testing](18-nestjs-testing.md) |
-| Prisma Client API | https://www.prisma.io/docs/référence/api-référence/prisma-client-référence |
-| Prisma Filtering | https://www.prisma.io/docs/concepts/components/prisma-client/filtering-and-sorting |
-| Prisma Transactions | https://www.prisma.io/docs/concepts/components/prisma-client/transactions |
-| TypeORM vs Prisma | https://www.prisma.io/docs/concepts/more/comparisons/prisma-and-typeorm |
-
----
-
-<!-- parcours-recommande -->
-
-::: tip Parcours recommandé
-1. **Screencast** : [screencast 17 prisma avance](../screencasts/screencast-17-prisma-avance.md)
-2. **Lab** : [lab-17-prisma-avance](../labs/lab-17-prisma-avance/README)
-3. **Visualisation** : [ORM Query Flow](../visualizations/orm-query-flow.html)
-4. **Quiz** : [quiz 17 prisma avance](../quizzes/quiz-17-prisma-avance.html)
-:::
+← [Module 16 — Prisma Schema et Client](16-prisma-schema-client.md) · [Module 18 — NestJS Testing](18-nestjs-testing.md) →

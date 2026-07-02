@@ -1,1534 +1,524 @@
-# Module 13 — NestJS — Pipes, Guards, Interceptors & Filters
-
-> **Objectif** : Maîtriser les quatre couches de traitement transversal de NestJS pour valider, sécuriser, transformer et filtrer les requêtes de manière elegante et réutilisable.
-> **Difficulte** : ⭐⭐⭐ (avance)
-> **Prérequis** : Module 10 (Controllers & Routing), Module 11 (Services & Providers), Module 12 (Modules)
-> **Duree estimee** : 6 heures
-
+---
+titre: NestJS pipes, guards, interceptors
+cours: 09-nestjs
+notions: [pipes de validation et transformation, ValidationPipe et pipes custom, guards et canActivate, AuthGuard et autorisation par rôles, interceptors transform et logging, exception filters, ordre d'exécution du cycle de requête]
+outcomes: [transformer/valider une entrée avec un pipe, protéger une route avec un guard (auth et rôles), transformer une réponse avec un interceptor, situer pipes/guards/interceptors/filters dans le cycle de requête]
+prerequis: [12-nestjs-modules]
+next: 14-typeorm-entites-relations
+libs: [{ name: "@nestjs/common", version: "^11" }]
+tribuzen: AuthGuard + RolesGuard (admin/membre) + interceptor de transformation sur l'API TribuZen
+last-reviewed: 2026-07
 ---
 
-## 1. Vue d'ensemble : l'architecture en couches de NestJS
+# NestJS pipes, guards, interceptors
 
-Avant de plonger dans chaque concept, il est crucial de comprendre **l'ordre d'exécution** complet d'une requête dans NestJS. C'est l'un des points les plus importants de ce module.
+> **Outcomes — tu sauras FAIRE :** transformer et valider une entrée avec un pipe, protéger une route avec un guard (auth + rôles), transformer une réponse avec un interceptor, situer chaque couche dans le cycle de requête NestJS 11.
+> **Difficulté :** :star::star::star:
 
-```
-Requete HTTP entrante
-        |
-        v
-   Middleware       (Module 12)
-        |
-        v
-     Guards         (Autorisation)
-        |
-        v
-  Interceptors      (Avant le handler)
-        |
-        v
-     Pipes           (Validation / Transformation)
-        |
-        v
-    Handler          (Methode du controller)
-        |
-        v
-  Interceptors      (Apres le handler)
-        |
-        v
-  Exception Filters (Si erreur)
-        |
-        v
-   Reponse HTTP
+## 1. Cas concret d'abord
+
+TribuZen expose `POST /families/:id/invite`. Cette route doit : (1) valider que le body contient un email valide et un rôle connu, (2) refuser les non-connectés et les utilisateurs sans rôle `admin` ou `owner`, (3) renvoyer toutes les réponses dans un enveloppe `{ success, data, timestamp }` uniforme. Sans outil dédié, tout s'entasse dans le handler :
+
+```ts
+// ❌ tentative naïve — validation + auth + mise en forme dans le handler
+@Post(':id/invite')
+invite(@Req() req: Request, @Param('id') id: string, @Body() body: any) {
+  // Validation manuelle — à dupliquer sur chaque route
+  if (!body.email?.includes('@')) throw new BadRequestException('Email invalide')
+  if (!['admin', 'owner', 'member'].includes(body.role))
+    throw new BadRequestException('Rôle invalide')
+
+  // Auth inline — impossible à réutiliser
+  const token = req.headers.authorization?.split(' ')[1]
+  if (!token) throw new UnauthorizedException()
+  const user = decodeToken(token)
+  if (!['admin', 'owner'].includes(user.role)) throw new ForbiddenException()
+
+  const result = this.familyService.invite(id, body)
+  // Enveloppe répétée dans chaque handler de l'API
+  return { success: true, data: result, timestamp: new Date().toISOString() }
+}
 ```
 
-> **Analogie** : Imaginez un aeroport. Le middleware est le hall d'entree (tout le monde passe). Le guard est le controle des passeports (avez-vous le droit d'entrer ?). L'interceptor est la douane (inspection avant et après). Le pipe est le scanner de bagages (validation du contenu). Le handler est votre destination finale. Et le filtre d'exception est le bureau des reclamations en cas de problème.
+NestJS isole chaque responsabilité dans une couche dédiée :
 
----
+```ts
+// ✅ avec pipes / guards / interceptors — handler pur, chaque couche à sa place
+@Post(':id/invite')
+@UseGuards(AuthGuard, RolesGuard)
+@Roles('admin', 'owner')
+invite(@Param('id') id: string, @Body() dto: InviteDto) {
+  // ValidationPipe global valide InviteDto avant d'arriver ici
+  // AuthGuard a posé request.user, RolesGuard a vérifié le rôle
+  return this.familyService.invite(id, dto)
+  // TransformInterceptor global wrappe la réponse automatiquement
+}
+```
 
-## 2. Les Pipes — Validation et Transformation
+Ce module explique chaque couche, son interface, et l'ordre d'exécution exact issu de la documentation NestJS 11.
 
-### 2.1 Qu'est-ce qu'un Pipe ?
+## 2. Théorie complète, concise
 
-Un **Pipe** est une classe annotee `@Injectable()` qui implemente l'interface `PipeTransform`. Il a deux fonctions principales :
+### 2.1 Ordre d'exécution du cycle de requête
 
-1. **Transformation** : convertir les donnees d'entree (ex: string vers number)
-2. **Validation** : vérifier que les donnees respectent certaines regles
+La documentation officielle NestJS 11 décrit l'ordre suivant :
 
-```typescript
-// Signature de l'interface PipeTransform
+```
+Requête entrante
+  → Middleware (global puis module)
+  → Guards (global → controller → route)
+  → Interceptors pre-handler (global → controller → route)
+  → Pipes (global → controller → route → paramètre)
+  → Handler (méthode du controller)
+  → Interceptors post-handler (route → controller → global)
+  → Exception Filters si erreur (route → controller → global)
+  → Réponse HTTP
+```
+
+Deux règles structurantes : **avant le handler**, tout s'exécute du global vers le local ; **après le handler**, les interceptors et filters dépilent du local vers le global. Les pipes s'exécutent dans l'ordre global → controller → route, puis au niveau des paramètres du dernier au premier.
+
+| Couche | Interface | Méthode clé | Interrompt si... |
+|--------|-----------|-------------|-----------------|
+| Guard | `CanActivate` | `canActivate()` | retourne `false` ou lève une exception |
+| Interceptor | `NestInterceptor` | `intercept()` | ne pas appeler `next.handle()` |
+| Pipe | `PipeTransform` | `transform()` | lève une exception |
+| Filter | `ExceptionFilter` | `catch()` | agit sur les erreurs — ne bloque pas |
+
+### 2.2 Pipes — validation et transformation
+
+Un pipe est une classe `@Injectable()` qui implémente `PipeTransform` :
+
+```ts
 export interface PipeTransform<T = any, R = any> {
-  transform(value: T, metadata: ArgumentMetadata): R;
-}
-
-// ArgumentMetadata contient des infos sur le parametre
-export interface ArgumentMetadata {
-  type: "body" | "query" | "param" | "custom";
-  metatype?: Type<any>;
-  data?: string;
+  transform(value: T, metadata: ArgumentMetadata): R
 }
 ```
 
-### 2.2 Les Pipes integres a NestJS
+`ArgumentMetadata` expose `type` (`'body' | 'query' | 'param' | 'custom'`), `metatype` (type TypeScript du paramètre) et `data` (nom du paramètre décoré).
 
-NestJS fournit plusieurs pipes prets a l'emploi dans le package `@nestjs/common`.
+#### Pipes intégrés
 
-#### ParseIntPipe
-
-Convertit une chaine en entier. Lance une exception si la conversion echoue.
-
-```typescript
-import { Controller, Get, Param, ParseIntPipe } from "@nestjs/common";
-
-@Controller("articles")
-export class ArticlesController {
-  // GET /articles/42
-  // Le parametre 'id' sera automatiquement converti en number
-  @Get(":id")
-  findOne(@Param("id", ParseIntPipe) id: number) {
-    // id est maintenant un number, pas un string
-    console.log(typeof id); // 'number'
-    return this.articlesService.findOne(id);
-  }
-}
-```
-
-Si on appelle `GET /articles/abc`, NestJS retourne automatiquement :
-
-```json
-{
-  "statusCode": 400,
-  "message": "Validation failed (numeric string is expected)",
-  "error": "Bad Request"
-}
-```
-
-On peut personnaliser le code d'erreur :
-
-```typescript
+```ts
+// ParseIntPipe — paramètre de route converti en number, 400 si invalide
 @Get(':id')
-findOne(
-  @Param('id', new ParseIntPipe({ errorHttpStatusCode: HttpStatus.NOT_ACCEPTABLE }))
-  id: number,
-) {
-  return this.articlesService.findOne(id);
+findOne(@Param('id', ParseIntPipe) id: number) {
+  return this.familyService.findOne(id)
 }
-```
 
-#### ParseUUIDPipe
-
-Valide et passe un UUID (v3, v4 ou v5).
-
-```typescript
-import { ParseUUIDPipe } from '@nestjs/common';
-
-@Get(':uuid')
-findByUuid(@Param('uuid', new ParseUUIDPipe({ version: '4' })) uuid: string) {
-  // uuid est garanti d'etre un UUID v4 valide
-  return this.articlesService.findByUuid(uuid);
-}
-```
-
-#### ParseBoolPipe
-
-Convertit `'true'` ou `'false'` en boolean.
-
-```typescript
-import { ParseBoolPipe } from '@nestjs/common';
-
-@Get()
-findAll(@Query('published', new ParseBoolPipe({ optional: true })) published?: boolean) {
-  // published est un boolean ou undefined
-  return this.articlesService.findAll({ published });
-}
-```
-
-#### ParseArrayPipe
-
-Parse un tableau depuis un paramètre de requête.
-
-```typescript
-import { ParseArrayPipe } from '@nestjs/common';
-
-@Get()
-findByIds(
-  @Query('ids', new ParseArrayPipe({ items: Number, separator: ',' }))
-  ids: number[],
-) {
-  // GET /articles?ids=1,2,3 → ids = [1, 2, 3]
-  return this.articlesService.findByIds(ids);
-}
-```
-
-#### DefaultValuePipe
-
-Fournit une valeur par defaut si le paramètre est `undefined` ou `null`.
-
-```typescript
-import { DefaultValuePipe, ParseIntPipe } from '@nestjs/common';
-
+// DefaultValuePipe AVANT ParseIntPipe — fournit la valeur par défaut si undefined
 @Get()
 findAll(
   @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
   @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
 ) {
-  // page = 1 et limit = 10 par defaut
-  return this.articlesService.findAll(page, limit);
+  return this.familyService.findAll(page, limit)
 }
 ```
 
-> **Bonne pratique** : Chainez `DefaultValuePipe` avant les autres pipes de transformation. Ainsi, les pipes suivants recevront toujours une valeur valide.
+Autres pipes intégrés : `ParseUUIDPipe` (UUID v4), `ParseBoolPipe` (`'true'/'false'` → boolean), `ParseArrayPipe` (query string → tableau typé).
 
-### 2.3 ValidationPipe et class-validator
+#### ValidationPipe avec class-validator
 
-Le `ValidationPipe` est le pipe le plus puissant et le plus utilise. Il s'appuie sur les bibliotheques `class-validator` et `class-transformer` pour valider automatiquement les DTOs.
+`ValidationPipe` est le pipe le plus utilisé. Il valide les DTOs automatiquement via `class-validator` et `class-transformer` :
 
-#### Installation
-
-```bash
-npm install class-validator class-transformer
-```
-
-#### Configuration du ValidationPipe global
-
-```typescript
-// main.ts
-import { NestFactory } from "@nestjs/core";
-import { ValidationPipe } from "@nestjs/common";
-import { AppModule } from "./app.module";
-
+```ts
+// main.ts — configuration globale recommandée (NestJS 11)
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-
-  // Configuration globale du ValidationPipe
+  const app = await NestFactory.create(AppModule)
   app.useGlobalPipes(
     new ValidationPipe({
-      whitelist: true, // Supprime les proprietes non decorees
-      forbidNonWhitelisted: true, // Lance une erreur si propriete inconnue
-      transform: true, // Transforme automatiquement les types
-      transformOptions: {
-        enableImplicitConversion: true, // Conversion automatique des types primitifs
-      },
+      whitelist: true,             // supprime les propriétés non décorées du DTO
+      forbidNonWhitelisted: true,  // 400 si propriété inconnue envoyée par le client
+      transform: true,             // transforme le body en instance de la classe DTO
     }),
-  );
-
-  await app.listen(3000);
+  )
+  await app.listen(process.env.PORT ?? 3000)
 }
-bootstrap();
+bootstrap()
 ```
 
-| Option                 | Description                                 | Valeur recommandee           |
-| ---------------------- | ------------------------------------------- | ---------------------------- |
-| `whitelist`            | Supprime les propriétés non decorees du DTO | `true`                       |
-| `forbidNonWhitelisted` | Erreur 400 si propriété inconnue            | `true`                       |
-| `transform`            | Transformation automatique des types        | `true`                       |
-| `disableErrorMessages` | Masque les details d'erreur                 | `false` (dev), `true` (prod) |
-| `exceptionFactory`     | Fonction custom pour formater les erreurs   | selon besoin                 |
+```ts
+// dto/invite.dto.ts
+import { IsEmail, IsEnum, IsNotEmpty } from 'class-validator'
 
-> **Piege classique** : Si vous oubliez `whitelist: true`, un utilisateur malveillant peut envoyer des propriétés supplementaires (comme `isAdmin: true`) qui seront transmises a votre service. Toujours activer le whitelist !
-
-#### Les decorateurs de class-validator
-
-Voici un DTO complet avec les decorateurs les plus courants :
-
-```typescript
-// dto/create-user.dto.ts
-import {
-  IsString,
-  IsEmail,
-  IsOptional,
-  MinLength,
-  MaxLength,
-  IsEnum,
-  IsInt,
-  Min,
-  Max,
-  IsBoolean,
-  IsArray,
-  ArrayMinSize,
-  ArrayMaxSize,
-  ValidateNested,
-  IsUrl,
-  IsPhoneNumber,
-  Matches,
-  IsNotEmpty,
-  IsDateString,
-} from "class-validator";
-import { Type } from "class-transformer";
-
-// Enumeration pour le role
-export enum UserRole {
-  ADMIN = "admin",
-  USER = "user",
-  MODERATOR = "moderator",
+export enum FamilyRole {
+  OWNER = 'owner',
+  ADMIN = 'admin',
+  MEMBER = 'member',
 }
 
-// DTO d'adresse imbrique
-export class AddressDto {
-  @IsString()
+export class InviteDto {
+  @IsEmail({}, { message: 'Email invalide' })
+  email: string
+
+  @IsEnum(FamilyRole, { message: 'Rôle invalide — valeurs acceptées: owner, admin, member' })
   @IsNotEmpty()
-  rue: string;
-
-  @IsString()
-  @IsNotEmpty()
-  ville: string;
-
-  @IsString()
-  @Matches(/^\d{5}$/, { message: "Le code postal doit contenir 5 chiffres" })
-  codePostal: string;
-
-  @IsString()
-  @IsOptional()
-  complement?: string;
-}
-
-// DTO principal de creation d'utilisateur
-export class CreateUserDto {
-  @IsString({ message: "Le prenom doit etre une chaine de caracteres" })
-  @MinLength(2, { message: "Le prenom doit contenir au moins 2 caracteres" })
-  @MaxLength(50, { message: "Le prenom ne doit pas depasser 50 caracteres" })
-  prenom: string;
-
-  @IsString()
-  @MinLength(2)
-  @MaxLength(50)
-  nom: string;
-
-  @IsEmail({}, { message: "L'email fourni n'est pas valide" })
-  email: string;
-
-  @IsString()
-  @MinLength(8, {
-    message: "Le mot de passe doit contenir au moins 8 caracteres",
-  })
-  @Matches(/^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)/, {
-    message:
-      "Le mot de passe doit contenir au moins une majuscule, une minuscule et un chiffre",
-  })
-  motDePasse: string;
-
-  @IsEnum(UserRole, { message: "Le role doit etre admin, user ou moderator" })
-  @IsOptional()
-  role?: UserRole;
-
-  @IsInt()
-  @Min(18, { message: "L'utilisateur doit avoir au moins 18 ans" })
-  @Max(120)
-  @IsOptional()
-  age?: number;
-
-  @IsBoolean()
-  @IsOptional()
-  actif?: boolean;
-
-  @IsDateString()
-  @IsOptional()
-  dateNaissance?: string;
-
-  @IsUrl()
-  @IsOptional()
-  siteWeb?: string;
-
-  @IsPhoneNumber("FR")
-  @IsOptional()
-  telephone?: string;
-
-  @IsArray()
-  @IsString({ each: true }) // Valide chaque element du tableau
-  @ArrayMinSize(1, { message: "Au moins un tag est requis" })
-  @ArrayMaxSize(5, { message: "Maximum 5 tags autorises" })
-  @IsOptional()
-  tags?: string[];
-
-  // Validation d'objet imbrique
-  @ValidateNested()
-  @Type(() => AddressDto) // Necessaire pour class-transformer
-  @IsOptional()
-  adresse?: AddressDto;
+  role: FamilyRole
 }
 ```
 
-#### Le DTO de mise a jour avec PartialType
+#### Pipe custom
 
-```typescript
-// dto/update-user.dto.ts
-import { PartialType } from "@nestjs/mapped-types";
-import { CreateUserDto } from "./create-user.dto";
+```ts
+// pipes/parse-positive-int.pipe.ts
+import { PipeTransform, Injectable, ArgumentMetadata, BadRequestException } from '@nestjs/common'
 
-// Tous les champs deviennent optionnels automatiquement
-export class UpdateUserDto extends PartialType(CreateUserDto) {}
-```
-
-> **A retenir** : `PartialType` de `@nestjs/mapped-types` copie tous les decorateurs de validation mais rend chaque propriété optionnelle. C'est la manière idiomatique de créer un DTO de mise a jour.
-
-#### Tableau récapitulatif des decorateurs class-validator
-
-| Decorateur           | Description                      | Exemple                              |
-| -------------------- | -------------------------------- | ------------------------------------ |
-| `@IsString()`        | Doit etre une chaine             | `@IsString()`                        |
-| `@IsNumber()`        | Doit etre un nombre              | `@IsNumber({ maxDecimalPlaces: 2 })` |
-| `@IsInt()`           | Doit etre un entier              | `@IsInt()`                           |
-| `@IsBoolean()`       | Doit etre un booleen             | `@IsBoolean()`                       |
-| `@IsEmail()`         | Doit etre un email valide        | `@IsEmail()`                         |
-| `@IsEnum(enum)`      | Doit etre une valeur de l'enum   | `@IsEnum(Role)`                      |
-| `@IsOptional()`      | Champ optionnel                  | `@IsOptional()`                      |
-| `@IsNotEmpty()`      | Ne doit pas etre vide            | `@IsNotEmpty()`                      |
-| `@MinLength(n)`      | Longueur minimale                | `@MinLength(3)`                      |
-| `@MaxLength(n)`      | Longueur maximale                | `@MaxLength(100)`                    |
-| `@Min(n)`            | Valeur minimale                  | `@Min(0)`                            |
-| `@Max(n)`            | Valeur maximale                  | `@Max(999)`                          |
-| `@Matches(regex)`    | Doit matcher la regex            | `@Matches(/^\d+$/)`                  |
-| `@IsUrl()`           | Doit etre une URL                | `@IsUrl()`                           |
-| `@IsDateString()`    | Doit etre une date ISO           | `@IsDateString()`                    |
-| `@IsArray()`         | Doit etre un tableau             | `@IsArray()`                         |
-| `@ValidateNested()`  | Valide l'objet imbrique          | `@ValidateNested()`                  |
-| `@Type(() => Class)` | Transforme en instance de classe | `@Type(() => AddressDto)`            |
-
-### 2.4 Créer un Pipe personnalise
-
-Parfois, les pipes integres ne suffisent pas. Voici comment en créer un sur mesure.
-
-```typescript
-// pipes/parse-objectid.pipe.ts
-import {
-  PipeTransform,
-  Injectable,
-  ArgumentMetadata,
-  BadRequestException,
-} from "@nestjs/common";
-import { Types } from "mongoose";
-
-// Pipe pour valider un ObjectId MongoDB
 @Injectable()
-export class ParseObjectIdPipe implements PipeTransform<string, string> {
-  transform(value: string, metadata: ArgumentMetadata): string {
-    // Verifie que la valeur est un ObjectId MongoDB valide
-    if (!Types.ObjectId.isValid(value)) {
+export class ParsePositiveIntPipe implements PipeTransform<string, number> {
+  transform(value: string, metadata: ArgumentMetadata): number {
+    const parsed = parseInt(value, 10)
+    if (isNaN(parsed) || parsed <= 0) {
       throw new BadRequestException(
-        `La valeur "${value}" n'est pas un ObjectId MongoDB valide`,
-      );
+        `Le paramètre "${metadata.data}" doit être un entier positif, reçu: "${value}"`,
+      )
     }
-    return value;
+    return parsed
   }
 }
 ```
 
-Utilisation :
+### 2.3 Guards — authentification et autorisation
 
-```typescript
-@Get(':id')
-findOne(@Param('id', ParseObjectIdPipe) id: string) {
-  return this.service.findOne(id);
-}
-```
+Un guard implémente `CanActivate` :
 
-Un autre exemple — un pipe qui nettoie les chaines de caracteres :
-
-```typescript
-// pipes/trim-strings.pipe.ts
-import { PipeTransform, Injectable, ArgumentMetadata } from "@nestjs/common";
-
-@Injectable()
-export class TrimStringsPipe implements PipeTransform {
-  transform(value: any, metadata: ArgumentMetadata) {
-    // Ne traite que les body
-    if (metadata.type !== "body" || typeof value !== "object") {
-      return value;
-    }
-
-    // Parcourt toutes les proprietes et trim les chaines
-    const trimmed: Record<string, any> = {};
-    for (const [key, val] of Object.entries(value)) {
-      trimmed[key] = typeof val === "string" ? val.trim() : val;
-    }
-    return trimmed;
-  }
-}
-```
-
-### 2.5 Pipe de validation avec fichier upload
-
-```typescript
-// pipes/file-validation.pipe.ts
-import { PipeTransform, Injectable, BadRequestException } from "@nestjs/common";
-
-@Injectable()
-export class FileValidationPipe implements PipeTransform {
-  constructor(
-    private readonly allowedMimeTypes: string[] = ["image/jpeg", "image/png"],
-    private readonly maxSizeInBytes: number = 5 * 1024 * 1024, // 5 Mo
-  ) {}
-
-  transform(file: Express.Multer.File) {
-    if (!file) {
-      throw new BadRequestException("Aucun fichier fourni");
-    }
-
-    if (!this.allowedMimeTypes.includes(file.mimetype)) {
-      throw new BadRequestException(
-        `Type de fichier non autorise. Types acceptes : ${this.allowedMimeTypes.join(", ")}`,
-      );
-    }
-
-    if (file.size > this.maxSizeInBytes) {
-      const maxSizeMo = this.maxSizeInBytes / (1024 * 1024);
-      throw new BadRequestException(
-        `Le fichier depasse la taille maximale de ${maxSizeMo} Mo`,
-      );
-    }
-
-    return file;
-  }
-}
-```
-
----
-
-## 3. Les Guards — Autorisation et Controle d'acces
-
-### 3.1 Qu'est-ce qu'un Guard ?
-
-Un **Guard** est une classe annotee `@Injectable()` qui implemente l'interface `CanActivate`. Sa responsabilite unique est de déterminer si une requête peut continuer vers le handler ou non.
-
-```typescript
+```ts
 export interface CanActivate {
-  canActivate(
-    context: ExecutionContext,
-  ): boolean | Promise<boolean> | Observable<boolean>;
+  canActivate(context: ExecutionContext): boolean | Promise<boolean> | Observable<boolean>
 }
 ```
 
-> **Analogie** : Le guard est comme un videur de boite de nuit. Il regarde votre identite (le token JWT par exemple) et decide : "Vous entrez" (`true`) ou "Vous n'entrez pas" (`false`, ce qui lance une `ForbiddenException`).
+`ExecutionContext` étend `ArgumentsHost` et ajoute `getClass()` et `getHandler()`. Ces deux méthodes permettent à `Reflector` de lire les métadonnées décorateur (comme les rôles requis) définies au niveau du controller ou de la route.
 
-### 3.2 ExecutionContext
+**Niveaux d'application :**
 
-L'`ExecutionContext` etend `ArgumentsHost` et fournit des méthodes supplementaires :
-
-```typescript
-// L'ExecutionContext vous donne acces a tout
-export interface ExecutionContext extends ArgumentsHost {
-  getClass<T = any>(): Type<T>; // La classe du controller
-  getHandler(): Function; // La methode du handler
-}
-```
-
-Exemple d'utilisation :
-
-```typescript
-const request = context.switchToHttp().getRequest();
-const response = context.switchToHttp().getResponse();
-const controllerClass = context.getClass();
-const handlerMethod = context.getHandler();
-```
-
-### 3.3 Guard d'authentification simple
-
-```typescript
-// guards/auth.guard.ts
-import {
-  CanActivate,
-  ExecutionContext,
-  Injectable,
-  UnauthorizedException,
-} from "@nestjs/common";
-import { Request } from "express";
-
-@Injectable()
-export class AuthGuard implements CanActivate {
-  canActivate(context: ExecutionContext): boolean {
-    const request = context.switchToHttp().getRequest<Request>();
-    const token = this.extractToken(request);
-
-    if (!token) {
-      throw new UnauthorizedException("Token manquant");
-    }
-
-    // Ici, on verifierait le token JWT (voir Module 19)
-    // Pour l'exemple, on verifie juste qu'il existe
-    try {
-      // const payload = this.jwtService.verify(token);
-      // request.user = payload;
-      return true;
-    } catch {
-      throw new UnauthorizedException("Token invalide");
-    }
-  }
-
-  private extractToken(request: Request): string | undefined {
-    const authHeader = request.headers.authorization;
-    if (!authHeader) return undefined;
-
-    const [type, token] = authHeader.split(" ");
-    return type === "Bearer" ? token : undefined;
-  }
-}
-```
-
-### 3.4 Guard base sur les roles avec @SetMetadata et Reflector
-
-C'est un pattern fondamental dans NestJS. On utilise des **metadonnees** pour définir quels roles ont acces à une route.
-
-#### Étape 1 : Créer le decorateur @Roles
-
-```typescript
-// decorators/roles.decorator.ts
-import { SetMetadata } from "@nestjs/common";
-
-export const ROLES_KEY = "roles";
-
-// Decorateur personnalise pour definir les roles autorises
-export const Roles = (...roles: string[]) => SetMetadata(ROLES_KEY, roles);
-```
-
-#### Étape 2 : Créer le RolesGuard
-
-```typescript
-// guards/roles.guard.ts
-import {
-  CanActivate,
-  ExecutionContext,
-  Injectable,
-  ForbiddenException,
-} from "@nestjs/common";
-import { Reflector } from "@nestjs/core";
-import { ROLES_KEY } from "../decorators/roles.decorator";
-
-@Injectable()
-export class RolesGuard implements CanActivate {
-  // Le Reflector permet de lire les metadonnees
-  constructor(private reflector: Reflector) {}
-
-  canActivate(context: ExecutionContext): boolean {
-    // Recupere les roles definis sur le handler OU le controller
-    const requiredRoles = this.reflector.getAllAndOverride<string[]>(
-      ROLES_KEY,
-      [context.getHandler(), context.getClass()],
-    );
-
-    // Si aucun role requis, la route est accessible a tous
-    if (!requiredRoles || requiredRoles.length === 0) {
-      return true;
-    }
-
-    // Recupere l'utilisateur depuis la requete (mis par AuthGuard)
-    const request = context.switchToHttp().getRequest();
-    const user = request.user;
-
-    if (!user) {
-      throw new ForbiddenException("Utilisateur non authentifie");
-    }
-
-    // Verifie si l'utilisateur a au moins un des roles requis
-    const hasRole = requiredRoles.some((role) => user.roles?.includes(role));
-
-    if (!hasRole) {
-      throw new ForbiddenException(
-        `Acces refuse. Roles requis : ${requiredRoles.join(", ")}`,
-      );
-    }
-
-    return true;
-  }
-}
-```
-
-#### Étape 3 : Utilisation dans un controller
-
-```typescript
-// controllers/admin.controller.ts
-import { Controller, Get, Post, UseGuards } from "@nestjs/common";
-import { AuthGuard } from "../guards/auth.guard";
-import { RolesGuard } from "../guards/roles.guard";
-import { Roles } from "../decorators/roles.decorator";
-
-@Controller("admin")
-@UseGuards(AuthGuard, RolesGuard) // Les deux guards s'executent dans l'ordre
-export class AdminController {
-  @Get("dashboard")
-  @Roles("admin", "moderator") // Seuls admin et moderator peuvent acceder
-  getDashboard() {
-    return { message: "Bienvenue sur le dashboard admin" };
-  }
-
-  @Post("users/ban")
-  @Roles("admin") // Seul l'admin peut bannir
-  banUser() {
-    return { message: "Utilisateur banni" };
-  }
-
-  @Get("stats")
-  // Pas de @Roles => accessible a tous les utilisateurs authentifies
-  getStats() {
-    return { message: "Statistiques generales" };
-  }
-}
-```
-
-> **Piege classique** : L'ordre des guards dans `@UseGuards()` est important. `AuthGuard` doit s'exécuter **avant** `RolesGuard` car ce dernier a besoin de `request.user` qui est défini par le premier.
-
-### 3.5 Niveaux d'application des Guards
-
-```typescript
-// 1. Niveau global (main.ts)
-app.useGlobalGuards(new AuthGuard());
-
-// 2. Niveau global via module (recommande pour l'injection de dependances)
-// app.module.ts
+```ts
+// Niveau global via module — RECOMMANDÉ car supporte l'injection de dépendances
 @Module({
   providers: [
-    {
-      provide: APP_GUARD,
-      useClass: AuthGuard,
-    },
+    { provide: APP_GUARD, useClass: AuthGuard },
+    { provide: APP_GUARD, useClass: RolesGuard },
   ],
 })
 export class AppModule {}
 
-// 3. Niveau controller
-@UseGuards(AuthGuard)
-@Controller('users')
-export class UsersController {}
-
-// 4. Niveau handler (methode)
-@Get()
-@UseGuards(AuthGuard)
-findAll() {}
+// Niveau controller ou handler
+@UseGuards(AuthGuard, RolesGuard)
+@Controller('families')
+export class FamilyController {}
 ```
 
-> **Bonne pratique** : Utilisez `APP_GUARD` dans le module plutot que `app.useGlobalGuards()` dans main.ts. Cela permet l'injection de dépendances (comme le `Reflector` ou un `JwtService`) dans votre guard.
+L'ordre dans `@UseGuards()` est l'ordre d'exécution. Un guard qui échoue empêche tous les suivants de s'exécuter.
 
----
+### 2.4 Interceptors — pré- et post-handler
 
-## 4. Les Interceptors — Logique transversale
+Un interceptor implémente `NestInterceptor` :
 
-### 4.1 Qu'est-ce qu'un Interceptor ?
-
-Un **Interceptor** est une classe annotee `@Injectable()` qui implemente `NestInterceptor`. Il peut exécuter de la logique **avant** et **après** l'exécution du handler, et peut même **transformer** la réponse.
-
-```typescript
+```ts
 export interface NestInterceptor<T = any, R = any> {
-  intercept(context: ExecutionContext, next: CallHandler<T>): Observable<R>;
+  intercept(context: ExecutionContext, next: CallHandler<T>): Observable<R>
 }
 ```
 
-Le `CallHandler` expose la méthode `handle()` qui retourne un `Observable`. C'est grâce à cet Observable (RxJS) qu'on peut agir avant et après le handler.
+`next.handle()` retourne un `Observable` représentant la réponse du handler. Tout ce qui précède `next.handle()` s'exécute avant le handler ; les opérateurs RxJS dans `.pipe(...)` s'exécutent après :
 
-> **Analogie** : L'interceptor est comme un emballage cadeau. Vous pouvez faire quelque chose **avant** de mettre le cadeau dans la boite (preparer le papier), laisser le cadeau se créer (le handler), puis faire quelque chose **après** (fermer la boite, ajouter un ruban).
+```ts
+intercept(ctx: ExecutionContext, next: CallHandler): Observable<any> {
+  console.log('AVANT le handler')           // pré-handler
+  return next.handle().pipe(
+    tap(() => console.log('APRÈS le handler')), // post-handler
+    map((data) => ({ wrapped: data })),         // transformation de la réponse
+  )
+}
+```
 
-### 4.2 Interceptor de logging
+Opérateurs RxJS utiles dans un interceptor : `map` (transformer la valeur), `tap` (effet de bord sans modification), `timeout` (limite de durée), `catchError` (fallback sur erreur upstream).
 
-```typescript
-// interceptors/logging.interceptor.ts
-import {
-  Injectable,
-  NestInterceptor,
-  ExecutionContext,
-  CallHandler,
-  Logger,
-} from "@nestjs/common";
-import { Observable } from "rxjs";
-import { tap } from "rxjs/operators";
+### 2.5 Exception Filters
 
-@Injectable()
-export class LoggingInterceptor implements NestInterceptor {
-  private readonly logger = new Logger("HTTP");
+Un filter implémente `ExceptionFilter` et est décoré par `@Catch(TypeException)` :
 
-  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
-    const request = context.switchToHttp().getRequest();
-    const method = request.method;
-    const url = request.url;
-    const now = Date.now();
+```ts
+@Catch(HttpException)
+export class HttpExceptionFilter implements ExceptionFilter {
+  catch(exception: HttpException, host: ArgumentsHost): void {
+    const ctx = host.switchToHttp()
+    const response = ctx.getResponse()
+    const request = ctx.getRequest()
 
-    // --- AVANT le handler ---
-    this.logger.log(`→ ${method} ${url} — Debut du traitement`);
-
-    return next.handle().pipe(
-      // --- APRES le handler ---
-      tap({
-        next: (data) => {
-          const response = context.switchToHttp().getResponse();
-          const statusCode = response.statusCode;
-          const duration = Date.now() - now;
-          this.logger.log(`← ${method} ${url} ${statusCode} — ${duration}ms`);
-        },
-        error: (error) => {
-          const duration = Date.now() - now;
-          this.logger.error(
-            `✗ ${method} ${url} — ${duration}ms — Erreur: ${error.message}`,
-          );
-        },
-      }),
-    );
+    response.status(exception.getStatus()).json({
+      success: false,
+      statusCode: exception.getStatus(),
+      message: exception.message,
+      timestamp: new Date().toISOString(),
+      path: request.url,
+    })
   }
 }
 ```
 
-### 4.3 Interceptor de transformation de réponse
+`@Catch()` sans argument capture toutes les exceptions. NestJS fournit une hiérarchie d'exceptions HTTP héritant toutes de `HttpException` : `BadRequestException` (400), `UnauthorizedException` (401), `ForbiddenException` (403), `NotFoundException` (404), `ConflictException` (409), `InternalServerErrorException` (500).
 
-Un pattern très courant : envelopper toutes les réponses dans un format uniforme.
+## 3. Worked examples
 
-```typescript
-// interceptors/transform-response.interceptor.ts
-import {
-  Injectable,
-  NestInterceptor,
-  ExecutionContext,
-  CallHandler,
-} from "@nestjs/common";
-import { Observable } from "rxjs";
-import { map } from "rxjs/operators";
+### Exemple A — AuthGuard + RolesGuard sur les routes TribuZen
 
-// Interface de la reponse standardisee
+```ts
+// src/common/decorators/roles.decorator.ts
+import { SetMetadata } from '@nestjs/common'
+
+export const ROLES_KEY = 'roles'
+// @Roles(...) stocke les rôles requis dans les métadonnées de la route via SetMetadata
+export const Roles = (...roles: string[]) => SetMetadata(ROLES_KEY, roles)
+```
+
+```ts
+// src/common/guards/auth.guard.ts
+import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common'
+import { Reflector } from '@nestjs/core'
+import { Request } from 'express'
+
+@Injectable()
+export class AuthGuard implements CanActivate {
+  constructor(private readonly reflector: Reflector) {}
+
+  canActivate(context: ExecutionContext): boolean {
+    const request = context.switchToHttp().getRequest<Request>()
+    const token = request.headers.authorization?.split(' ')[1]
+
+    if (!token) {
+      throw new UnauthorizedException('Token manquant')
+    }
+
+    // En production : jwtService.verifyAsync(token) — voir module 19
+    // Simulation : token = "userId:role"
+    const [id, role] = token.split(':')
+    if (!id || !role) throw new UnauthorizedException('Token invalide')
+
+    // request.user est lu par RolesGuard — AuthGuard DOIT s'exécuter avant
+    request['user'] = { id, role }
+    return true
+  }
+}
+```
+
+```ts
+// src/common/guards/roles.guard.ts
+import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common'
+import { Reflector } from '@nestjs/core'
+import { ROLES_KEY } from '../decorators/roles.decorator'
+
+@Injectable()
+export class RolesGuard implements CanActivate {
+  constructor(private readonly reflector: Reflector) {}
+
+  canActivate(context: ExecutionContext): boolean {
+    // getAllAndOverride cherche les métadonnées sur le handler d'abord, puis le controller
+    // Le handler l'emporte — permet une exception de rôle par route
+    const required = this.reflector.getAllAndOverride<string[]>(ROLES_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ])
+
+    if (!required || required.length === 0) return true // route accessible sans rôle spécifique
+
+    const user = context.switchToHttp().getRequest()['user']
+    if (!user) throw new ForbiddenException('Utilisateur non authentifié')
+
+    if (!required.includes(user.role)) {
+      throw new ForbiddenException(`Rôle requis : ${required.join(' ou ')}`)
+    }
+
+    return true
+  }
+}
+```
+
+```ts
+// src/family/family.controller.ts (extrait — routes protégées)
+import { Controller, Post, Delete, Body, Param, UseGuards } from '@nestjs/common'
+import { AuthGuard } from '../common/guards/auth.guard'
+import { RolesGuard } from '../common/guards/roles.guard'
+import { Roles } from '../common/decorators/roles.decorator'
+import { InviteDto } from './dto/invite.dto'
+import { FamilyService } from './family.service'
+
+@Controller('families')
+@UseGuards(AuthGuard, RolesGuard) // AuthGuard TOUJOURS avant RolesGuard — l'ordre est l'exécution
+export class FamilyController {
+  constructor(private readonly familyService: FamilyService) {}
+
+  @Post(':id/invite')
+  @Roles('admin', 'owner')
+  invite(@Param('id') id: string, @Body() dto: InviteDto) {
+    // dto validé par ValidationPipe global, user posé par AuthGuard, rôle vérifié par RolesGuard
+    return this.familyService.invite(id, dto)
+  }
+
+  @Delete(':id/members/:memberId')
+  @Roles('owner') // seul l'owner peut expulser
+  removeMember(@Param('id') id: string, @Param('memberId') memberId: string) {
+    return this.familyService.removeMember(id, memberId)
+  }
+}
+```
+
+**Pas-à-pas :** (1) `@Roles('admin', 'owner')` stocke `['admin', 'owner']` dans les métadonnées de la route via `SetMetadata` ; (2) `AuthGuard.canActivate()` extrait le token, décode l'utilisateur et l'attache à `request.user` — sans ce préalable, `RolesGuard` lèverait toujours `ForbiddenException` car `request.user` serait `undefined` ; (3) `RolesGuard` lit les métadonnées avec `reflector.getAllAndOverride()` — handler prioritaire sur controller, permettant `@Roles('owner')` sur une route spécifique même si le controller a `@Roles('admin', 'owner')` ; (4) `ValidationPipe` global valide `InviteDto` — `@IsEmail` et `@IsEnum` rejettent le body avant que le handler soit atteint.
+
+### Exemple B — TransformInterceptor + LoggingInterceptor globaux
+
+```ts
+// src/common/interceptors/transform.interceptor.ts
+import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common'
+import { Observable } from 'rxjs'
+import { map } from 'rxjs/operators'
+
 export interface ApiResponse<T> {
-  success: boolean;
-  data: T;
-  timestamp: string;
-  path: string;
+  success: boolean
+  data: T
+  timestamp: string
+  path: string
 }
 
 @Injectable()
-export class TransformResponseInterceptor<T> implements NestInterceptor<
-  T,
-  ApiResponse<T>
-> {
-  intercept(
-    context: ExecutionContext,
-    next: CallHandler,
-  ): Observable<ApiResponse<T>> {
-    const request = context.switchToHttp().getRequest();
-
+export class TransformInterceptor<T> implements NestInterceptor<T, ApiResponse<T>> {
+  intercept(context: ExecutionContext, next: CallHandler<T>): Observable<ApiResponse<T>> {
+    const request = context.switchToHttp().getRequest()
     return next.handle().pipe(
+      // map s'exécute APRÈS le handler — transforme chaque réponse sans la toucher avant
       map((data) => ({
         success: true,
         data,
         timestamp: new Date().toISOString(),
         path: request.url,
       })),
-    );
+    )
   }
 }
 ```
 
-Résultat avant :
-
-```json
-[
-  { "id": 1, "nom": "Alice" },
-  { "id": 2, "nom": "Bob" }
-]
-```
-
-Résultat après avec l'interceptor :
-
-```json
-{
-  "success": true,
-  "data": [
-    { "id": 1, "nom": "Alice" },
-    { "id": 2, "nom": "Bob" }
-  ],
-  "timestamp": "2024-01-15T10:30:00.000Z",
-  "path": "/users"
-}
-```
-
-### 4.4 Interceptor de timeout
-
-```typescript
-// interceptors/timeout.interceptor.ts
-import {
-  Injectable,
-  NestInterceptor,
-  ExecutionContext,
-  CallHandler,
-  RequestTimeoutException,
-} from "@nestjs/common";
-import { Observable, throwError, TimeoutError } from "rxjs";
-import { catchError, timeout } from "rxjs/operators";
+```ts
+// src/common/interceptors/logging.interceptor.ts
+import { CallHandler, ExecutionContext, Injectable, Logger, NestInterceptor } from '@nestjs/common'
+import { Observable } from 'rxjs'
+import { tap } from 'rxjs/operators'
 
 @Injectable()
-export class TimeoutInterceptor implements NestInterceptor {
-  constructor(private readonly timeoutMs: number = 5000) {}
+export class LoggingInterceptor implements NestInterceptor {
+  private readonly logger = new Logger('HTTP')
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
+    const req = context.switchToHttp().getRequest()
+    const { method, url } = req
+    const start = Date.now()
+
+    this.logger.log(`→ ${method} ${url}`) // pré-handler — avant next.handle()
+
     return next.handle().pipe(
-      timeout(this.timeoutMs),
-      catchError((err) => {
-        if (err instanceof TimeoutError) {
-          return throwError(
-            () =>
-              new RequestTimeoutException(
-                `La requete a depasse le delai de ${this.timeoutMs}ms`,
-              ),
-          );
-        }
-        return throwError(() => err);
+      // tap n'altère pas la valeur — effet de bord uniquement (log, metric, etc.)
+      tap({
+        next: () => this.logger.log(`← ${method} ${url} ${Date.now() - start}ms`),
+        error: (err: Error) => this.logger.error(`✗ ${method} ${url} — ${err.message}`),
       }),
-    );
+    )
   }
 }
 ```
 
-### 4.5 Interceptor de cache simple
+```ts
+// src/app.module.ts — guards et interceptors globaux via APP_GUARD / APP_INTERCEPTOR
+import { Module } from '@nestjs/common'
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core'
+import { AuthGuard } from './common/guards/auth.guard'
+import { RolesGuard } from './common/guards/roles.guard'
+import { LoggingInterceptor } from './common/interceptors/logging.interceptor'
+import { TransformInterceptor } from './common/interceptors/transform.interceptor'
 
-```typescript
-// interceptors/cache.interceptor.ts
-import {
-  Injectable,
-  NestInterceptor,
-  ExecutionContext,
-  CallHandler,
-} from "@nestjs/common";
-import { Observable, of } from "rxjs";
-import { tap } from "rxjs/operators";
-
-@Injectable()
-export class SimpleCacheInterceptor implements NestInterceptor {
-  // Cache en memoire simple (en production, utilisez Redis)
-  private cache = new Map<string, { data: any; expiry: number }>();
-
-  constructor(private readonly ttlSeconds: number = 60) {}
-
-  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
-    const request = context.switchToHttp().getRequest();
-
-    // Ne cache que les requetes GET
-    if (request.method !== "GET") {
-      return next.handle();
-    }
-
-    const cacheKey = request.url;
-    const cached = this.cache.get(cacheKey);
-
-    // Si le cache est valide, retourne directement
-    if (cached && cached.expiry > Date.now()) {
-      return of(cached.data);
-    }
-
-    // Sinon, execute le handler et met en cache
-    return next.handle().pipe(
-      tap((data) => {
-        this.cache.set(cacheKey, {
-          data,
-          expiry: Date.now() + this.ttlSeconds * 1000,
-        });
-      }),
-    );
-  }
-}
-```
-
-### 4.6 Application des interceptors
-
-```typescript
-// 1. Niveau global (main.ts)
-app.useGlobalInterceptors(new LoggingInterceptor());
-
-// 2. Niveau global via module
 @Module({
   providers: [
-    {
-      provide: APP_INTERCEPTOR,
-      useClass: LoggingInterceptor,
-    },
-  ],
-})
-export class AppModule {}
-
-// 3. Niveau controller
-@UseInterceptors(LoggingInterceptor)
-@Controller('users')
-export class UsersController {}
-
-// 4. Niveau handler
-@Get()
-@UseInterceptors(LoggingInterceptor)
-findAll() {}
-```
-
----
-
-## 5. Les Exception Filters — Gestion des erreurs
-
-### 5.1 Le système d'exceptions de NestJS
-
-NestJS possede une couche de gestion d'exceptions intégrée. Par defaut, toute exception non gérée est interceptee et transformee en réponse JSON.
-
-#### Hiérarchie des exceptions HTTP
-
-```typescript
-// Toutes heritent de HttpException
-HttpException
-  ├── BadRequestException          // 400
-  ├── UnauthorizedException        // 401
-  ├── ForbiddenException           // 403
-  ├── NotFoundException            // 404
-  ├── MethodNotAllowedException    // 405
-  ├── NotAcceptableException       // 406
-  ├── RequestTimeoutException      // 408
-  ├── ConflictException            // 409
-  ├── GoneException                // 410
-  ├── PayloadTooLargeException     // 413
-  ├── UnsupportedMediaTypeException // 415
-  ├── UnprocessableEntityException // 422
-  ├── InternalServerErrorException // 500
-  ├── NotImplementedException      // 501
-  ├── BadGatewayException          // 502
-  ├── ServiceUnavailableException  // 503
-  └── GatewayTimeoutException      // 504
-```
-
-#### Utilisation des exceptions integrees
-
-```typescript
-import {
-  NotFoundException,
-  ConflictException,
-  BadRequestException,
-} from "@nestjs/common";
-
-@Injectable()
-export class UsersService {
-  async findOne(id: number): Promise<User> {
-    const user = await this.userRepository.findOne({ where: { id } });
-    if (!user) {
-      throw new NotFoundException(`Utilisateur #${id} introuvable`);
-    }
-    return user;
-  }
-
-  async create(dto: CreateUserDto): Promise<User> {
-    // Verifier l'unicite de l'email
-    const existing = await this.userRepository.findOne({
-      where: { email: dto.email },
-    });
-    if (existing) {
-      throw new ConflictException("Cet email est deja utilise");
-    }
-    return this.userRepository.save(dto);
-  }
-}
-```
-
-### 5.2 Créer une exception personnalisee
-
-```typescript
-// exceptions/business.exception.ts
-import { HttpException, HttpStatus } from "@nestjs/common";
-
-export class BusinessException extends HttpException {
-  constructor(
-    public readonly code: string,
-    message: string,
-    statusCode: HttpStatus = HttpStatus.UNPROCESSABLE_ENTITY,
-  ) {
-    super(
-      {
-        statusCode,
-        code,
-        message,
-        timestamp: new Date().toISOString(),
-      },
-      statusCode,
-    );
-  }
-}
-
-// exceptions/insufficient-stock.exception.ts
-export class InsufficientStockException extends BusinessException {
-  constructor(productId: number, requested: number, available: number) {
-    super(
-      "INSUFFICIENT_STOCK",
-      `Stock insuffisant pour le produit #${productId}. ` +
-        `Demande : ${requested}, Disponible : ${available}`,
-    );
-  }
-}
-```
-
-### 5.3 Créer un Exception Filter personnalise
-
-```typescript
-// filters/http-exception.filter.ts
-import {
-  ExceptionFilter,
-  Catch,
-  ArgumentsHost,
-  HttpException,
-  HttpStatus,
-  Logger,
-} from "@nestjs/common";
-import { Request, Response } from "express";
-
-@Catch(HttpException)
-export class HttpExceptionFilter implements ExceptionFilter {
-  private readonly logger = new Logger("ExceptionFilter");
-
-  catch(exception: HttpException, host: ArgumentsHost) {
-    const ctx = host.switchToHttp();
-    const response = ctx.getResponse<Response>();
-    const request = ctx.getRequest<Request>();
-    const status = exception.getStatus();
-    const exceptionResponse = exception.getResponse();
-
-    // Construction de la reponse d'erreur
-    const errorResponse = {
-      success: false,
-      statusCode: status,
-      message:
-        typeof exceptionResponse === "string"
-          ? exceptionResponse
-          : (exceptionResponse as any).message,
-      error:
-        typeof exceptionResponse === "object"
-          ? (exceptionResponse as any).error
-          : undefined,
-      timestamp: new Date().toISOString(),
-      path: request.url,
-      method: request.method,
-    };
-
-    // Log de l'erreur
-    this.logger.error(
-      `${request.method} ${request.url} ${status} — ${JSON.stringify(errorResponse.message)}`,
-    );
-
-    response.status(status).json(errorResponse);
-  }
-}
-```
-
-### 5.4 Filter global pour TOUTES les exceptions
-
-```typescript
-// filters/all-exceptions.filter.ts
-import {
-  ExceptionFilter,
-  Catch,
-  ArgumentsHost,
-  HttpException,
-  HttpStatus,
-  Logger,
-} from "@nestjs/common";
-import { Request, Response } from "express";
-
-// @Catch() sans argument capture TOUTES les exceptions
-@Catch()
-export class AllExceptionsFilter implements ExceptionFilter {
-  private readonly logger = new Logger("AllExceptionsFilter");
-
-  catch(exception: unknown, host: ArgumentsHost) {
-    const ctx = host.switchToHttp();
-    const response = ctx.getResponse<Response>();
-    const request = ctx.getRequest<Request>();
-
-    let status: number;
-    let message: string;
-
-    if (exception instanceof HttpException) {
-      // Exception HTTP connue
-      status = exception.getStatus();
-      const exceptionResponse = exception.getResponse();
-      message =
-        typeof exceptionResponse === "string"
-          ? exceptionResponse
-          : (exceptionResponse as any).message;
-    } else if (exception instanceof Error) {
-      // Erreur JavaScript standard
-      status = HttpStatus.INTERNAL_SERVER_ERROR;
-      message = "Erreur interne du serveur";
-
-      // Log de l'erreur complete en dev
-      this.logger.error(
-        `Erreur non geree : ${exception.message}`,
-        exception.stack,
-      );
-    } else {
-      // Autre chose
-      status = HttpStatus.INTERNAL_SERVER_ERROR;
-      message = "Erreur inconnue";
-    }
-
-    response.status(status).json({
-      success: false,
-      statusCode: status,
-      message,
-      timestamp: new Date().toISOString(),
-      path: request.url,
-    });
-  }
-}
-```
-
-### 5.5 Application des filters
-
-```typescript
-// 1. Niveau global (main.ts)
-app.useGlobalFilters(new AllExceptionsFilter());
-
-// 2. Niveau global via module (avec injection de dependances)
-@Module({
-  providers: [
-    {
-      provide: APP_FILTER,
-      useClass: AllExceptionsFilter,
-    },
-  ],
-})
-export class AppModule {}
-
-// 3. Niveau controller
-@UseFilters(HttpExceptionFilter)
-@Controller('users')
-export class UsersController {}
-
-// 4. Niveau handler
-@Post()
-@UseFilters(HttpExceptionFilter)
-create(@Body() dto: CreateUserDto) {}
-```
-
----
-
-## 6. Ordre d'exécution complet et récapitulatif
-
-### 6.1 Le cycle de vie complet
-
-Voici l'ordre **exact** d'exécution pour une requête NestJS :
-
-```
-1. Middleware global
-2. Middleware de module
-3. Guards globaux
-4. Guards de controller
-5. Guards de route
-6. Interceptors globaux (pre-handler)
-7. Interceptors de controller (pre-handler)
-8. Interceptors de route (pre-handler)
-9. Pipes globaux
-10. Pipes de controller
-11. Pipes de route
-12. Pipes de parametre
-13. Handler (methode du controller)
-14. Interceptors de route (post-handler)
-15. Interceptors de controller (post-handler)
-16. Interceptors globaux (post-handler)
-17. Exception Filters de route (si erreur)
-18. Exception Filters de controller (si erreur)
-19. Exception Filters globaux (si erreur)
-```
-
-> **A retenir** : Les guards et interceptors s'executent du **global vers le local** (avant le handler). Les interceptors post-handler et les filters s'executent du **local vers le global** (bulle vers l'exterieur).
-
-### 6.2 Tableau comparatif
-
-| Concept     | Interface         | Méthode         | Role principal                 | Peut arreter la requête ?     |
-| ----------- | ----------------- | --------------- | ------------------------------ | ----------------------------- |
-| Middleware  | `NestMiddleware`  | `use()`         | Logique transversale générique | Oui (ne pas appeler `next()`) |
-| Guard       | `CanActivate`     | `canActivate()` | Autorisation                   | Oui (retourner `false`)       |
-| Interceptor | `NestInterceptor` | `intercept()`   | Transformation avant/après     | Oui (via Observable)          |
-| Pipe        | `PipeTransform`   | `transform()`   | Validation/Transformation      | Oui (lancer une exception)    |
-| Filter      | `ExceptionFilter` | `catch()`       | Gestion d'erreurs              | Non (agit sur les erreurs)    |
-
-### 6.3 Quand utiliser quoi ?
-
-| Besoin                                        | Solution                  |
-| --------------------------------------------- | ------------------------- |
-| Journalisation de chaque requête              | Middleware ou Interceptor |
-| Vérification du token JWT                     | Guard                     |
-| Vérification des roles/permissions            | Guard                     |
-| Validation des donnees d'entree               | Pipe (ValidationPipe)     |
-| Transformation de paramètre (string → number) | Pipe                      |
-| Ajout de headers à la réponse                 | Interceptor               |
-| Mise en cache des réponses                    | Interceptor               |
-| Mesure du temps de réponse                    | Interceptor               |
-| Format uniforme des erreurs                   | Exception Filter          |
-| Gestion des erreurs business                  | Exception Filter          |
-
----
-
-## 7. Exemple complet — Tout combiner
-
-Voici un exemple qui utilise tous les concepts ensemble :
-
-```typescript
-// === main.ts ===
-import { NestFactory } from "@nestjs/core";
-import { ValidationPipe } from "@nestjs/common";
-import { AppModule } from "./app.module";
-
-async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-
-  // Pipes globaux
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      transform: true,
-    }),
-  );
-
-  await app.listen(3000);
-}
-bootstrap();
-```
-
-```typescript
-// === app.module.ts ===
-import { Module } from "@nestjs/common";
-import { APP_GUARD, APP_INTERCEPTOR, APP_FILTER } from "@nestjs/core";
-import { AuthGuard } from "./guards/auth.guard";
-import { RolesGuard } from "./guards/roles.guard";
-import { LoggingInterceptor } from "./interceptors/logging.interceptor";
-import { TransformResponseInterceptor } from "./interceptors/transform-response.interceptor";
-import { AllExceptionsFilter } from "./filters/all-exceptions.filter";
-import { ProductsModule } from "./products/products.module";
-
-@Module({
-  imports: [ProductsModule],
-  providers: [
-    // L'ordre des providers APP_GUARD determine l'ordre d'execution
+    // Guards globaux — l'ordre des providers APP_GUARD = ordre d'exécution
     { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
-    // Interceptors globaux
+    // Interceptors globaux — LoggingInterceptor enveloppe TransformInterceptor
     { provide: APP_INTERCEPTOR, useClass: LoggingInterceptor },
-    { provide: APP_INTERCEPTOR, useClass: TransformResponseInterceptor },
-    // Filtre d'exception global
-    { provide: APP_FILTER, useClass: AllExceptionsFilter },
+    { provide: APP_INTERCEPTOR, useClass: TransformInterceptor },
   ],
 })
 export class AppModule {}
 ```
 
-```typescript
-// === products/products.controller.ts ===
-import {
-  Controller,
-  Get,
-  Post,
-  Put,
-  Delete,
-  Body,
-  Param,
-  Query,
-  ParseIntPipe,
-  DefaultValuePipe,
-  UseInterceptors,
-} from "@nestjs/common";
-import { Roles } from "../decorators/roles.decorator";
-import { Public } from "../decorators/public.decorator";
-import { TimeoutInterceptor } from "../interceptors/timeout.interceptor";
-import { ProductsService } from "./products.service";
-import { CreateProductDto } from "./dto/create-product.dto";
-import { UpdateProductDto } from "./dto/update-product.dto";
+**Pas-à-pas :** (1) `APP_GUARD` et `APP_INTERCEPTOR` sont des tokens fournis par `@nestjs/core` — ils permettent l'injection de dépendances (`Reflector`, `JwtService`) dans les guards/interceptors globaux, contrairement à `app.useGlobalGuards()` qui crée l'instance manuellement sans DI ; (2) `TransformInterceptor` utilise `map` — chaque réponse est transformée après le handler dans un enveloppe uniforme que le frontend consomme sans vérifier le format cas par cas ; (3) `LoggingInterceptor` utilise `tap` — effet de bord sans modification de la valeur ; (4) l'ordre des `APP_INTERCEPTOR` détermine l'ordre pré-handler — `LoggingInterceptor` se déclenche d'abord, ce qui permet de logguer le temps total incluant `TransformInterceptor`.
 
-@Controller("products")
-export class ProductsController {
-  constructor(private readonly productsService: ProductsService) {}
+## 4. Pièges & misconceptions
 
-  // Route publique (pas besoin d'authentification)
-  @Public()
-  @Get()
-  findAll(
-    @Query("page", new DefaultValuePipe(1), ParseIntPipe) page: number,
-    @Query("limit", new DefaultValuePipe(10), ParseIntPipe) limit: number,
-  ) {
-    return this.productsService.findAll(page, limit);
-  }
+- **Ordre des guards dans `@UseGuards()`.** `@UseGuards(RolesGuard, AuthGuard)` — `RolesGuard` tente de lire `request.user` qui n'existe pas encore et lève `ForbiddenException` systématiquement. Correction : toujours `[AuthGuard, RolesGuard]` — le guard qui pose le contexte (auth) doit précéder le guard qui le consomme (rôles).
 
-  @Public()
-  @Get(":id")
-  findOne(@Param("id", ParseIntPipe) id: number) {
-    return this.productsService.findOne(id);
-  }
+- **`app.useGlobalGuards()` vs `APP_GUARD`.** `app.useGlobalGuards(new AuthGuard())` crée une instance manuellement — impossible d'injecter `JwtService` ou `Reflector`. En pratique `new AuthGuard()` plante au démarrage si `AuthGuard` attend des dépendances. Correction : `{ provide: APP_GUARD, useClass: AuthGuard }` dans un module pour que NestJS gère l'injection.
 
-  // Seul un admin peut creer un produit
-  @Post()
-  @Roles("admin")
-  create(@Body() createProductDto: CreateProductDto) {
-    return this.productsService.create(createProductDto);
-  }
+- **`whitelist: true` oublié sur `ValidationPipe`.** Sans cette option, un client peut envoyer `{ email: 'x@y.fr', role: 'member', isAdmin: true }` — `isAdmin` traverse le pipe et atteint le service. Correction : `whitelist: true` + `forbidNonWhitelisted: true` — le client reçoit 400 dès qu'il envoie une propriété inconnue du DTO.
 
-  // Admin ou moderateur peuvent modifier
-  @Put(":id")
-  @Roles("admin", "moderator")
-  @UseInterceptors(new TimeoutInterceptor(10000)) // 10s de timeout pour cette route
-  update(
-    @Param("id", ParseIntPipe) id: number,
-    @Body() updateProductDto: UpdateProductDto,
-  ) {
-    return this.productsService.update(id, updateProductDto);
-  }
+- **`next.handle()` non appelé dans un interceptor.** Si `intercept()` retourne un Observable sans appeler `next.handle()`, le handler ne s'exécute jamais — la requête reste bloquée silencieusement sans erreur. Correction : toujours `return next.handle().pipe(...)` sauf court-circuit intentionnel (cache, mock en test).
 
-  // Seul l'admin peut supprimer
-  @Delete(":id")
-  @Roles("admin")
-  remove(@Param("id", ParseIntPipe) id: number) {
-    return this.productsService.remove(id);
-  }
-}
+- **`Reflector.get()` vs `Reflector.getAllAndOverride()`.** `get(key, [handler])` lit uniquement les métadonnées du handler — si `@Roles` est sur le controller et pas la route, `get()` retourne `undefined`. `getAllAndOverride(key, [handler, controller])` cherche handler d'abord puis controller, le premier résultat non-`undefined` gagne. Pour les rôles, `getAllAndOverride` est presque toujours le bon choix.
+
+- **`@Catch()` sans argument masque les erreurs en dev.** Un filter `@Catch()` global qui retourne une réponse 500 générique intercepte aussi les erreurs de programmation (TypeError, ReferenceError) sans les logguer. Correction : `@Catch(HttpException)` pour les erreurs HTTP + `@Catch()` séparé pour les erreurs inattendues avec logging complet du stack trace côté serveur.
+
+## 5. Ancrage TribuZen
+
+Couche fil-rouge : **AuthGuard + RolesGuard (admin/membre) + interceptor de transformation sur l'API TribuZen** (`smaurier/tribuzen`).
+
+- `AuthGuard` lit `Authorization: Bearer <token>` sur chaque requête protégée. Au module 19 (JWT), `decodeToken()` sera remplacé par `jwtService.verifyAsync(token)` — l'interface `CanActivate` reste identique, seule l'implémentation interne change.
+- `RolesGuard` protège `POST /families/:id/invite` (`@Roles('owner', 'admin')`), `DELETE /families/:id/members/:memberId` (`@Roles('owner')`) et `GET /families/:id/settings` (`@Roles('owner', 'admin')`). Les `member` et `guest` ne peuvent ni inviter ni expulser.
+- `TransformInterceptor` enveloppe toutes les réponses de l'API TribuZen dans `{ success: true, data, timestamp, path }`. Le frontend React Native consomme ce contrat uniforme — une seule logique de parsing côté client, pas de vérification de format par route.
+- `LoggingInterceptor` log `→ POST /families/fam-1/invite` avant le handler et `← POST /families/fam-1/invite 12ms` après — observabilité opérationnelle sans modifier un seul handler ou service.
+- `ParsePositiveIntPipe` sur les paramètres `page` et `limit` de `GET /families` garantit qu'un entier positif arrive dans `FamilyService.findAll()` — pas de `parseInt` éparpillé dans les services.
+- `ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true })` global protège toutes les routes TribuZen d'injection de propriétés non attendues dans les DTOs.
+
+Structure cible dans `smaurier/tribuzen` :
+
+```
+apps/api/src/
+  common/
+    decorators/
+      roles.decorator.ts          ← ROLES_KEY + @Roles(...)
+    guards/
+      auth.guard.ts               ← AuthGuard — extrait et vérifie le token Bearer
+      roles.guard.ts              ← RolesGuard — Reflector + @Roles → user.role
+    interceptors/
+      logging.interceptor.ts      ← log avant/après, tap sans altérer la valeur
+      transform.interceptor.ts    ← map vers { success, data, timestamp, path }
+    pipes/
+      parse-positive-int.pipe.ts  ← BadRequestException si NaN ou <= 0
+  family/
+    dto/
+      invite.dto.ts               ← @IsEmail + @IsEnum(FamilyRole)
+    family.controller.ts          ← @UseGuards + @Roles sur les routes sensibles
+  app.module.ts                   ← APP_GUARD (Auth + Roles) + APP_INTERCEPTOR (Log + Transform)
 ```
 
-```typescript
-// === decorators/public.decorator.ts ===
-// Decorateur pour marquer une route comme publique (pas d'auth requise)
-import { SetMetadata } from "@nestjs/common";
+## 6. Points clés
 
-export const IS_PUBLIC_KEY = "isPublic";
-export const Public = () => SetMetadata(IS_PUBLIC_KEY, true);
+1. Ordre de requête NestJS : Middleware → Guards → Interceptors pre-handler → Pipes → Handler → Interceptors post-handler → Exception Filters.
+2. Avant le handler, tout s'exécute global → local ; après le handler (interceptors post, filters), l'ordre est local → global (dépilage).
+3. `CanActivate.canActivate()` retourne `boolean | Promise<boolean>` — retourner `false` interrompt la requête avec `ForbiddenException` automatique.
+4. `PipeTransform.transform()` retourne la valeur transformée ou lève une exception — NestJS renvoie immédiatement la réponse d'erreur sans appeler le handler.
+5. `NestInterceptor.intercept()` reçoit `next: CallHandler` — toujours appeler `next.handle()` pour laisser passer la requête ; `.pipe(map(...))` transforme la réponse post-handler.
+6. `@UseGuards(AuthGuard, RolesGuard)` : l'ordre est l'ordre d'exécution — `AuthGuard` doit poser `request.user` avant que `RolesGuard` le lise.
+7. `APP_GUARD` / `APP_INTERCEPTOR` dans un module = global avec DI (injecter `Reflector`, `JwtService`) ; `app.useGlobalGuards()` dans `main.ts` = global sans DI.
+8. `ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true })` est la configuration minimale de sécurité pour toute API NestJS 11 en production.
+
+## 7. Seeds Anki
+
+```
+Quel est l'ordre d'exécution des couches dans NestJS 11 ?|Middleware → Guards → Interceptors pre-handler → Pipes → Handler → Interceptors post-handler → Exception Filters
+Pourquoi AuthGuard doit-il précéder RolesGuard dans @UseGuards() ?|AuthGuard pose request.user — sans lui RolesGuard ne peut pas lire le rôle et lève ForbiddenException systématiquement
+Différence entre APP_GUARD et app.useGlobalGuards() ?|APP_GUARD dans un module supporte l'injection de dépendances (Reflector, JwtService) ; app.useGlobalGuards() crée l'instance manuellement sans DI
+À quoi sert Reflector.getAllAndOverride() dans RolesGuard ?|Lit les métadonnées @Roles sur le handler d'abord puis le controller — le handler l'emporte, permettant une exception de rôle par route
+Que fait ValidationPipe avec whitelist:true et forbidNonWhitelisted:true ?|whitelist supprime les propriétés non décorées du DTO ; forbidNonWhitelisted lève 400 si une propriété inconnue est envoyée — protège contre l'injection de champs non attendus
+Comment un interceptor agit-il avant ET après le handler ?|La logique avant next.handle() s'exécute pré-handler ; les opérateurs RxJS dans .pipe() (map, tap) s'exécutent post-handler sur l'Observable retourné
+Quelle est la différence de comportement entre map et tap dans un interceptor ?|map transforme la valeur retournée (réponse modifiée) ; tap exécute un effet de bord (log, metric) sans modifier la valeur
+Pourquoi chaîner DefaultValuePipe avant ParseIntPipe ?|DefaultValuePipe fournit la valeur par défaut si le paramètre est undefined — ParseIntPipe reçoit ensuite une valeur non-undefined et peut la convertir sans lever BadRequestException
 ```
 
-```typescript
-// === guards/auth.guard.ts (version mise a jour) ===
-import {
-  CanActivate,
-  ExecutionContext,
-  Injectable,
-  UnauthorizedException,
-} from "@nestjs/common";
-import { Reflector } from "@nestjs/core";
-import { IS_PUBLIC_KEY } from "../decorators/public.decorator";
+## Pont vers le lab
 
-@Injectable()
-export class AuthGuard implements CanActivate {
-  constructor(private reflector: Reflector) {}
-
-  canActivate(context: ExecutionContext): boolean {
-    // Verifie si la route est marquee comme publique
-    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
-
-    if (isPublic) {
-      return true; // Pas besoin d'authentification
-    }
-
-    const request = context.switchToHttp().getRequest();
-    const token = request.headers.authorization?.split(" ")[1];
-
-    if (!token) {
-      throw new UnauthorizedException("Token d'authentification requis");
-    }
-
-    // Verification du token (simplifiee pour l'exemple)
-    // En production, on utiliserait JwtService (voir Module 19)
-    request.user = { id: 1, roles: ["admin"] }; // Simule un user decode
-    return true;
-  }
-}
-```
-
----
-
-## 8. Exercices pratiques
-
-### Exercice 1 : Pipe de transformation
-
-Creez un pipe `ParseSlugPipe` qui transforme une chaine en slug (minuscule, sans accents, espaces remplacees par des tirets).
-
-### Exercice 2 : Guard d'API Key
-
-Creez un guard `ApiKeyGuard` qui vérifié la presence d'une clé API dans le header `x-api-key` et la compare à une variable d'environnement.
-
-### Exercice 3 : Interceptor de serialisation
-
-Creez un interceptor qui supprime automatiquement les champs `motDePasse` et `__v` de toutes les réponses.
-
-### Exercice 4 : Filter spécifique
-
-Creez un `DatabaseExceptionFilter` qui capture les erreurs TypeORM (comme les violations de contrainte unique) et retourne des messages utilisateur lisibles.
-
----
-
-## Bonus — Patterns BFF avec NestJS
-
-NestJS est tres adapte au BFF car le pipeline request/response permet de centraliser les besoins transverses frontend sans polluer la logique metier.
-
-### 1) Guard BFF pour contexte utilisateur
-
-```typescript
-@Injectable()
-export class BffContextGuard implements CanActivate {
-  canActivate(context: ExecutionContext): boolean {
-    const req = context.switchToHttp().getRequest();
-    const user = req.user;
-
-    if (!user) {
-      throw new UnauthorizedException("Utilisateur non authentifie");
-    }
-
-    // Contexte utile a tous les handlers BFF
-    req.bffContext = {
-      userId: user.id,
-      locale: req.headers["x-locale"] || "fr-FR",
-      correlationId: req.headers["x-correlation-id"],
-    };
-
-    return true;
-  }
-}
-```
-
-### 2) Interceptor de degradation gracieuse
-
-```typescript
-@Injectable()
-export class UpstreamFallbackInterceptor implements NestInterceptor {
-  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
-    return next.handle().pipe(
-      catchError((err) => {
-        // Mapper une panne upstream vers une reponse exploitable par le front
-        if (err?.code === "UPSTREAM_TIMEOUT") {
-          return of({
-            partial: true,
-            data: null,
-            warning: "Une partie des donnees est temporairement indisponible",
-          });
-        }
-        return throwError(() => err);
-      }),
-    );
-  }
-}
-```
-
-### 3) Pipeline BFF conseille dans Nest
-
-| Etape                   | Responsabilite                      |
-| ----------------------- | ----------------------------------- |
-| Guard                   | Contexte user/session/tenant        |
-| Pipe                    | Validation stricte DTO d'entree     |
-| Service d'orchestration | Appels multi-API + mapping payload  |
-| Interceptor             | Timeout, fallback, shape de reponse |
-| Filter                  | Contrat d'erreur unique front       |
-
-> **A retenir BFF** : Avec Nest, les Guards/Pipes/Interceptors/Filters permettent de construire un BFF tres lisible et maintenable, avec des responsabilites nettes par couche.
-
----
-
-## Liens
-
-| Ressource                                    | Lien                                                                       |
-| -------------------------------------------- | -------------------------------------------------------------------------- |
-| Quiz Module 13                               | `quiz/13-quiz.md`                                                          |
-| Lab Module 13                                | `labs/13-lab-pipes-guards.md`                                              |
-| Screencast                                   | `screencasts/13-screencast.md`                                             |
-| Module précédent                             | [Module 12 — Modules & Architecture](12-nestjs-modules-architecture.md)    |
-| Module suivant                               | [Module 14 — TypeORM Entites & Relations](14-typeorm-entites-relations.md) |
-| Documentation officielle — Pipes             | https://docs.nestjs.com/pipes                                              |
-| Documentation officielle — Guards            | https://docs.nestjs.com/guards                                             |
-| Documentation officielle — Interceptors      | https://docs.nestjs.com/interceptors                                       |
-| Documentation officielle — Exception Filters | https://docs.nestjs.com/exception-filters                                  |
-| class-validator                              | https://github.com/typestack/class-validator                               |
-| class-transformer                            | https://github.com/typestack/class-transformer                             |
-
----
-
-<!-- parcours-recommande -->
-
-::: tip Parcours recommandé
-
-1. **Screencast** : [screencast 13 pipes guards](../screencasts/screencast-13-pipes-guards.md)
-2. **Lab** : [lab-13-pipes-guards](../labs/lab-13-pipes-guards/README)
-3. **Visualisation** : [NestJS Lifecycle](../visualizations/nestjs-lifecycle.html)
-4. **Quiz** : [quiz 13 pipes guards](../quizzes/quiz-13-pipes-guards.html)
-   :::
+> Lab associé : `09-nestjs/labs/lab-13-pipes-guards/README.md`. Tu y implémentes `ParsePositiveIntPipe`, `AuthGuard`, `RolesGuard`, `LoggingInterceptor`, `TransformInterceptor` et `HttpExceptionFilter` sur une API Items TribuZen — corrigé complet commenté + variante J+30 dans le README.

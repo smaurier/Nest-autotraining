@@ -1,725 +1,296 @@
-# Module 15 — TypeORM — Requetes, Transactions & Migrations
-
-> **Objectif** : Maîtriser les différentes manières d'interroger la base de donnees avec TypeORM, gérer les transactions pour garantir l'integrite des donnees, et utiliser les migrations pour evoluer le schema en production.
-> **Difficulte** : ⭐⭐⭐ (avance)
-> **Prérequis** : Module 14 (TypeORM Entites & Relations)
-> **Duree estimee** : 6 heures
-
+---
+titre: TypeORM requêtes et migrations
+cours: 09-nestjs
+notions: [méthodes du repository find et save, options de requête where relations order, QueryBuilder, chargement des relations, transactions, migrations generate run revert, seeding de données]
+outcomes: [écrire des requêtes avec le repository et le QueryBuilder, charger des relations, exécuter une transaction, générer et appliquer des migrations]
+prerequis: [14-typeorm-entites-relations]
+next: 16-prisma-schema-client
+libs: [{ name: typeorm, version: "^0.3" }]
+tribuzen: requêtes et migrations de la base TribuZen (lister les membres d'une famille, migration du schéma)
+last-reviewed: 2026-07
 ---
 
-## 1. L'API Repository — Requetes simples
+# TypeORM requêtes et migrations
 
-### 1.1 Les méthodes de base
+> **Outcomes — tu sauras FAIRE :** écrire des requêtes avec le repository et le QueryBuilder, charger des relations sans N+1, exécuter une transaction, générer et appliquer des migrations TypeORM 0.3.
+> **Difficulté :** :star::star::star:
 
-Le `Repository<Entity>` de TypeORM fournit un ensemble complet de méthodes pour interagir avec la base de donnees.
+## 1. Cas concret d'abord
 
-```typescript
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Article, ArticleStatus } from './entities/article.entity';
+TribuZen doit afficher la liste des membres d'une famille triée par rôle — avec leur prénom, email et la date où ils ont rejoint. Trois problèmes immédiats :
 
-@Injectable()
-export class ArticlesService {
-  constructor(
-    @InjectRepository(Article)
-    private readonly articleRepo: Repository<Article>,
-  ) {}
-
-  // --- CREATION ---
-
-  async create(data: Partial<Article>): Promise<Article> {
-    // create() instancie l'entite en memoire (pas de requete SQL)
-    const article = this.articleRepo.create(data);
-    // save() execute le INSERT INTO
-    return this.articleRepo.save(article);
-  }
-
-  // Creer plusieurs entites d'un coup
-  async createMany(dataList: Partial<Article>[]): Promise<Article[]> {
-    const articles = this.articleRepo.create(dataList);
-    return this.articleRepo.save(articles);
-  }
-
-  // --- LECTURE ---
-
-  // Trouver tous les articles
-  async findAll(): Promise<Article[]> {
-    return this.articleRepo.find();
-    // SQL: SELECT * FROM articles
-  }
-
-  // Trouver un par ID
-  async findOne(id: number): Promise<Article> {
-    const article = await this.articleRepo.findOne({
-      where: { id },
-    });
-    if (!article) {
-      throw new NotFoundException(`Article #${id} introuvable`);
-    }
-    return article;
-  }
-
-  // findOneBy — raccourci pour findOne avec seulement where
-  async findBySlug(slug: string): Promise<Article | null> {
-    return this.articleRepo.findOneBy({ slug });
-    // SQL: SELECT * FROM articles WHERE slug = 'mon-slug' LIMIT 1
-  }
-
-  // findBy — raccourci pour find avec seulement where
-  async findByStatus(statut: ArticleStatus): Promise<Article[]> {
-    return this.articleRepo.findBy({ statut });
-    // SQL: SELECT * FROM articles WHERE statut = 'publie'
-  }
-
-  // Trouver ou echouer (lance une erreur si introuvable)
-  async findOneOrFail(id: number): Promise<Article> {
-    return this.articleRepo.findOneOrFail({ where: { id } });
-    // Lance EntityNotFoundError si pas trouve
-  }
-
-  // --- COMPTAGE ET EXISTENCE ---
-
-  async count(): Promise<number> {
-    return this.articleRepo.count();
-    // SQL: SELECT COUNT(*) FROM articles
-  }
-
-  async countByStatus(statut: ArticleStatus): Promise<number> {
-    return this.articleRepo.count({ where: { statut } });
-    // SQL: SELECT COUNT(*) FROM articles WHERE statut = 'publie'
-  }
-
-  async exists(id: number): Promise<boolean> {
-    return this.articleRepo.exist({ where: { id } });
-    // SQL: SELECT 1 FROM articles WHERE id = 1 LIMIT 1
-  }
-
-  // --- MISE A JOUR ---
-
-  // Methode 1 : Charger puis modifier (recommande — declenche les hooks)
-  async update(id: number, data: Partial<Article>): Promise<Article> {
-    const article = await this.articleRepo.preload({
-      id,
-      ...data,
-    });
-    if (!article) {
-      throw new NotFoundException(`Article #${id} introuvable`);
-    }
-    return this.articleRepo.save(article);
-  }
-
-  // Methode 2 : Mise a jour directe (plus rapide mais pas de hooks)
-  async updateDirect(id: number, data: Partial<Article>): Promise<void> {
-    const result = await this.articleRepo.update(id, data);
-    // result.affected = nombre de lignes modifiees
-    if (result.affected === 0) {
-      throw new NotFoundException(`Article #${id} introuvable`);
-    }
-  }
-
-  // Mise a jour multiple
-  async publishAll(): Promise<void> {
-    await this.articleRepo.update(
-      { statut: ArticleStatus.BROUILLON },
-      { statut: ArticleStatus.PUBLIE },
-    );
-    // SQL: UPDATE articles SET statut = 'publie' WHERE statut = 'brouillon'
-  }
-
-  // --- SUPPRESSION ---
-
-  // Methode 1 : Charger puis supprimer (declenche les hooks et cascades)
-  async remove(id: number): Promise<void> {
-    const article = await this.findOne(id);
-    await this.articleRepo.remove(article);
-  }
-
-  // Methode 2 : Suppression directe (plus rapide)
-  async deleteDirect(id: number): Promise<void> {
-    const result = await this.articleRepo.delete(id);
-    if (result.affected === 0) {
-      throw new NotFoundException(`Article #${id} introuvable`);
-    }
-  }
-
-  // Soft delete
-  async softRemove(id: number): Promise<void> {
-    await this.articleRepo.softDelete(id);
-    // SQL: UPDATE articles SET deletedAt = NOW() WHERE id = 1
-  }
-
-  // Restaurer un soft delete
-  async restore(id: number): Promise<void> {
-    await this.articleRepo.restore(id);
-    // SQL: UPDATE articles SET deletedAt = NULL WHERE id = 1
-  }
-
-  // Inclure les entites soft-deleted
-  async findAllWithDeleted(): Promise<Article[]> {
-    return this.articleRepo.find({ withDeleted: true });
-  }
+```ts
+// ❌ tentative naïve — deux problèmes
+const memberships = await memberRepo.find()          // charge TOUS les membres, toutes familles
+for (const m of memberships) {
+  m.user = await userRepo.findOne({ where: { id: m.userId } }) // N+1 : une requête par membre
 }
 ```
 
-> **A retenir** : `save()` fait un INSERT si l'entite n'a pas d'ID, ou un UPDATE si elle en à un. `update()` fait toujours un UPDATE direct sans charger l'entite. La différence clé : `save()` declenche les hooks et les cascades, `update()` non.
+Premier problème : `find()` sans `where` retourne tout. Deuxième : charger `user` dans une boucle produit N+1 requêtes SQL. Troisième, hors champ de la requête : la colonne `joinedAt` n'existe pas encore en base — `synchronize: true` est désactivé en production.
 
-### 1.2 Les options de find
+TypeORM résout les trois :
 
-```typescript
-// Options completes de find()
-const articles = await this.articleRepo.find({
-  // Conditions de filtre
-  where: {
-    statut: ArticleStatus.PUBLIE,
-    auteurId: 1,
-  },
+```ts
+// ✅ une seule requête, filtrée, triée, avec relation chargée en JOIN
+const memberships = await memberRepo.find({
+  where: { familyId },
+  relations: { user: true },
+  order: { role: 'ASC', joinedAt: 'ASC' },
+})
+```
 
-  // Relations a charger
-  relations: {
-    auteur: true,
-    tags: true,
-    commentaires: {
-      auteur: true, // Charge l'auteur de chaque commentaire
-    },
-  },
+Et pour `joinedAt`, une migration génère et applique le changement de schéma sans toucher aux données existantes. Ce module couvre l'API repository, le QueryBuilder, les transactions et le CLI de migrations.
 
-  // Colonnes a selectionner (optimisation)
-  select: {
-    id: true,
-    titre: true,
-    slug: true,
-    createdAt: true,
-    auteur: {
-      id: true,
-      nom: true, // Selectionne seulement id et nom de l'auteur
-    },
-  },
+## 2. Théorie complète, concise
 
-  // Tri
-  order: {
-    createdAt: 'DESC',      // Plus recent d'abord
-    titre: 'ASC',            // Puis par titre alphabetique
-  },
+### 2.1 Méthodes du repository
+
+`Repository<Entity>` expose les opérations CRUD fondamentales. Les méthodes se divisent en deux familles : celles qui chargent l'entité en mémoire avant d'agir (`save`, `remove`) et celles qui émettent un SQL direct sans chargement (`update`, `delete`).
+
+```ts
+// --- LECTURE ---
+
+// find — plusieurs résultats (tableau vide si aucun)
+const members = await memberRepo.find({ where: { familyId: 'fam-1' } })
+
+// findOne — un résultat ou null
+const member = await memberRepo.findOne({ where: { id: 'mbr-1' } })
+
+// findOneBy — raccourci find + where seulement, sans autres options
+const member = await memberRepo.findOneBy({ id: 'mbr-1' })
+
+// findOneOrFail — lève EntityNotFoundError si absent (NestJS peut le transformer en 404)
+const member = await memberRepo.findOneOrFail({ where: { id: 'mbr-1' } })
+
+// count
+const total = await memberRepo.count({ where: { familyId: 'fam-1' } })
+
+// --- ÉCRITURE ---
+
+// create — instancie en mémoire sans SQL ; save — INSERT si pas d'id, UPDATE sinon
+const saved = await memberRepo.save(
+  memberRepo.create({ familyId, userId, role: 'member' })
+)
+// save déclenche les hooks @BeforeInsert / @BeforeUpdate et les cascades
+
+// update — UPDATE direct sans charger l'entité (plus rapide, mais aucun hook)
+await memberRepo.update({ id: 'mbr-1' }, { role: 'admin' })
+// result.affected = nombre de lignes modifiées
+
+// --- SUPPRESSION ---
+
+// remove — charge puis supprime (déclenche hooks et cascades)
+const m = await memberRepo.findOneOrFail({ where: { id: 'mbr-1' } })
+await memberRepo.remove(m)
+
+// delete — suppression directe sans chargement
+await memberRepo.delete({ id: 'mbr-1' })
+```
+
+### 2.2 Options de requête : where, relations, order
+
+`find()` accepte un objet d'options structuré. Toutes les clés sont optionnelles et combinables.
+
+```ts
+import { ILike, In, MoreThan } from 'typeorm'
+
+const results = await memberRepo.find({
+  // Conditions de filtre — AND implicite entre les clés d'un même objet
+  where: { familyId: 'fam-1', role: In(['admin', 'owner']) },
+
+  // Relations à charger en JOIN — zéro requête supplémentaire
+  relations: { user: true },
+
+  // Tri — plusieurs colonnes, ordre chaîné
+  order: { role: 'ASC', joinedAt: 'DESC' },
 
   // Pagination
-  skip: 0,   // Offset (debut)
-  take: 10,  // Limite (nombre de resultats)
+  skip: 0,
+  take: 20,
 
-  // Inclure les entites soft-deleted
-  withDeleted: false,
-
-  // Cache de la requete (en secondes)
-  cache: true,
-  // ou cache: { id: 'articles_list', milliseconds: 60000 }
-});
+  // Sélectionner un sous-ensemble de colonnes (optimisation réseau)
+  select: { id: true, role: true, user: { id: true, email: true } },
+})
 ```
 
-### 1.3 Conditions de filtre avancees
+**OR entre conditions :** passer un tableau à `where` — chaque objet est un bloc AND, les blocs sont combinés avec OR.
 
-```typescript
-import {
-  In,
-  Not,
-  LessThan,
-  LessThanOrEqual,
-  MoreThan,
-  MoreThanOrEqual,
-  Between,
-  Like,
-  ILike,
-  IsNull,
-  Raw,
-  ArrayContains,
-} from 'typeorm';
-
-// Condition IN
-const articles = await this.articleRepo.find({
-  where: { statut: In([ArticleStatus.PUBLIE, ArticleStatus.ARCHIVE]) },
-});
-// SQL: WHERE statut IN ('publie', 'archive')
-
-// Condition NOT
-const articles = await this.articleRepo.find({
-  where: { statut: Not(ArticleStatus.BROUILLON) },
-});
-// SQL: WHERE statut != 'brouillon'
-
-// Comparaisons numeriques
-const articles = await this.articleRepo.find({
-  where: { nombreVues: MoreThan(100) },
-});
-// SQL: WHERE nombreVues > 100
-
-const articles = await this.articleRepo.find({
-  where: { nombreVues: Between(50, 200) },
-});
-// SQL: WHERE nombreVues BETWEEN 50 AND 200
-
-// Recherche textuelle
-const articles = await this.articleRepo.find({
-  where: { titre: Like('%typescript%') },
-});
-// SQL: WHERE titre LIKE '%typescript%' (sensible a la casse)
-
-const articles = await this.articleRepo.find({
-  where: { titre: ILike('%typescript%') },
-});
-// SQL: WHERE titre ILIKE '%typescript%' (insensible a la casse, PostgreSQL)
-
-// Valeurs NULL
-const articles = await this.articleRepo.find({
-  where: { deletedAt: IsNull() },
-});
-// SQL: WHERE deletedAt IS NULL
-
-// Condition OR (tableau de conditions)
-const articles = await this.articleRepo.find({
+```ts
+// WHERE (familyId = 'fam-1' AND role = 'owner') OR (familyId = 'fam-1' AND role = 'admin')
+const admins = await memberRepo.find({
   where: [
-    { statut: ArticleStatus.PUBLIE },
-    { auteurId: 1, statut: ArticleStatus.BROUILLON },
+    { familyId: 'fam-1', role: 'owner' },
+    { familyId: 'fam-1', role: 'admin' },
   ],
-});
-// SQL: WHERE statut = 'publie' OR (auteur_id = 1 AND statut = 'brouillon')
-
-// Requete raw pour les cas complexes
-const articles = await this.articleRepo.find({
-  where: {
-    nombreVues: Raw((alias) => `${alias} > :minVues`, { minVues: 100 }),
-  },
-});
-// SQL: WHERE nombreVues > 100
+})
+// Ne pas confondre avec In() : tableau dans where = OR entre blocs, pas IN sur une colonne
 ```
 
-> **Piege classique** : Quand vous passez un tableau a `where`, TypeORM interprete cela comme un **OR** entre les conditions. Chaque objet du tableau est un ensemble de conditions **AND**. Ne confondez pas avec une liste de valeurs (pour ça, utilisez `In()`).
+Opérateurs disponibles : `In`, `Not`, `Like`, `ILike`, `Between`, `MoreThan`, `LessThan`, `IsNull`, `Raw`.
 
----
+### 2.3 QueryBuilder
 
-## 2. Le QueryBuilder — Requetes complexes
+Pour les requêtes que `find()` ne peut pas exprimer — `GROUP BY`, `HAVING`, sous-requêtes, fonctions SQL, agrégats.
 
-### 2.1 Introduction au QueryBuilder
-
-Le QueryBuilder est l'outil le plus puissant de TypeORM pour construire des requêtes SQL complexes de manière programmatique.
-
-```typescript
-// Creer un QueryBuilder a partir du repository
-const qb = this.articleRepo.createQueryBuilder('article');
-// 'article' est l'alias de la table dans la requete
-
-// Equivalent : a partir du DataSource
-const qb = this.dataSource
-  .createQueryBuilder()
-  .select('article')
-  .from(Article, 'article');
+```ts
+// Créer depuis le repository — 'mbr' est l'alias de la table dans la requête
+const qb = memberRepo.createQueryBuilder('mbr')
 ```
 
-### 2.2 Requetes SELECT avec QueryBuilder
+**SELECT avec jointure et pagination**
 
-```typescript
-@Injectable()
-export class ArticlesService {
-  constructor(
-    @InjectRepository(Article)
-    private readonly articleRepo: Repository<Article>,
-  ) {}
-
-  // Requete basique
-  async findPublished(): Promise<Article[]> {
-    return this.articleRepo
-      .createQueryBuilder('article')
-      .where('article.statut = :statut', { statut: 'publie' })
-      .orderBy('article.createdAt', 'DESC')
-      .getMany();
-    // SQL: SELECT article.* FROM articles article
-    //      WHERE article.statut = 'publie'
-    //      ORDER BY article.createdAt DESC
-  }
-
-  // Avec jointures
-  async findWithAuthorAndTags(): Promise<Article[]> {
-    return this.articleRepo
-      .createQueryBuilder('article')
-      .leftJoinAndSelect('article.auteur', 'auteur')    // LEFT JOIN + SELECT
-      .leftJoinAndSelect('article.tags', 'tag')          // LEFT JOIN + SELECT
-      .leftJoinAndSelect('article.commentaires', 'commentaire')
-      .leftJoinAndSelect('commentaire.auteur', 'commentaireAuteur')
-      .where('article.statut = :statut', { statut: 'publie' })
-      .orderBy('article.createdAt', 'DESC')
-      .addOrderBy('commentaire.createdAt', 'ASC')
-      .getMany();
-  }
-
-  // Selection de colonnes specifiques
-  async findTitlesAndAuthors(): Promise<any[]> {
-    return this.articleRepo
-      .createQueryBuilder('article')
-      .select(['article.id', 'article.titre', 'article.slug'])
-      .addSelect(['auteur.id', 'auteur.nom'])
-      .leftJoin('article.auteur', 'auteur') // LEFT JOIN sans SELECT auto
-      .where('article.statut = :statut', { statut: 'publie' })
-      .getMany();
-  }
-
-  // Conditions multiples
-  async search(terme: string, statut?: ArticleStatus): Promise<Article[]> {
-    const qb = this.articleRepo
-      .createQueryBuilder('article')
-      .leftJoinAndSelect('article.auteur', 'auteur')
-      .leftJoinAndSelect('article.tags', 'tag');
-
-    // WHERE avec LIKE
-    qb.where('article.titre ILIKE :terme', { terme: `%${terme}%` });
-
-    // Condition optionnelle
-    if (statut) {
-      qb.andWhere('article.statut = :statut', { statut });
-    }
-
-    // Tri et pagination
-    qb.orderBy('article.createdAt', 'DESC')
-      .skip(0)
-      .take(10);
-
-    return qb.getMany();
-  }
-
-  // Sous-requetes
-  async findPopularAuthors(): Promise<any[]> {
-    return this.articleRepo
-      .createQueryBuilder('article')
-      .select('auteur.id', 'auteurId')
-      .addSelect('auteur.nom', 'auteurNom')
-      .addSelect('COUNT(article.id)', 'nombreArticles')
-      .innerJoin('article.auteur', 'auteur')
-      .where('article.statut = :statut', { statut: 'publie' })
-      .groupBy('auteur.id')
-      .addGroupBy('auteur.nom')
-      .having('COUNT(article.id) >= :min', { min: 5 })
-      .orderBy('nombreArticles', 'DESC')
-      .getRawMany();
-    // SQL: SELECT auteur.id AS "auteurId", auteur.nom AS "auteurNom",
-    //             COUNT(article.id) AS "nombreArticles"
-    //      FROM articles article
-    //      INNER JOIN users auteur ON article.auteur_id = auteur.id
-    //      WHERE article.statut = 'publie'
-    //      GROUP BY auteur.id, auteur.nom
-    //      HAVING COUNT(article.id) >= 5
-    //      ORDER BY "nombreArticles" DESC
-  }
-
-  // getOne() — retourne un seul resultat ou null
-  async findLatestPublished(): Promise<Article | null> {
-    return this.articleRepo
-      .createQueryBuilder('article')
-      .leftJoinAndSelect('article.auteur', 'auteur')
-      .where('article.statut = :statut', { statut: 'publie' })
-      .orderBy('article.createdAt', 'DESC')
-      .getOne();
-  }
-
-  // getCount() — compter les resultats
-  async countPublished(): Promise<number> {
-    return this.articleRepo
-      .createQueryBuilder('article')
-      .where('article.statut = :statut', { statut: 'publie' })
-      .getCount();
-  }
-
-  // getRawMany() — resultats bruts (pas d'instances d'entite)
-  async getStatsByMonth(): Promise<any[]> {
-    return this.articleRepo
-      .createQueryBuilder('article')
-      .select("DATE_TRUNC('month', article.createdAt)", 'mois')
-      .addSelect('COUNT(*)', 'total')
-      .addSelect("COUNT(CASE WHEN article.statut = 'publie' THEN 1 END)", 'publies')
-      .groupBy("DATE_TRUNC('month', article.createdAt)")
-      .orderBy('mois', 'DESC')
-      .getRawMany();
-  }
-}
+```ts
+const members = await memberRepo
+  .createQueryBuilder('mbr')
+  .leftJoinAndSelect('mbr.user', 'user')        // LEFT JOIN users + SELECT user.*
+  .where('mbr.familyId = :familyId', { familyId })
+  .andWhere('mbr.role IN (:...roles)', { roles: ['owner', 'admin'] })
+  .orderBy('mbr.role', 'ASC')
+  .addOrderBy('user.lastName', 'ASC')
+  .skip(offset)
+  .take(limit)
+  .getMany()                                     // → FamilyMember[] avec user chargé
 ```
 
-### 2.3 Tableau comparatif : getMany vs getRawMany
+**Résultat unique**
 
-| Méthode | Retourne | Mapping entite | Cas d'usage |
-|---------|---------|----------------|-------------|
-| `getMany()` | `Entity[]` | Oui | Donnees standard avec relations |
+```ts
+const owner = await memberRepo
+  .createQueryBuilder('mbr')
+  .leftJoinAndSelect('mbr.user', 'user')
+  .where('mbr.familyId = :familyId AND mbr.role = :role', { familyId, role: 'owner' })
+  .getOne()                                      // → FamilyMember | null
+```
+
+**Agrégats — getRawMany**
+
+```ts
+const stats = await memberRepo
+  .createQueryBuilder('mbr')
+  .select('mbr.familyId', 'familyId')
+  .addSelect('COUNT(mbr.id)', 'memberCount')
+  .groupBy('mbr.familyId')
+  .having('COUNT(mbr.id) >= :min', { min: 2 })
+  .getRawMany()                                  // → { familyId: string; memberCount: string }[]
+```
+
+| Méthode | Retourne | Mapping entité | Cas d'usage |
+|---------|----------|---------------|-------------|
+| `getMany()` | `Entity[]` | Oui | Requêtes standard avec relations |
 | `getOne()` | `Entity \| null` | Oui | Un seul résultat |
-| `getRawMany()` | `any[]` | Non | Agregations, GROUP BY, résultats personnalises |
-| `getRawOne()` | `any` | Non | Un seul résultat brut |
-| `getCount()` | `number` | Non | Comptage |
+| `getManyAndCount()` | `[Entity[], number]` | Oui | Pagination avec total |
+| `getRawMany()` | `any[]` | Non | GROUP BY, agrégats, fonctions SQL |
+| `getCount()` | `number` | Non | Comptage sans chargement |
 
-> **Bonne pratique** : Utilisez `getMany()` quand vous voulez des instances d'entites avec leurs relations. Utilisez `getRawMany()` pour les agregations et les statistiques ou le mapping automatique n'est pas utile.
+### 2.4 Chargement des relations
 
-### 2.4 Requetes INSERT, UPDATE, DELETE avec QueryBuilder
+Trois stratégies, dans l'ordre de préférence :
 
-```typescript
-// INSERT
-await this.articleRepo
-  .createQueryBuilder()
-  .insert()
-  .into(Article)
-  .values([
-    { titre: 'Article 1', slug: 'article-1', contenu: '...', auteurId: 1 },
-    { titre: 'Article 2', slug: 'article-2', contenu: '...', auteurId: 1 },
-  ])
-  .execute();
+**1. `relations` dans `find()` — le plus simple**
 
-// UPDATE
-await this.articleRepo
-  .createQueryBuilder()
-  .update(Article)
-  .set({ statut: ArticleStatus.ARCHIVE })
-  .where('createdAt < :date', { date: '2023-01-01' })
-  .andWhere('statut = :statut', { statut: ArticleStatus.BROUILLON })
-  .execute();
-// SQL: UPDATE articles SET statut = 'archive'
-//      WHERE createdAt < '2023-01-01' AND statut = 'brouillon'
-
-// DELETE
-await this.articleRepo
-  .createQueryBuilder()
-  .delete()
-  .from(Article)
-  .where('statut = :statut', { statut: ArticleStatus.ARCHIVE })
-  .andWhere('nombreVues = :vues', { vues: 0 })
-  .execute();
-
-// SOFT DELETE
-await this.articleRepo
-  .createQueryBuilder()
-  .softDelete()
-  .where('id = :id', { id: 1 })
-  .execute();
+```ts
+// TypeORM génère un seul LEFT JOIN — pas de N+1
+const member = await memberRepo.findOne({
+  where: { id },
+  relations: { user: true, family: true },
+})
 ```
 
----
+**2. `leftJoinAndSelect` dans QueryBuilder — requêtes complexes**
 
-## 3. Les Transactions
+```ts
+const member = await memberRepo
+  .createQueryBuilder('mbr')
+  .leftJoinAndSelect('mbr.user', 'u')
+  .leftJoinAndSelect('mbr.family', 'f')
+  .where('mbr.id = :id', { id })
+  .getOne()
+```
 
-### 3.1 Pourquoi les transactions ?
+**3. Relation `eager` — chargée à chaque `find()` automatiquement**
 
-Une **transaction** garantit que plusieurs operations SQL sont executees comme une seule unite atomique. Soit toutes reussissent, soit aucune n'est appliquee.
+```ts
+// Dans l'entité — à utiliser avec prudence (charge toujours, même si inutile)
+@ManyToOne(() => User, { eager: true })
+user: User
+// Désactiver ponctuellement pour ce find précis :
+await memberRepo.find({ loadEagerRelations: false })
+```
 
-> **Analogie** : Imaginez un virement bancaire. Si vous debitez le compte A de 100 euros, vous devez crediter le compte B de 100 euros. Si le credit echoue, le debit doit etre annule. C'est exactement ce que fait une transaction : tout ou rien.
+À éviter absolument : charger des relations dans une boucle `for`. Chaque `findOne` dans la boucle = une requête SQL. Sur 50 membres, c'est 51 requêtes au lieu de 1.
 
-### 3.2 Transactions avec EntityManager.transaction
+### 2.5 Transactions
 
-La méthode la plus simple :
+Une transaction garantit l'atomicité : soit toutes les opérations réussissent et sont commitées, soit aucune n'est appliquée (rollback).
 
-```typescript
-import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
-import { Order } from './entities/order.entity';
-import { OrderItem } from './entities/order-item.entity';
-import { Product } from './entities/product.entity';
+**Approche 1 — `dataSource.manager.transaction` (recommandée pour la majorité des cas)**
 
-@Injectable()
-export class OrdersService {
-  constructor(
-    private readonly dataSource: DataSource,
-    @InjectRepository(Order)
-    private readonly orderRepo: Repository<Order>,
-    @InjectRepository(Product)
-    private readonly productRepo: Repository<Product>,
-  ) {}
+```ts
+await dataSource.manager.transaction(async (manager) => {
+  // Toutes les opérations du callback partagent la même connexion transactionnelle
+  const member = manager.create(FamilyMember, { familyId, userId, role: 'member' })
+  await manager.save(member)
 
-  async createOrder(userId: number, items: { productId: number; quantite: number }[]) {
-    // La transaction gere automatiquement commit/rollback
-    return this.dataSource.manager.transaction(async (manager) => {
-      // Etape 1 : Creer la commande
-      const order = manager.create(Order, {
-        userId,
-        statut: 'en_attente',
-        total: 0,
-      });
-      const savedOrder = await manager.save(order);
+  // Si cette ligne lève une erreur, le save ci-dessus est rollbacké automatiquement
+  await manager.increment(Family, { id: familyId }, 'memberCount', 1)
+})
+// COMMIT si le callback se termine sans erreur
+// ROLLBACK automatique si une erreur est levée dans le callback
+```
 
-      let total = 0;
+**Approche 2 — `QueryRunner` (contrôle fin : niveau d'isolation, savepoints)**
 
-      // Etape 2 : Traiter chaque article
-      for (const item of items) {
-        // Verifier le stock
-        const product = await manager.findOne(Product, {
-          where: { id: item.productId },
-          lock: { mode: 'pessimistic_write' }, // Verrouillage pour eviter les conflits
-        });
+```ts
+const queryRunner = dataSource.createQueryRunner()
+await queryRunner.connect()
+await queryRunner.startTransaction()           // démarre la transaction
 
-        if (!product) {
-          throw new Error(`Produit #${item.productId} introuvable`);
-        }
-
-        if (product.stock < item.quantite) {
-          throw new Error(
-            `Stock insuffisant pour ${product.nom}. Disponible: ${product.stock}`,
-          );
-        }
-
-        // Decrémenter le stock
-        product.stock -= item.quantite;
-        await manager.save(product);
-
-        // Creer la ligne de commande
-        const orderItem = manager.create(OrderItem, {
-          orderId: savedOrder.id,
-          productId: product.id,
-          quantite: item.quantite,
-          prixUnitaire: product.prix,
-        });
-        await manager.save(orderItem);
-
-        total += product.prix * item.quantite;
-      }
-
-      // Etape 3 : Mettre a jour le total
-      savedOrder.total = total;
-      await manager.save(savedOrder);
-
-      return savedOrder;
-    });
-    // Si une erreur est lancee dans le callback, la transaction est annulee (ROLLBACK)
-    // Sinon, elle est validee (COMMIT)
-  }
+try {
+  await queryRunner.manager.save(FamilyMember, { familyId, userId, role: 'member' })
+  await queryRunner.manager.increment(Family, { id: familyId }, 'memberCount', 1)
+  await queryRunner.commitTransaction()        // COMMIT explicite
+} catch (err) {
+  await queryRunner.rollbackTransaction()      // ROLLBACK explicite
+  throw err
+} finally {
+  await queryRunner.release()                  // toujours libérer — évite les fuites de connexion
 }
 ```
 
-### 3.3 Transactions avec QueryRunner
-
-Pour un controle plus fin :
-
-```typescript
-async createOrderWithQueryRunner(
-  userId: number,
-  items: { productId: number; quantite: number }[],
-) {
-  // Creer un QueryRunner
-  const queryRunner = this.dataSource.createQueryRunner();
-
-  // Etablir la connexion
-  await queryRunner.connect();
-
-  // Demarrer la transaction
-  await queryRunner.startTransaction();
-
-  try {
-    // Toutes les operations utilisent queryRunner.manager
-    const order = queryRunner.manager.create(Order, {
-      userId,
-      statut: 'en_attente',
-      total: 0,
-    });
-    const savedOrder = await queryRunner.manager.save(order);
-
-    let total = 0;
-
-    for (const item of items) {
-      const product = await queryRunner.manager.findOne(Product, {
-        where: { id: item.productId },
-      });
-
-      if (!product || product.stock < item.quantite) {
-        throw new Error('Stock insuffisant');
-      }
-
-      product.stock -= item.quantite;
-      await queryRunner.manager.save(product);
-
-      const orderItem = queryRunner.manager.create(OrderItem, {
-        orderId: savedOrder.id,
-        productId: product.id,
-        quantite: item.quantite,
-        prixUnitaire: product.prix,
-      });
-      await queryRunner.manager.save(orderItem);
-
-      total += product.prix * item.quantite;
-    }
-
-    savedOrder.total = total;
-    await queryRunner.manager.save(savedOrder);
-
-    // Si tout va bien : COMMIT
-    await queryRunner.commitTransaction();
-
-    return savedOrder;
-  } catch (error) {
-    // En cas d'erreur : ROLLBACK
-    await queryRunner.rollbackTransaction();
-    throw error;
-  } finally {
-    // Toujours liberer le QueryRunner
-    await queryRunner.release();
-  }
-}
-```
-
-> **Piege classique** : N'oubliez **jamais** `queryRunner.release()` dans le bloc `finally`. Sinon, vous aurez des fuites de connexion qui finiront par saturer votre pool de connexions.
-
-### 3.4 Comparaison des deux approches
-
-| Caracteristique | `manager.transaction()` | `QueryRunner` |
-|----------------|------------------------|---------------|
-| Simplicite | Plus simple | Plus verbeux |
-| Commit/Rollback | Automatique | Manuel |
-| Gestion des erreurs | Automatique | Manuelle |
-| Controle fin | Limité | Total |
+| Critère | `manager.transaction` | `QueryRunner` |
+|---------|----------------------|---------------|
+| Verbosité | Faible | Élevée |
+| Commit / Rollback | Automatique | Manuel |
+| Niveau d'isolation | Non | `startTransaction('SERIALIZABLE')` |
 | Savepoints | Non | Oui |
-| Isolation level | Non | Oui |
 
-```typescript
-// Avec QueryRunner, on peut definir le niveau d'isolation
-await queryRunner.startTransaction('SERIALIZABLE');
-// Niveaux : READ UNCOMMITTED, READ COMMITTED, REPEATABLE READ, SERIALIZABLE
-```
+### 2.6 Migrations CLI
 
----
+En production, `synchronize: true` est interdit — TypeORM peut émettre des `DROP COLUMN` sans contrôle. Les migrations versionnent les changements de schéma.
 
-## 4. Les Migrations
+**Configuration `data-source.ts` (fichier dédié au CLI TypeORM)**
 
-### 4.1 Pourquoi les migrations ?
-
-En développement, `synchronize: true` ajuste le schema automatiquement. En production, c'est dangereux. Les migrations permettent de :
-
-- Versionner les changements de schema
-- Appliquer les changements de manière controlee
-- Revenir en arriere si nécessaire
-- Collaborer en équipe sur le schema
-
-> **Analogie** : Les migrations sont comme un carnet de bord pour votre base de donnees. Chaque page decrit un changement précis, dans l'ordre chronologique. Vous pouvez avancer page par page (appliquer) ou reculer (annuler).
-
-### 4.2 Configuration du CLI TypeORM
-
-Pour utiliser les migrations, il faut configurer la CLI TypeORM.
-
-```typescript
-// data-source.ts (a la racine du projet)
-import { DataSource } from 'typeorm';
-import { config } from 'dotenv';
-
-config(); // Charge les variables d'environnement
+```ts
+// data-source.ts — à la racine, exporté par défaut pour le CLI
+import 'dotenv/config'
+import { DataSource } from 'typeorm'
 
 export default new DataSource({
   type: 'postgres',
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '5432'),
-  username: process.env.DB_USERNAME || 'postgres',
-  password: process.env.DB_PASSWORD || 'postgres',
-  database: process.env.DB_DATABASE || 'nest_course',
-  entities: ['dist/**/*.entity.js'],        // Entites compilees
-  migrations: ['dist/migrations/*.js'],      // Migrations compilees
-  migrationsTableName: 'typeorm_migrations', // Nom de la table de suivi
-});
+  url: process.env.DATABASE_URL,
+  entities: ['dist/**/*.entity.js'],       // entités compilées
+  migrations: ['dist/migrations/*.js'],    // migrations compilées
+})
 ```
 
-Ajouter les scripts dans `package.json` :
+**Scripts `package.json`**
 
 ```json
 {
   "scripts": {
     "typeorm": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js",
     "migration:generate": "npm run typeorm -- migration:generate -d data-source.ts",
-    "migration:create": "npm run typeorm -- migration:create",
     "migration:run": "npm run typeorm -- migration:run -d data-source.ts",
     "migration:revert": "npm run typeorm -- migration:revert -d data-source.ts",
     "migration:show": "npm run typeorm -- migration:show -d data-source.ts"
@@ -727,474 +298,268 @@ Ajouter les scripts dans `package.json` :
 }
 ```
 
-### 4.3 Générer une migration
+**Cycle de travail**
 
 ```bash
-# Generer une migration basee sur les differences entre entites et schema actuel
-npm run migration:generate -- src/migrations/InitialSchema
+# 1. Modifier l'entité (ajouter un champ, changer une colonne)
+# 2. Compiler
+npm run build
 
-# Cela cree un fichier comme : src/migrations/1705320000000-InitialSchema.ts
-```
+# 3. Générer la migration — compare les entités compilées au schéma actuel
+npm run migration:generate -- src/migrations/AddJoinedAtToMember
 
-Fichier généré :
-
-```typescript
-// migrations/1705320000000-InitialSchema.ts
-import { MigrationInterface, QueryRunner } from 'typeorm';
-
-export class InitialSchema1705320000000 implements MigrationInterface {
-  name = 'InitialSchema1705320000000';
-
-  // Applique la migration (schema vers le haut)
-  public async up(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`
-      CREATE TABLE "users" (
-        "id" SERIAL NOT NULL,
-        "nom" character varying(100) NOT NULL,
-        "email" character varying NOT NULL,
-        "motDePasse" character varying NOT NULL,
-        "role" "public"."users_role_enum" NOT NULL DEFAULT 'lecteur',
-        "actif" boolean NOT NULL DEFAULT true,
-        "createdAt" TIMESTAMP NOT NULL DEFAULT now(),
-        "updatedAt" TIMESTAMP NOT NULL DEFAULT now(),
-        "deletedAt" TIMESTAMP,
-        CONSTRAINT "UQ_users_email" UNIQUE ("email"),
-        CONSTRAINT "PK_users_id" PRIMARY KEY ("id")
-      )
-    `);
-
-    await queryRunner.query(`
-      CREATE TABLE "articles" (
-        "id" SERIAL NOT NULL,
-        "titre" character varying(200) NOT NULL,
-        "slug" character varying NOT NULL,
-        "contenu" text NOT NULL,
-        "statut" "public"."articles_statut_enum" NOT NULL DEFAULT 'brouillon',
-        "nombreVues" integer NOT NULL DEFAULT 0,
-        "auteur_id" integer NOT NULL,
-        "createdAt" TIMESTAMP NOT NULL DEFAULT now(),
-        "updatedAt" TIMESTAMP NOT NULL DEFAULT now(),
-        CONSTRAINT "UQ_articles_slug" UNIQUE ("slug"),
-        CONSTRAINT "PK_articles_id" PRIMARY KEY ("id")
-      )
-    `);
-
-    await queryRunner.query(`
-      ALTER TABLE "articles"
-      ADD CONSTRAINT "FK_articles_auteur"
-      FOREIGN KEY ("auteur_id") REFERENCES "users"("id")
-      ON DELETE CASCADE ON UPDATE NO ACTION
-    `);
-
-    // Index
-    await queryRunner.query(`
-      CREATE INDEX "IDX_articles_slug" ON "articles" ("slug")
-    `);
-  }
-
-  // Annule la migration (schema vers le bas)
-  public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`DROP INDEX "IDX_articles_slug"`);
-    await queryRunner.query(`ALTER TABLE "articles" DROP CONSTRAINT "FK_articles_auteur"`);
-    await queryRunner.query(`DROP TABLE "articles"`);
-    await queryRunner.query(`DROP TABLE "users"`);
-  }
-}
-```
-
-### 4.4 Créer une migration vide
-
-Pour les changements qui ne touchent pas les entites (donnees de seed, index personnalises) :
-
-```bash
-npm run migration:create -- src/migrations/SeedDefaultCategories
-```
-
-```typescript
-// migrations/1705320100000-SeedDefaultCategories.ts
-import { MigrationInterface, QueryRunner } from 'typeorm';
-
-export class SeedDefaultCategories1705320100000 implements MigrationInterface {
-  public async up(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`
-      INSERT INTO "categories" ("nom", "slug", "description") VALUES
-        ('Technologie', 'technologie', 'Articles sur la tech'),
-        ('Science', 'science', 'Articles scientifiques'),
-        ('Programmation', 'programmation', 'Tutoriels de code'),
-        ('DevOps', 'devops', 'Infrastructure et deploiement')
-    `);
-  }
-
-  public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`
-      DELETE FROM "categories"
-      WHERE "slug" IN ('technologie', 'science', 'programmation', 'devops')
-    `);
-  }
-}
-```
-
-### 4.5 Commandes de migration
-
-```bash
-# Voir les migrations (appliquees et en attente)
-npm run migration:show
-
-# Appliquer toutes les migrations en attente
+# 4. Vérifier le fichier généré (up / down) avant d'appliquer
+# 5. Appliquer
 npm run migration:run
 
-# Annuler la derniere migration appliquee
+# 6. Annuler si besoin
 npm run migration:revert
-
-# En production, apres build
-npm run build
-npx typeorm migration:run -d dist/data-source.js
 ```
 
-> **Bonne pratique** : Toujours générer les migrations avec `migration:generate`, ne les ecrivez pas à la main sauf pour les donnees de seed. Et testez toujours le `down()` avant de déployer.
+**Structure d'une migration générée**
 
----
+```ts
+import { MigrationInterface, QueryRunner } from 'typeorm'
 
-## 5. Les Subscribers — Hooks de base de donnees
+export class AddJoinedAtToMember1720000000000 implements MigrationInterface {
+  name = 'AddJoinedAtToMember1720000000000'
 
-### 5.1 Créer un Subscriber
-
-Les subscribers permettent d'ecouter les événements de l'ORM (avant/après insert, update, delete, load).
-
-```typescript
-// subscribers/article.subscriber.ts
-import {
-  EntitySubscriberInterface,
-  EventSubscriber,
-  InsertEvent,
-  UpdateEvent,
-  RemoveEvent,
-  LoadEvent,
-} from 'typeorm';
-import { Article } from '../entities/article.entity';
-import { Logger } from '@nestjs/common';
-
-@EventSubscriber()
-export class ArticleSubscriber implements EntitySubscriberInterface<Article> {
-  private readonly logger = new Logger('ArticleSubscriber');
-
-  // Specifie l'entite ciblee
-  listenTo() {
-    return Article;
-  }
-
-  // Avant l'insertion
-  beforeInsert(event: InsertEvent<Article>) {
-    this.logger.log(`Avant insertion d'un article : ${event.entity.titre}`);
-
-    // Generer le slug automatiquement
-    if (!event.entity.slug && event.entity.titre) {
-      event.entity.slug = this.generateSlug(event.entity.titre);
-    }
-  }
-
-  // Apres l'insertion
-  afterInsert(event: InsertEvent<Article>) {
-    this.logger.log(`Article insere avec l'ID : ${event.entity.id}`);
-    // On pourrait envoyer une notification, mettre a jour un cache, etc.
-  }
-
-  // Avant la mise a jour
-  beforeUpdate(event: UpdateEvent<Article>) {
-    this.logger.log(`Mise a jour de l'article #${event.entity?.id}`);
-  }
-
-  // Apres le chargement
-  afterLoad(entity: Article, event?: LoadEvent<Article>) {
-    // Ajouter une propriete calculee
-    // (attention : ne pas abuser, ca s'execute a CHAQUE chargement)
-  }
-
-  // Avant la suppression
-  beforeRemove(event: RemoveEvent<Article>) {
-    this.logger.log(`Suppression de l'article #${event.entityId}`);
-  }
-
-  private generateSlug(titre: string): string {
-    return titre
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '');
-  }
-}
-```
-
-### 5.2 Enregistrer le subscriber
-
-```typescript
-// app.module.ts
-TypeOrmModule.forRootAsync({
-  // ...
-  useFactory: (configService: ConfigService) => ({
-    // ...
-    subscribers: [ArticleSubscriber],
-  }),
-});
-```
-
-> **Piege classique** : Les subscribers ne sont pas declenches par les méthodes `update()` et `delete()` du repository. Ils ne fonctionnent qu'avec `save()`, `remove()`, `softRemove()`. Si vous utilisez des subscribers, assurez-vous d'utiliser les bonnes méthodes.
-
----
-
-## 6. Pagination
-
-### 6.1 Helper de pagination réutilisable
-
-```typescript
-// common/pagination.ts
-export interface PaginationOptions {
-  page: number;
-  limit: number;
-}
-
-export interface PaginatedResult<T> {
-  data: T[];
-  meta: {
-    total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
-    hasNextPage: boolean;
-    hasPreviousPage: boolean;
-  };
-}
-
-export function paginate<T>(
-  data: T[],
-  total: number,
-  options: PaginationOptions,
-): PaginatedResult<T> {
-  const totalPages = Math.ceil(total / options.limit);
-
-  return {
-    data,
-    meta: {
-      total,
-      page: options.page,
-      limit: options.limit,
-      totalPages,
-      hasNextPage: options.page < totalPages,
-      hasPreviousPage: options.page > 1,
-    },
-  };
-}
-```
-
-```typescript
-// articles.service.ts
-async findAllPaginated(
-  page: number = 1,
-  limit: number = 10,
-  statut?: ArticleStatus,
-): Promise<PaginatedResult<Article>> {
-  const qb = this.articleRepo
-    .createQueryBuilder('article')
-    .leftJoinAndSelect('article.auteur', 'auteur')
-    .leftJoinAndSelect('article.tags', 'tag')
-    .orderBy('article.createdAt', 'DESC');
-
-  if (statut) {
-    qb.where('article.statut = :statut', { statut });
-  }
-
-  // skip et take pour la pagination
-  qb.skip((page - 1) * limit).take(limit);
-
-  // getManyAndCount retourne [data, total]
-  const [data, total] = await qb.getManyAndCount();
-
-  return paginate(data, total, { page, limit });
-}
-```
-
-Utilisation dans le controller :
-
-```typescript
-@Get()
-async findAll(
-  @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
-  @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
-  @Query('statut') statut?: ArticleStatus,
-) {
-  return this.articlesService.findAllPaginated(page, limit, statut);
-}
-```
-
-Reponse JSON :
-
-```json
-{
-  "data": [
-    { "id": 1, "titre": "Mon article", "auteur": { "id": 1, "nom": "Alice" } },
-    { "id": 2, "titre": "Autre article", "auteur": { "id": 2, "nom": "Bob" } }
-  ],
-  "meta": {
-    "total": 42,
-    "page": 1,
-    "limit": 10,
-    "totalPages": 5,
-    "hasNextPage": true,
-    "hasPreviousPage": false
-  }
-}
-```
-
----
-
-## 7. Requetes complexes — Exemples pratiques
-
-### 7.1 Recherche full-text avec PostgreSQL
-
-```typescript
-async searchFullText(terme: string): Promise<Article[]> {
-  return this.articleRepo
-    .createQueryBuilder('article')
-    .leftJoinAndSelect('article.auteur', 'auteur')
-    .where(
-      `to_tsvector('french', article.titre || ' ' || article.contenu) @@ plainto_tsquery('french', :terme)`,
-      { terme },
+  public async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(
+      `ALTER TABLE "family_members" ADD "joinedAt" TIMESTAMP NOT NULL DEFAULT now()`
     )
-    .orderBy(
-      `ts_rank(to_tsvector('french', article.titre || ' ' || article.contenu), plainto_tsquery('french', :terme))`,
-      'DESC',
+  }
+
+  public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(
+      `ALTER TABLE "family_members" DROP COLUMN "joinedAt"`
     )
-    .getMany();
+  }
 }
 ```
 
-### 7.2 Requête avec sous-requête
+**Migration de seeding** — pour des données initiales qui ne dépendent pas d'une entité :
 
-```typescript
-// Trouver les articles des auteurs les plus actifs
-async findArticlesFromTopAuthors(): Promise<Article[]> {
-  const subQuery = this.articleRepo
-    .createQueryBuilder('sub')
-    .select('sub.auteur_id')
-    .groupBy('sub.auteur_id')
-    .having('COUNT(*) >= :minArticles');
+```ts
+public async up(queryRunner: QueryRunner): Promise<void> {
+  await queryRunner.query(`
+    INSERT INTO "roles_config" ("key", "label") VALUES
+      ('owner', 'Propriétaire'),
+      ('admin', 'Administrateur'),
+      ('member', 'Membre'),
+      ('guest', 'Invité')
+  `)
+}
 
-  return this.articleRepo
-    .createQueryBuilder('article')
-    .leftJoinAndSelect('article.auteur', 'auteur')
-    .where(`article.auteur_id IN (${subQuery.getQuery()})`)
-    .setParameter('minArticles', 3)
-    .orderBy('article.createdAt', 'DESC')
-    .getMany();
+public async down(queryRunner: QueryRunner): Promise<void> {
+  await queryRunner.query(
+    `DELETE FROM "roles_config" WHERE "key" IN ('owner', 'admin', 'member', 'guest')`
+  )
 }
 ```
 
-### 7.3 Requête avec agregation et jointure
+## 3. Worked examples
 
-```typescript
-// Statistiques par tag
-async getStatsByTag(): Promise<any[]> {
-  return this.articleRepo
-    .createQueryBuilder('article')
-    .innerJoin('article.tags', 'tag')
-    .select('tag.nom', 'tagNom')
-    .addSelect('COUNT(article.id)', 'nombreArticles')
-    .addSelect('AVG(article.nombreVues)', 'moyenneVues')
-    .addSelect('SUM(article.nombreVues)', 'totalVues')
-    .where('article.statut = :statut', { statut: 'publie' })
-    .groupBy('tag.id')
-    .addGroupBy('tag.nom')
-    .orderBy('nombreArticles', 'DESC')
-    .getRawMany();
-}
-```
+### Exemple A — FamilyMemberService : requêtes repository et QueryBuilder
 
-### 7.4 Mise a jour conditionnelle avec CASE
+```ts
+// src/family/family-member.service.ts
+import { Injectable, NotFoundException } from '@nestjs/common'
+import { InjectRepository } from '@nestjs/typeorm'
+import { Repository, DataSource, In } from 'typeorm'
+import { FamilyMember } from './entities/family-member.entity'
 
-```typescript
-// Incrementer les vues de maniere atomique
-async incrementViews(articleId: number): Promise<void> {
-  await this.articleRepo
-    .createQueryBuilder()
-    .update(Article)
-    .set({
-      nombreVues: () => '"nombreVues" + 1',
+@Injectable()
+export class FamilyMemberService {
+  constructor(
+    @InjectRepository(FamilyMember)
+    private readonly memberRepo: Repository<FamilyMember>,
+    private readonly dataSource: DataSource,
+  ) {}
+
+  // find() + options : une seule requête SQL avec LEFT JOIN sur user
+  async listMembers(familyId: string): Promise<FamilyMember[]> {
+    return this.memberRepo.find({
+      where: { familyId },
+      relations: { user: true },          // JOIN user en une passe — pas de N+1
+      order: { role: 'ASC', joinedAt: 'ASC' },
+      select: {
+        id: true,
+        role: true,
+        joinedAt: true,
+        user: { id: true, firstName: true, email: true },
+      },
     })
-    .where('id = :id', { id: articleId })
-    .execute();
+  }
+
+  // QueryBuilder : recherche + pagination — getManyAndCount retourne [données, total]
+  async searchMembers(
+    familyId: string,
+    search: string,
+    page: number,
+    limit: number,
+  ): Promise<[FamilyMember[], number]> {
+    return this.memberRepo
+      .createQueryBuilder('mbr')
+      .leftJoinAndSelect('mbr.user', 'user')
+      .where('mbr.familyId = :familyId', { familyId })
+      // ILIKE = insensible à la casse (PostgreSQL) — impossible avec les options find()
+      .andWhere('user.firstName ILIKE :search OR user.email ILIKE :search', {
+        search: `%${search}%`,
+      })
+      .orderBy('mbr.joinedAt', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount()
+    // SQL produit (une requête) :
+    // SELECT mbr.*, user.* FROM family_members mbr
+    // LEFT JOIN users user ON user.id = mbr.userId
+    // WHERE mbr.familyId = $1 AND (user.firstName ILIKE $2 OR user.email ILIKE $2)
+    // ORDER BY mbr.joinedAt DESC LIMIT $3 OFFSET $4
+  }
+
+  // getRawMany : statistiques par famille — GROUP BY impossible avec find()
+  async familyStats(): Promise<{ familyId: string; memberCount: string }[]> {
+    return this.memberRepo
+      .createQueryBuilder('mbr')
+      .select('mbr.familyId', 'familyId')
+      .addSelect('COUNT(mbr.id)', 'memberCount')
+      .groupBy('mbr.familyId')
+      .having('COUNT(mbr.id) >= :min', { min: 1 })
+      .orderBy('memberCount', 'DESC')
+      .getRawMany()
+    // getRawMany : objets bruts, pas d'instances d'entité
+    // memberCount est une string (retour natif PostgreSQL pour COUNT)
+  }
 }
 ```
 
----
+**Pas-à-pas :**
+(1) `listMembers` utilise `find()` avec `relations: { user: true }` — TypeORM génère un LEFT JOIN, zéro requête N+1 ;
+(2) `order` sur deux colonnes — `role` d'abord, `joinedAt` ensuite — impossible à exprimer autrement ;
+(3) `select` réduit la bande passante — seules les colonnes listées sont chargées, y compris dans la relation ;
+(4) `searchMembers` utilise `getManyAndCount()` qui retourne `[données, total]` en une seule requête — pattern standard pour la pagination ;
+(5) `getRawMany()` dans `familyStats` retourne des objets bruts sans mapping d'entité — le seul choix pour GROUP BY et COUNT.
 
-## 8. Requetes SQL brutes
+### Exemple B — Transaction : ajouter un membre de façon atomique
 
-Parfois, le QueryBuilder ne suffit pas. Vous pouvez exécuter du SQL brut :
+```ts
+// src/family/family-member.service.ts (suite)
+import { ConflictException } from '@nestjs/common'
+import { Family } from './entities/family.entity'
 
-```typescript
-// Via le DataSource
-const result = await this.dataSource.query(
-  `SELECT u.nom, COUNT(a.id) as total
-   FROM users u
-   LEFT JOIN articles a ON a.auteur_id = u.id
-   WHERE u.actif = $1
-   GROUP BY u.id, u.nom
-   ORDER BY total DESC
-   LIMIT $2`,
-  [true, 10],
-);
-// result est un tableau d'objets { nom: string, total: number }
+async addMember(familyId: string, userId: string): Promise<FamilyMember> {
+  // manager.transaction : commit/rollback automatiques — pas de try/catch pour le rollback
+  return this.dataSource.manager.transaction(async (manager) => {
+    // Étape 1 — vérifier que la famille existe et n'est pas pleine
+    // lock pessimistic_write : empêche deux requêtes concurrentes de lire le même memberCount
+    const family = await manager.findOne(Family, {
+      where: { id: familyId },
+      lock: { mode: 'pessimistic_write' },
+    })
+    if (!family) throw new NotFoundException(`Famille ${familyId} introuvable`)
+    if (family.memberCount >= family.maxSize) {
+      throw new ConflictException(`Famille ${familyId} complète`)
+    }
+
+    // Étape 2 — vérifier l'absence de doublon
+    const existing = await manager.findOne(FamilyMember, {
+      where: { familyId, userId },
+    })
+    if (existing) throw new ConflictException(`Utilisateur déjà membre`)
+
+    // Étape 3 — créer l'adhésion
+    // Toutes les opérations utilisent manager, pas this.memberRepo
+    // → elles partagent la même connexion transactionnelle
+    const member = manager.create(FamilyMember, {
+      familyId,
+      userId,
+      role: 'member',
+      joinedAt: new Date(),
+    })
+    const saved = await manager.save(member)
+
+    // Étape 4 — incrémenter le compteur atomiquement (pas de race condition)
+    await manager.increment(Family, { id: familyId }, 'memberCount', 1)
+
+    return saved
+    // Si une erreur est levée ci-dessus → ROLLBACK automatique
+    // Si pas d'erreur → COMMIT automatique à la sortie du callback
+  })
+}
 ```
 
-> **Piege classique** : Utilisez toujours des paramètres (`$1`, `$2` pour PostgreSQL, `?` pour MySQL) pour éviter les injections SQL. Ne concatenez **jamais** des valeurs utilisateur directement dans la chaine SQL.
+**Pas-à-pas :**
+(1) `dataSource.manager.transaction(async (manager) => {...})` — NestJS injecte `DataSource` directement dans le service via le constructeur ;
+(2) `lock: { mode: 'pessimistic_write' }` sur la famille — sans ce verrou, deux requêtes simultanées liraient le même `memberCount` et dépasseraient `maxSize` ;
+(3) toutes les opérations utilisent `manager` (pas `this.memberRepo`) — c'est la règle absolue : utiliser un repository injecté dans une transaction ne partage pas la connexion ;
+(4) `manager.increment` émet `UPDATE families SET memberCount = memberCount + 1` — atomique, sans charger l'entité ;
+(5) si `ConflictException` ou `NotFoundException` est levé, TypeORM fait ROLLBACK — aucun `FamilyMember` n'est créé, aucun compteur n'est incrémenté.
 
----
+## 4. Pièges & misconceptions
 
-## 9. Exercices pratiques
+- **N+1 avec une boucle de `findOne`.** Charger des relations dans un `for` émet une requête SQL par itération. Sur 50 membres, c'est 51 requêtes au lieu de 1. *Correct* : `relations: { user: true }` dans `find()` ou `leftJoinAndSelect` dans le QueryBuilder.
 
-### Exercice 1 : CRUD avec QueryBuilder
+- **`synchronize: true` en production.** TypeORM compare les entités au schéma et émet des `ALTER TABLE` ou `DROP COLUMN` sans avertissement. Renommer `firstName` en `givenName` dans l'entité → TypeORM supprime l'ancienne colonne et crée la nouvelle, détruisant toutes les données. *Correct* : `synchronize: false` en production, migrations CLI uniquement.
 
-Implementez un `ArticlesService` complet avec :
-- `findAll()` avec pagination, tri et filtre par statut
-- `search()` avec recherche par titre (ILIKE)
-- `findWithStats()` qui retourne les articles avec le nombre de commentaires
+- **Oublier `queryRunner.release()`.** Sans `release()` dans `finally`, la connexion reste ouverte dans le pool. Sous charge, le pool est épuisé et toutes les requêtes bloquent. *Correct* : `finally { await queryRunner.release() }` systématiquement, même si le commit ou rollback a échoué.
 
-### Exercice 2 : Transaction
+- **Utiliser `this.repo` à l'intérieur d'une transaction.** Les repositories `@InjectRepository` utilisent une connexion distincte — ils ne participent pas à la transaction en cours. *Correct* : toutes les opérations d'une transaction doivent passer par le `manager` fourni en paramètre du callback.
 
-Implementez une méthode `transferArticle(articleId, fromUserId, toUserId)` qui :
-1. Verifie que l'article appartient bien a `fromUserId`
-2. Change l'auteur vers `toUserId`
-3. Cree un log de transfert dans une table `transfer_logs`
-4. Le tout dans une transaction
+- **Confondre `getMany()` et `getRawMany()`.** `getMany()` retourne des instances d'entité avec le mapping TypeORM. `getRawMany()` retourne des objets bruts — les colonnes sont préfixées automatiquement (`mbr_familyId`, `user_email`). Pour contrôler les noms, utiliser `.select('mbr.familyId', 'familyId')` avec un alias explicite.
 
-### Exercice 3 : Migration
+- **Tableau dans `where` vs opérateur `In()`.** `find({ where: [{ role: 'owner' }, { role: 'admin' }] })` génère `WHERE role = 'owner' OR role = 'admin'` — deux conditions OR. `find({ where: { role: In(['owner', 'admin']) } })` génère `WHERE role IN ('owner', 'admin')` — une seule condition sur un seul champ. Utiliser `In()` pour une liste de valeurs d'un même champ.
 
-1. Ajoutez un champ `nombreLikes` a l'entite Article
-2. Generez la migration correspondante
-3. Executez-la et verifiez en base
-4. Revertez-la
+## 5. Ancrage TribuZen
 
----
+Couche fil-rouge : **requêtes et migrations de la base TribuZen (lister les membres d'une famille, migration du schéma)** (`smaurier/tribuzen`).
 
-## Liens
+- `FamilyMemberService.listMembers(familyId)` — la route `GET /families/:id/members` retourne les membres triés par rôle avec leur `User` chargé en un seul JOIN. Pagination via `getManyAndCount()` — le total permet au frontend d'afficher le nombre de pages.
+- `FamilyMemberService.addMember(familyId, userId)` — transaction qui vérifie la capacité (`maxSize`), crée `FamilyMember` et incrémente `family.memberCount` de façon atomique. Le verrou `pessimistic_write` prévient la race condition quand deux invitations sont acceptées simultanément.
+- `familyStats()` via `getRawMany()` — tableau de bord admin : nombre de membres par famille, trié par popularité.
+- Migration `AddJoinedAtToMember` — ajout de la colonne `joinedAt TIMESTAMP DEFAULT now()` sans toucher aux lignes existantes (la valeur par défaut les remplit automatiquement, les données historiques sont préservées).
+- Migration de seeding `SeedRolesConfig` — insère les libellés de rôles au déploiement initial, indépendamment des entités TypeORM.
 
-| Ressource | Lien |
-|-----------|------|
-| Quiz Module 15 | `quiz/15-quiz.md` |
-| Lab Module 15 | `labs/15-lab-typeorm-requetes.md` |
-| Screencast | `screencasts/15-screencast.md` |
-| Module précédent | [Module 14 — TypeORM Entites & Relations](14-typeorm-entites-relations.md) |
-| Module suivant | [Module 16 — Prisma Schema & Client](16-prisma-schema-client.md) |
-| TypeORM QueryBuilder | https://typeorm.io/select-query-builder |
-| TypeORM Transactions | https://typeorm.io/transactions |
-| TypeORM Migrations | https://typeorm.io/migrations |
+Structure cible dans `smaurier/tribuzen` :
 
----
+```
+apps/api/src/
+  family/
+    entities/
+      family.entity.ts             ← Family @Entity() avec memberCount + maxSize
+      family-member.entity.ts      ← FamilyMember avec joinedAt (ajouté par migration)
+    family-member.service.ts       ← listMembers, searchMembers, addMember (transaction)
+    family.module.ts               ← TypeOrmModule.forFeature([Family, FamilyMember])
+  migrations/
+    1720000000000-AddJoinedAtToMember.ts
+    1720000000001-SeedRolesConfig.ts
+data-source.ts                     ← DataSource pour le CLI TypeORM
+```
 
-<!-- parcours-recommande -->
+## 6. Points clés
 
-::: tip Parcours recommandé
-1. **Screencast** : [screencast 15 typeorm requêtes](../screencasts/screencast-15-typeorm-requetes.md)
-2. **Lab** : [lab-15-typeorm-queries](../labs/lab-15-typeorm-queries/README)
-3. **Visualisation** : [ORM Query Flow](../visualizations/orm-query-flow.html)
-4. **Quiz** : [quiz 15 typeorm requêtes](../quizzes/quiz-15-typeorm-requetes.html)
-:::
+1. `find()` avec `where`, `relations`, `order`, `skip`/`take` couvre 80 % des requêtes — préférer au QueryBuilder pour la lisibilité.
+2. `relations: { user: true }` dans `find()` charge la relation en un seul JOIN — toujours préférer à une boucle `findOne` (N+1).
+3. `createQueryBuilder('alias')` → `leftJoinAndSelect` → `where`/`andWhere` → `getMany()` / `getOne()` / `getRawMany()` / `getManyAndCount()`.
+4. `getMany()` retourne des instances d'entité mappées ; `getRawMany()` retourne des objets bruts — utiliser pour les agrégats GROUP BY.
+5. `dataSource.manager.transaction(async (manager) => {...})` — commit/rollback automatiques ; toutes les opérations doivent utiliser `manager`, jamais les repositories injectés.
+6. `QueryRunner` pour le contrôle fin (niveau d'isolation, savepoints) — `release()` dans `finally` est obligatoire.
+7. `synchronize: false` en production + CLI TypeORM pour toutes les évolutions de schéma.
+8. `migration:generate` compare entités compilées au schéma actuel et génère `up`/`down` ; `migration:run` applique, `migration:revert` annule la dernière.
+
+## 7. Seeds Anki
+
+```
+Pourquoi find avec relations est-il préférable à findOne dans une boucle ?|Il charge la relation en un seul LEFT JOIN — la boucle génère N+1 requêtes SQL (une par itération au lieu d'une seule au total)
+Différence getMany vs getRawMany dans QueryBuilder ?|getMany retourne des instances d'entité avec mapping TypeORM ; getRawMany retourne des objets bruts sans mapping — seul getRawMany supporte GROUP BY et agrégats
+Quand utiliser manager.transaction vs QueryRunner ?|manager.transaction pour la majorité des cas (commit/rollback automatiques) ; QueryRunner quand on a besoin d'un niveau d'isolation explicite ou de savepoints manuels
+Pourquoi toutes les opérations d'une transaction doivent-elles utiliser manager ?|Les repositories @InjectRepository utilisent une connexion distincte du pool — ils ne participent pas à la transaction ; seul manager partage la connexion transactionnelle
+Pourquoi queryRunner.release() doit-il toujours être dans finally ?|Sans release(), la connexion reste ouverte dans le pool — sous charge, le pool s'épuise et toutes les requêtes suivantes bloquent
+Pourquoi synchronize true est-il interdit en production ?|TypeORM peut émettre DROP COLUMN ou ALTER TABLE sans avertissement, détruisant les données lors d'un renommage de propriété dans l'entité
+Tableau dans where vs opérateur In — quelle différence ?|where tableau génère des blocs OR entre conditions entières ; In() génère IN sur un seul champ — utiliser In() pour filtrer plusieurs valeurs d'une même colonne
+Quel fichier le CLI TypeORM utilise-t-il pour migration generate ?|Le DataSource exporté par défaut depuis data-source.ts passé avec -d — il compare les entités compilées dans dist au schéma réel de la base
+```
+
+## Pont vers le lab
+
+> Lab associé : `09-nestjs/labs/lab-15-typeorm-queries/README.md`. Tu y implémentes `listMembers` avec `find()`, `searchMembers` avec QueryBuilder et `getManyAndCount`, `addMember` en transaction, et tu génères + appliques une migration `AddJoinedAt` — corrigé complet commenté + variante J+30 dans le README.

@@ -1,54 +1,76 @@
-# Module 14 — TypeORM — Entites & Relations
-
-> **Objectif** : Apprendre a modeliser une base de donnees relationnelle avec TypeORM dans NestJS, en maitrisant les entites, les types de colonnes, et toutes les formes de relations.
-> **Difficulte** : ⭐⭐⭐ (avance)
-> **Prérequis** : Module 11 (Services & Providers), Module 12 (Modules), notions SQL de base
-> **Duree estimee** : 5 heures
-
+---
+titre: TypeORM entités et relations
+cours: 09-nestjs
+notions: [configuration TypeORM avec NestJS, décorateur Entity et colonnes, clé primaire générée, relations OneToMany ManyToOne ManyToMany OneToOne, chargement eager et lazy, cascade, pattern repository, injection du repository]
+outcomes: [définir des entités TypeORM avec colonnes typées, modéliser des relations entre entités, injecter et utiliser un repository dans un service, choisir eager vs lazy]
+prerequis: [13-nestjs-pipes-guards-interceptors]
+next: 15-typeorm-requetes-migrations
+libs: [{ name: typeorm, version: "^0.3" }, { name: "@nestjs/typeorm", version: "^11" }]
+tribuzen: entités TypeORM de TribuZen (User, Family, Post, Invitation) et leurs relations
+last-reviewed: 2026-07
 ---
 
-## 1. Introduction a TypeORM
+# TypeORM entités et relations
 
-### 1.1 Qu'est-ce qu'un ORM ?
+> **Outcomes — tu sauras FAIRE :** définir des entités TypeORM avec colonnes typées, modéliser des relations OneToMany/ManyToOne/ManyToMany/OneToOne entre entités, injecter et utiliser un repository dans un service NestJS, choisir entre eager, lazy et chargement explicite.
+> **Difficulté :** :star::star::star:
 
-Un **ORM** (Object-Relational Mapping) est un outil qui fait le pont entre le monde des objets (TypeScript/JavaScript) et le monde des bases de donnees relationnelles (SQL).
+## 1. Cas concret d'abord
 
-> **Analogie** : Imaginez que vous parlez français et que votre base de donnees parle chinois. L'ORM est votre traducteur personnel. Vous lui decrivez ce que vous voulez en français (TypeScript), et il traduit en chinois (SQL) pour la base de donnees, puis vous ramene la réponse en français.
+TribuZen doit persister ses `User` et ses `Family`. Au module 11, `FamilyService` utilisait un store en mémoire. Dès qu'un utilisateur crée une famille, l'information disparaît au redémarrage — pas d'API viable sans persistance. Tu essaies d'écrire `UsersService` et tu bloques immédiatement :
 
-### 1.2 Pourquoi TypeORM ?
-
-TypeORM est l'ORM le plus utilise dans l'ecosysteme NestJS. Il supporte :
-
-| Caracteristique | Description |
-|----------------|-------------|
-| TypeScript natif | Decorateurs, types, autocompletion |
-| Bases supportees | PostgreSQL, MySQL, SQLite, MSSQL, Oracle, MongoDB |
-| Patterns | Active Record et Data Mapper |
-| Migrations | Génération et exécution automatiques |
-| Relations | OneToOne, OneToMany, ManyToOne, ManyToMany |
-| CLI | Outil en ligne de commande pour les migrations |
-
-### 1.3 Installation
-
-```bash
-# Installation des packages
-npm install @nestjs/typeorm typeorm pg
-
-# pg = driver PostgreSQL
-# Pour MySQL : npm install mysql2
-# Pour SQLite : npm install better-sqlite3
+```ts
+// ❌ tentative naïve — état volatile, pas de DB
+@Injectable()
+export class UsersService {
+  private users: User[] = []            // perdu au redémarrage
+  // Comment retrouver les User d'une Family ?
+  // Comment faire un findOne par email sans scanner tout le tableau ?
+  // Comment modéliser qu'un User appartient à une Family ?
+}
 ```
 
----
+TypeORM + NestJS résolvent ça avec trois briques : `@Entity()` décrit la table, le repository exécute les requêtes, `TypeOrmModule.forFeature()` injecte le repository dans le service.
 
-## 2. Configuration de TypeORM dans NestJS
+```ts
+// ✅ avec TypeORM — persistant, relationnel
+@Injectable()
+export class UsersService {
+  constructor(
+    @InjectRepository(User)
+    private readonly userRepo: Repository<User>,  // NestJS injecte le repository
+  ) {}
 
-### 2.1 Configuration basique avec forRoot
+  findByEmail(email: string) {
+    return this.userRepo.findOne({ where: { email } })
+  }
 
-```typescript
+  findWithFamily(id: number) {
+    return this.userRepo.findOne({ where: { id }, relations: { family: true } })
+  }
+}
+```
+
+Ce module explique comment passer de là à un modèle complet avec User, Family, Post et Invitation.
+
+## 2. Théorie complète, concise
+
+### 2.1 Configuration TypeORM dans NestJS
+
+TypeORM 0.3 introduit le concept de `DataSource` (remplace `Connection`). `@nestjs/typeorm` 11 l'encapsule dans `TypeOrmModule`.
+
+**Installation**
+
+```bash
+npm install @nestjs/typeorm typeorm pg
+```
+
+**`forRoot` — configuration synchrone (dev simple)**
+
+```ts
 // app.module.ts
-import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
+import { Module } from '@nestjs/common'
+import { TypeOrmModule } from '@nestjs/typeorm'
 
 @Module({
   imports: [
@@ -58,49 +80,40 @@ import { TypeOrmModule } from '@nestjs/typeorm';
       port: 5432,
       username: 'postgres',
       password: 'postgres',
-      database: 'nest_course',
-      entities: [__dirname + '/**/*.entity{.ts,.js}'],
-      // ⚠️ Sur Windows, ce glob peut ne pas fonctionner correctement.
-      // Alternative recommandee (compatible Windows) :
-      // entities: [User, Article, Comment, Tag],
-      synchronize: true, // ATTENTION : uniquement en developpement !
+      database: 'tribuzen',
+      // ✅ préférer la liste explicite à un glob sur Windows
+      entities: [User, Family, Post, Invitation],
+      synchronize: true,  // ⚠️ dev uniquement — migrations en prod (module 15)
+      autoLoadEntities: true,
     }),
   ],
 })
 export class AppModule {}
 ```
 
-> **Piege classique** : L'option `synchronize: true` modifie automatiquement le schema de la base de donnees pour correspondre a vos entites. C'est pratique en dev, mais **CATASTROPHIQUE en production** car vous risquez de perdre des donnees. En production, utilisez les **migrations** (voir Module 15).
+**`forRootAsync` — configuration via ConfigService (recommandé)**
 
-### 2.2 Configuration avancee avec forRootAsync et ConfigService
-
-En pratique, on ne veut jamais coder les identifiants en dur. On utilise le `ConfigService` :
-
-```typescript
+```ts
 // app.module.ts
-import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { TypeOrmModule } from '@nestjs/typeorm';
+import { Module } from '@nestjs/common'
+import { ConfigModule, ConfigService } from '@nestjs/config'
+import { TypeOrmModule } from '@nestjs/typeorm'
 
 @Module({
   imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-      envFilePath: '.env',
-    }),
+    ConfigModule.forRoot({ isGlobal: true }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
+      useFactory: (cfg: ConfigService) => ({
         type: 'postgres',
-        host: configService.get<string>('DB_HOST', 'localhost'),
-        port: configService.get<number>('DB_PORT', 5432),
-        username: configService.get<string>('DB_USERNAME', 'postgres'),
-        password: configService.get<string>('DB_PASSWORD', 'postgres'),
-        database: configService.get<string>('DB_DATABASE', 'nest_course'),
-        entities: [__dirname + '/**/*.entity{.ts,.js}'],
-        synchronize: configService.get<string>('NODE_ENV') !== 'production',
-        logging: configService.get<string>('NODE_ENV') === 'development',
+        host: cfg.get<string>('DB_HOST', 'localhost'),
+        port: cfg.get<number>('DB_PORT', 5432),
+        username: cfg.get<string>('DB_USER', 'postgres'),
+        password: cfg.get<string>('DB_PASS', 'postgres'),
+        database: cfg.get<string>('DB_NAME', 'tribuzen'),
+        autoLoadEntities: true,
+        synchronize: cfg.get('NODE_ENV') !== 'production',
       }),
     }),
   ],
@@ -108,1132 +121,707 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 export class AppModule {}
 ```
 
-Fichier `.env` correspondant :
+**`forFeature` — enregistrer les entités dans un module**
 
-```env
-DB_HOST=localhost
-DB_PORT=5432
-DB_USERNAME=postgres
-DB_PASSWORD=monMotDePasse
-DB_DATABASE=nest_course
-NODE_ENV=development
-```
+Chaque feature module déclare les entités qu'il possède. Cela génère les providers de repository injectables.
 
-### 2.3 Enregistrer les entites dans un module
-
-Chaque module qui utilise des entites doit les importer via `TypeOrmModule.forFeature()` :
-
-```typescript
+```ts
 // users/users.module.ts
-import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { User } from './entities/user.entity';
-import { UsersService } from './users.service';
-import { UsersController } from './users.controller';
+import { Module } from '@nestjs/common'
+import { TypeOrmModule } from '@nestjs/typeorm'
+import { User } from './user.entity'
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([User]), // Enregistre l'entite User dans ce module
-  ],
-  controllers: [UsersController],
+  imports: [TypeOrmModule.forFeature([User])],
   providers: [UsersService],
+  controllers: [UsersController],
   exports: [UsersService],
 })
 export class UsersModule {}
 ```
 
----
+### 2.2 `@Entity` et colonnes
 
-## 3. Les Entites — Définir vos tables
+**Déclarer une table**
 
-### 3.1 Le decorateur @Entity
+```ts
+import { Entity } from 'typeorm'
 
-Une entite est une classe TypeScript decoree avec `@Entity()`. Chaque entite correspond à une table en base de donnees.
-
-```typescript
-// entities/user.entity.ts
-import { Entity } from 'typeorm';
-
-// Le nom de la table sera 'user' par defaut (nom de la classe en minuscule)
-@Entity()
+@Entity()                          // table 'user' (nom de classe en minuscule)
 export class User {}
 
-// On peut specifier un nom de table different
-@Entity('utilisateurs')
-export class User {}
-
-// Avec des options supplementaires
-@Entity({
-  name: 'utilisateurs',
-  schema: 'public',      // Schema PostgreSQL
-  orderBy: {
-    createdAt: 'DESC',    // Ordre par defaut des requetes
-  },
-})
+@Entity('family_members')          // nom personnalisé
 export class User {}
 ```
 
-### 3.2 Les colonnes primaires
+**Clés primaires**
 
-Chaque entite doit avoir au moins une colonne primaire.
+```ts
+import { Entity, PrimaryGeneratedColumn, PrimaryColumn } from 'typeorm'
 
-```typescript
-import { Entity, PrimaryGeneratedColumn, PrimaryColumn } from 'typeorm';
+@Entity()
+export class User {
+  @PrimaryGeneratedColumn()        // SERIAL / AUTO_INCREMENT — entier séquentiel
+  id: number
 
-// Option 1 : ID auto-incremente (le plus courant)
+  // OU
+  @PrimaryGeneratedColumn('uuid')  // UUID v4 — recommandé pour les API publiques
+  id: string
+
+  // OU
+  @PrimaryColumn()                 // clé manuelle (ex : code pays 'FR')
+  code: string
+}
+```
+
+**Types de colonnes courants**
+
+```ts
+import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm'
+
 @Entity()
 export class User {
   @PrimaryGeneratedColumn()
-  id: number;
-  // Cree : id SERIAL PRIMARY KEY (PostgreSQL)
-  // Ou : id INT AUTO_INCREMENT PRIMARY KEY (MySQL)
-}
+  id: number
 
-// Option 2 : UUID genere automatiquement
+  @Column({ length: 100 })            // varchar(100) — défaut varchar(255)
+  name: string
+
+  @Column({ unique: true })           // contrainte UNIQUE
+  email: string
+
+  @Column({ select: false })          // exclu des SELECT par défaut
+  passwordHash: string
+
+  @Column({ type: 'text', nullable: true })
+  bio: string | null
+
+  @Column({ type: 'boolean', default: true })
+  isActive: boolean
+
+  @Column({ type: 'enum', enum: ['owner', 'member', 'guest'], default: 'member' })
+  role: string
+
+  @Column({ type: 'jsonb', nullable: true })  // PostgreSQL — indexable
+  metadata: Record<string, unknown> | null
+}
+```
+
+**Colonnes de dates automatiques**
+
+```ts
+import { CreateDateColumn, UpdateDateColumn, DeleteDateColumn } from 'typeorm'
+
+@Entity()
+export class Post {
+  @CreateDateColumn()    // défini une seule fois à la création
+  createdAt: Date
+
+  @UpdateDateColumn()    // mis à jour automatiquement à chaque save()
+  updatedAt: Date
+
+  @DeleteDateColumn()    // null = actif ; date = soft-deleted
+  deletedAt: Date | null
+}
+```
+
+### 2.3 Relations
+
+#### `@ManyToOne` / `@OneToMany` — relation la plus courante
+
+Un `User` appartient à une `Family` ; une `Family` contient plusieurs `User`.
+Le côté `@ManyToOne` **possède la clé étrangère** en base. `@OneToMany` ne crée aucune colonne.
+
+```ts
+// family.entity.ts
+import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm'
+import { User } from './user.entity'
+
+@Entity()
+export class Family {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
+
+  @Column({ length: 100 })
+  name: string
+
+  @OneToMany(() => User, (user) => user.family)  // pas de colonne en base
+  members: User[]
+}
+```
+
+```ts
+// user.entity.ts
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm'
+import { Family } from './family.entity'
+
 @Entity()
 export class User {
   @PrimaryGeneratedColumn('uuid')
-  id: string;
-  // Cree : id UUID DEFAULT uuid_generate_v4() PRIMARY KEY
-}
+  id: string
 
-// Option 3 : Cle primaire manuelle (non generee)
-@Entity()
-export class Country {
-  @PrimaryColumn()
-  code: string; // ex: 'FR', 'US', 'DE'
+  @Column({ unique: true })
+  email: string
+
+  @ManyToOne(() => Family, (family) => family.members, {
+    nullable: true,       // un user peut ne pas encore appartenir à une famille
+    onDelete: 'SET NULL', // si la famille est supprimée, userId devient NULL
+  })
+  @JoinColumn({ name: 'family_id' }) // nom explicite de la colonne FK
+  family: Family | null
+
+  @Column({ name: 'family_id', nullable: true })
+  familyId: string | null
 }
 ```
 
-> **Bonne pratique** : Preferez les UUID pour les API publiques. Ils ne revelent pas le nombre d'enregistrements et sont plus difficiles a deviner. Utilisez les ID auto-incrementes pour les tables internes ou quand la performance est critique.
+#### `@OneToOne` / `@JoinColumn` — relation un-à-un
 
-| Type | Avantages | Inconvenients |
-|------|-----------|---------------|
-| `increment` (defaut) | Performant, indexation optimale | Previsible, revele le volume |
-| `uuid` | Non previsible, distribue | Plus gros (16 octets vs 4), indexation moins optimale |
+`@JoinColumn()` est **obligatoire sur exactement un côté** — celui qui porte la clé étrangère.
 
-### 3.3 Les types de colonnes
-
-```typescript
-import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
+```ts
+// invitation.entity.ts
+import { Entity, PrimaryGeneratedColumn, Column, OneToOne, JoinColumn } from 'typeorm'
+import { User } from './user.entity'
 
 @Entity()
-export class Product {
-  @PrimaryGeneratedColumn()
-  id: number;
-
-  // --- Types chaines ---
+export class Invitation {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
 
   @Column()
-  // Type par defaut : varchar(255)
-  nom: string;
-
-  @Column({ type: 'varchar', length: 100 })
-  // varchar(100) — chaine limitee
-  sku: string;
-
-  @Column({ type: 'text' })
-  // text — chaine sans limite de taille
-  description: string;
-
-  // --- Types numeriques ---
-
-  @Column({ type: 'int' })
-  stock: number;
-
-  @Column({ type: 'decimal', precision: 10, scale: 2 })
-  // decimal(10,2) — pour les prix (ex: 12345678.99)
-  prix: number;
-
-  @Column({ type: 'float' })
-  // Nombre a virgule flottante
-  poids: number;
-
-  @Column({ type: 'bigint' })
-  // Grand entier (retourne comme string en JS !)
-  vues: string;
-
-  // --- Type booleen ---
-
-  @Column({ type: 'boolean', default: true })
-  actif: boolean;
-
-  // --- Types date ---
-
-  @Column({ type: 'date' })
-  // Date sans heure (YYYY-MM-DD)
-  datePublication: string;
+  email: string
 
   @Column({ type: 'timestamp' })
-  // Date avec heure
-  derniereMiseAJour: Date;
+  expiresAt: Date
 
-  // --- Type enum ---
-
-  @Column({
-    type: 'enum',
-    enum: ['brouillon', 'publie', 'archive'],
-    default: 'brouillon',
-  })
-  statut: string;
-
-  // --- Type JSON ---
-
-  @Column({ type: 'json', nullable: true })
-  // Stocke un objet JSON directement
-  metadata: Record<string, any>;
-
-  @Column({ type: 'jsonb', nullable: true })
-  // jsonb (PostgreSQL) — indexable et plus performant que json
-  tags: string[];
-
-  // --- Type tableau (PostgreSQL uniquement) ---
-
-  @Column({ type: 'simple-array', nullable: true })
-  // Stocke comme une chaine separee par des virgules
-  couleurs: string[];
+  @OneToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'accepted_by_user_id' })  // côté propriétaire de la FK
+  acceptedBy: User | null
 }
 ```
 
-### 3.4 Options des colonnes
+#### `@ManyToMany` / `@JoinTable` — relation plusieurs-à-plusieurs
 
-```typescript
-@Entity()
-export class Article {
-  @PrimaryGeneratedColumn()
-  id: number;
+Un `Post` peut avoir plusieurs tags ; un tag peut apparaître sur plusieurs posts.
+`@JoinTable()` est **obligatoire sur un côté** — il crée la table de liaison.
 
-  @Column({
-    type: 'varchar',
-    length: 200,
-    unique: true,           // Contrainte UNIQUE
-    nullable: false,         // NOT NULL (par defaut)
-    default: 'Sans titre',   // Valeur par defaut
-    comment: 'Titre de l\'article', // Commentaire SQL
-    select: true,            // Inclus dans les SELECT par defaut
-    name: 'article_title',   // Nom de la colonne en base (si different de la propriete)
-  })
-  titre: string;
-
-  @Column({ select: false })
-  // Cette colonne ne sera PAS incluse dans les requetes par defaut
-  // Il faudra la demander explicitement avec addSelect() ou select
-  motDePasse: string;
-
-  @Column({ unique: true })
-  slug: string;
-
-  @Column({ nullable: true })
-  // nullable: true permet la valeur NULL en base
-  imageUrl: string | null;
-}
-```
-
-### 3.5 Colonnes speciales : dates automatiques
-
-TypeORM fournit des decorateurs très pratiques pour gérer automatiquement les dates :
-
-```typescript
+```ts
+// post.entity.ts
 import {
-  Entity,
-  PrimaryGeneratedColumn,
-  Column,
-  CreateDateColumn,
-  UpdateDateColumn,
-  DeleteDateColumn,
-  VersionColumn,
-} from 'typeorm';
+  Entity, PrimaryGeneratedColumn, Column,
+  ManyToOne, ManyToMany, JoinTable, JoinColumn,
+  CreateDateColumn, UpdateDateColumn,
+} from 'typeorm'
+import { User } from './user.entity'
+import { Family } from './family.entity'
 
 @Entity()
-export class Article {
-  @PrimaryGeneratedColumn()
-  id: number;
+export class Post {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
 
-  @Column()
-  titre: string;
-
-  // Automatiquement defini a la date de creation
-  @CreateDateColumn()
-  createdAt: Date;
-  // → Equivalent SQL : DEFAULT CURRENT_TIMESTAMP
-
-  // Automatiquement mis a jour a chaque modification
-  @UpdateDateColumn()
-  updatedAt: Date;
-  // → Se met a jour automatiquement quand on appelle save()
-
-  // Pour le soft delete : date de suppression
-  @DeleteDateColumn()
-  deletedAt: Date | null;
-  // → null = non supprime, date = supprime
-  // Les requetes normales excluent automatiquement les lignes "supprimees"
-
-  // Compteur de version pour l'optimistic locking
-  @VersionColumn()
-  version: number;
-  // → S'incremente automatiquement a chaque save()
-}
-```
-
-> **Analogie** : Le soft delete c'est comme mettre un document à la corbeille plutot que le dechiqueter. Le document existe toujours, mais il n'apparait plus dans vos recherches normales. Vous pouvez le restaurer a tout moment.
-
-### 3.6 Utiliser des enums TypeScript
-
-```typescript
-// enums/article-status.enum.ts
-export enum ArticleStatus {
-  BROUILLON = 'brouillon',
-  PUBLIE = 'publie',
-  ARCHIVE = 'archive',
-}
-
-// entities/article.entity.ts
-import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
-import { ArticleStatus } from '../enums/article-status.enum';
-
-@Entity()
-export class Article {
-  @PrimaryGeneratedColumn()
-  id: number;
-
-  @Column()
-  titre: string;
-
-  @Column({
-    type: 'enum',
-    enum: ArticleStatus,
-    default: ArticleStatus.BROUILLON,
-  })
-  statut: ArticleStatus;
-}
-```
-
----
-
-## 4. Les Relations
-
-Les relations sont le coeur de la modelisation relationnelle. TypeORM supporte quatre types de relations.
-
-### 4.1 @ManyToOne et @OneToMany — La relation la plus courante
-
-C'est la relation "un vers plusieurs". Exemple : un utilisateur a plusieurs articles, chaque article appartient à un utilisateur.
-
-```typescript
-// entities/user.entity.ts
-import {
-  Entity,
-  PrimaryGeneratedColumn,
-  Column,
-  OneToMany,
-  CreateDateColumn,
-  UpdateDateColumn,
-} from 'typeorm';
-import { Article } from './article.entity';
-
-@Entity()
-export class User {
-  @PrimaryGeneratedColumn()
-  id: number;
-
-  @Column({ unique: true })
-  email: string;
-
-  @Column()
-  nom: string;
-
-  // Un utilisateur a PLUSIEURS articles
-  @OneToMany(() => Article, (article) => article.auteur)
-  articles: Article[];
-  // Note : @OneToMany ne cree PAS de colonne en base
-  // C'est le cote @ManyToOne qui possede la cle etrangere
-
-  @CreateDateColumn()
-  createdAt: Date;
-
-  @UpdateDateColumn()
-  updatedAt: Date;
-}
-```
-
-```typescript
-// entities/article.entity.ts
-import {
-  Entity,
-  PrimaryGeneratedColumn,
-  Column,
-  ManyToOne,
-  CreateDateColumn,
-  UpdateDateColumn,
-  JoinColumn,
-} from 'typeorm';
-import { User } from './user.entity';
-
-@Entity()
-export class Article {
-  @PrimaryGeneratedColumn()
-  id: number;
-
-  @Column()
-  titre: string;
+  @Column({ length: 200 })
+  title: string
 
   @Column({ type: 'text' })
-  contenu: string;
+  body: string
 
-  // Chaque article appartient a UN utilisateur
-  @ManyToOne(() => User, (user) => user.articles, {
-    nullable: false,        // L'article DOIT avoir un auteur
-    onDelete: 'CASCADE',    // Si l'utilisateur est supprime, ses articles aussi
-  })
-  @JoinColumn({ name: 'auteur_id' }) // Nom personnalise de la colonne FK
-  auteur: User;
+  @Column({ type: 'enum', enum: ['draft', 'published'], default: 'draft' })
+  status: string
 
-  // Colonne explicite pour l'ID de l'auteur (optionnel mais pratique)
-  @Column({ name: 'auteur_id' })
-  auteurId: number;
+  @ManyToOne(() => User, { nullable: false, onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'author_id' })
+  author: User
 
-  @CreateDateColumn()
-  createdAt: Date;
+  @Column({ name: 'author_id' })
+  authorId: string
 
-  @UpdateDateColumn()
-  updatedAt: Date;
-}
-```
+  @ManyToOne(() => Family, { nullable: false, onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'family_id' })
+  family: Family
 
-> **Piege classique** : La relation `@OneToMany` ne créé pas de colonne en base de donnees. C'est toujours le cote `@ManyToOne` qui possede la clé etrangere. Si vous n'avez qu'un `@OneToMany` sans son `@ManyToOne` correspondant, TypeORM ne creera aucune clé etrangere.
+  @Column({ name: 'family_id' })
+  familyId: string
 
-> ⚠️ **Piege N+1** : charger `user.articles` pour chaque user dans une boucle généré N+1 requêtes.
-> Solution : utiliser `relations: ['articles']` dans `find()`, ou le QueryBuilder avec `leftJoinAndSelect()` (module 15).
-
-#### Le comportement onDelete
-
-| Valeur | Description | Exemple |
-|--------|-------------|---------|
-| `CASCADE` | Supprime les enfants avec le parent | Supprimer un user → ses articles sont supprimes |
-| `SET NULL` | Met la FK a NULL | Supprimer un user → articles.auteurId = NULL |
-| `RESTRICT` | Empeche la suppression si des enfants existent | Impossible de supprimer un user qui a des articles |
-| `NO ACTION` | Similaire a RESTRICT (defaut) | Erreur si tentative de suppression |
-
-### 4.2 @OneToOne — Relation un-a-un
-
-Chaque utilisateur à un seul profil, et chaque profil appartient à un seul utilisateur.
-
-```typescript
-// entities/profile.entity.ts
-import {
-  Entity,
-  PrimaryGeneratedColumn,
-  Column,
-  OneToOne,
-  JoinColumn,
-} from 'typeorm';
-import { User } from './user.entity';
-
-@Entity()
-export class Profile {
-  @PrimaryGeneratedColumn()
-  id: number;
-
-  @Column({ nullable: true })
-  bio: string;
-
-  @Column({ nullable: true })
-  avatar: string;
-
-  @Column({ nullable: true })
-  siteWeb: string;
-
-  @Column({ nullable: true })
-  localisation: string;
-
-  // Relation One-to-One avec User
-  // @JoinColumn() est OBLIGATOIRE sur un des deux cotes
-  // Le cote qui a @JoinColumn possede la cle etrangere
-  @OneToOne(() => User, (user) => user.profile, {
-    onDelete: 'CASCADE',
-  })
-  @JoinColumn()
-  user: User;
-
-  @Column()
-  userId: number;
-}
-```
-
-```typescript
-// entities/user.entity.ts (mise a jour)
-import {
-  Entity,
-  PrimaryGeneratedColumn,
-  Column,
-  OneToOne,
-  OneToMany,
-} from 'typeorm';
-import { Profile } from './profile.entity';
-import { Article } from './article.entity';
-
-@Entity()
-export class User {
-  @PrimaryGeneratedColumn()
-  id: number;
-
-  @Column({ unique: true })
-  email: string;
-
-  @Column()
-  nom: string;
-
-  // Cote inverse de la relation One-to-One (pas de @JoinColumn ici)
-  @OneToOne(() => Profile, (profile) => profile.user)
-  profile: Profile;
-
-  @OneToMany(() => Article, (article) => article.auteur)
-  articles: Article[];
-}
-```
-
-> **A retenir** : Dans une relation `@OneToOne`, le decorateur `@JoinColumn()` est **obligatoire** sur exactement un des deux cotes. Le cote qui le porte est celui qui aura la colonne de clé etrangere en base.
-
-### 4.3 @ManyToMany — Relation plusieurs-a-plusieurs
-
-Exemple : un article peut avoir plusieurs tags, et un tag peut etre associe a plusieurs articles.
-
-```typescript
-// entities/tag.entity.ts
-import {
-  Entity,
-  PrimaryGeneratedColumn,
-  Column,
-  ManyToMany,
-} from 'typeorm';
-import { Article } from './article.entity';
-
-@Entity()
-export class Tag {
-  @PrimaryGeneratedColumn()
-  id: number;
-
-  @Column({ unique: true })
-  nom: string;
-
-  @Column({ nullable: true })
-  description: string;
-
-  // Cote inverse (pas de @JoinTable)
-  @ManyToMany(() => Article, (article) => article.tags)
-  articles: Article[];
-}
-```
-
-```typescript
-// entities/article.entity.ts (mise a jour)
-import {
-  Entity,
-  PrimaryGeneratedColumn,
-  Column,
-  ManyToOne,
-  ManyToMany,
-  JoinTable,
-  JoinColumn,
-} from 'typeorm';
-import { User } from './user.entity';
-import { Tag } from './tag.entity';
-
-@Entity()
-export class Article {
-  @PrimaryGeneratedColumn()
-  id: number;
-
-  @Column()
-  titre: string;
-
-  @Column({ type: 'text' })
-  contenu: string;
-
-  @ManyToOne(() => User, (user) => user.articles, {
-    nullable: false,
-    onDelete: 'CASCADE',
-  })
-  @JoinColumn({ name: 'auteur_id' })
-  auteur: User;
-
-  @Column({ name: 'auteur_id' })
-  auteurId: number;
-
-  // Relation Many-to-Many avec Tag
-  // @JoinTable() est OBLIGATOIRE sur un des deux cotes
-  // Il cree automatiquement une table de liaison (article_tags_tag)
-  @ManyToMany(() => Tag, (tag) => tag.articles, {
-    cascade: true, // Permet de creer des tags en meme temps que l'article
-  })
+  // ManyToMany avec table de liaison personnalisée
+  @ManyToMany(() => Post, (post) => post.likedBy, { cascade: ['insert'] })
   @JoinTable({
-    name: 'article_tag', // Nom personnalise de la table de liaison
-    joinColumn: {
-      name: 'article_id',
-      referencedColumnName: 'id',
-    },
-    inverseJoinColumn: {
-      name: 'tag_id',
-      referencedColumnName: 'id',
-    },
+    name: 'post_likes',
+    joinColumn: { name: 'post_id', referencedColumnName: 'id' },
+    inverseJoinColumn: { name: 'user_id', referencedColumnName: 'id' },
   })
-  tags: Tag[];
+  likedBy: User[]
+
+  @CreateDateColumn()
+  createdAt: Date
+
+  @UpdateDateColumn()
+  updatedAt: Date
 }
 ```
 
-> **Bonne pratique** : Personnalisez toujours les noms de colonnes dans `@JoinTable()` pour avoir des noms clairs et previsibles. Le nommage automatique de TypeORM peut etre confus (`article_tags_tag`).
+**Tableau récapitulatif des relations**
 
-### 4.4 Tableau récapitulatif des relations
+| Relation | Côté propriétaire | Côté inverse | Colonne en base |
+|---|---|---|---|
+| OneToOne | `@OneToOne` + `@JoinColumn` | `@OneToOne` | FK sur le côté `@JoinColumn` |
+| ManyToOne | `@ManyToOne` | `@OneToMany` | FK sur le côté `@ManyToOne` |
+| ManyToMany | `@ManyToMany` + `@JoinTable` | `@ManyToMany` | Table de liaison |
 
-| Relation | Decorateur proprietaire | Decorateur inverse | Decorateur join | Table de liaison |
-|----------|------------------------|-------------------|-----------------|-----------------|
-| One-to-One | `@OneToOne` + `@JoinColumn` | `@OneToOne` | `@JoinColumn` (obligatoire) | Non |
-| Many-to-One / One-to-Many | `@ManyToOne` | `@OneToMany` | `@JoinColumn` (optionnel) | Non |
-| Many-to-Many | `@ManyToMany` + `@JoinTable` | `@ManyToMany` | `@JoinTable` (obligatoire) | Oui |
+### 2.4 Chargement des relations — eager, lazy, explicite
 
----
+**Eager — chargement automatique systématique**
 
-## 5. Chargement des relations : eager vs lazy
-
-### 5.1 Eager loading
-
-Les relations avec `eager: true` sont **toujours** chargees automatiquement :
-
-```typescript
-@ManyToOne(() => User, (user) => user.articles, {
-  eager: true, // Le user sera toujours charge avec l'article
-})
-auteur: User;
+```ts
+@ManyToOne(() => Family, { eager: true })   // family toujours chargée avec user
+family: Family | null
 ```
 
-> **Piege classique** : N'utilisez `eager: true` que pour les relations qui sont **toujours** nécessaires. Sinon, chaque requête chargera des donnees inutiles, degradant les performances.
+**Lazy — chargement à la demande via Promise**
 
-### 5.2 Lazy loading
+```ts
+@OneToMany(() => Post, (post) => post.author, { lazy: true })
+posts: Promise<Post[]>           // type = Promise<> — la requête SQL est différée
 
-Les relations lazy sont chargees **à la demandé** via des Promises :
-
-```typescript
-@OneToMany(() => Article, (article) => article.auteur, {
-  lazy: true,
-})
-articles: Promise<Article[]>; // Note : le type est Promise<>
-
-// Utilisation
-const user = await userRepository.findOne({ where: { id: 1 } });
-const articles = await user.articles; // La requete SQL est executee ICI
+// utilisation
+const posts = await user.posts   // SQL exécuté ici seulement
 ```
 
-### 5.3 Chargement explicite avec relations (recommande)
+**Explicite avec `relations` — recommandé**
 
-La méthode la plus courante et la plus controlee :
-
-```typescript
-// Charger un article avec son auteur et ses tags
-const article = await articleRepository.findOne({
-  where: { id: 1 },
+```ts
+// choisir précisément quoi charger selon le cas d'usage
+const user = await userRepo.findOne({
+  where: { id },
   relations: {
-    auteur: true,          // Charge l'auteur
-    tags: true,            // Charge les tags
-    auteur: {
-      profile: true,       // Charge aussi le profil de l'auteur (imbrique)
+    family: true,        // charge la family
+    family: {
+      members: true,     // charge aussi les membres de la family (imbriqué)
     },
   },
-});
-```
-
-> **Bonne pratique** : Preferez toujours le chargement explicite avec `relations` plutot que `eager: true` ou `lazy: true`. Cela vous donne un controle total sur les donnees chargees pour chaque requête.
-
----
-
-## 6. Les options Cascade
-
-Les cascades controlent le comportement automatique lors des operations de sauvegarde.
-
-```typescript
-@OneToMany(() => Article, (article) => article.auteur, {
-  cascade: true,          // Active toutes les cascades
-  // OU plus specifique :
-  cascade: ['insert'],    // Cascade uniquement a l'insertion
-  cascade: ['insert', 'update'], // Cascade insertion et mise a jour
-  cascade: ['insert', 'update', 'remove'], // Toutes les operations
 })
-articles: Article[];
 ```
 
-Exemple d'utilisation :
+Règle : préférer le chargement explicite — `eager` charge inutilement à chaque requête, `lazy` est difficile à tracer et peut déclencher le problème N+1.
 
-```typescript
-// Avec cascade: true sur la relation articles
-const user = new User();
-user.nom = 'Alice';
-user.email = 'alice@example.com';
+### 2.5 Cascade
 
-const article1 = new Article();
-article1.titre = 'Mon premier article';
-article1.contenu = 'Contenu...';
+Les cascades propagent les opérations TypeORM aux entités liées.
 
-const article2 = new Article();
-article2.titre = 'Mon deuxieme article';
-article2.contenu = 'Contenu...';
+```ts
+@OneToMany(() => Post, (post) => post.author, {
+  cascade: ['insert', 'update'],  // OU cascade: true pour tout activer
+})
+posts: Post[]
 
-// Les articles sont assignes a l'utilisateur
-user.articles = [article1, article2];
-
-// Un seul save() cree l'utilisateur ET ses deux articles
-await userRepository.save(user);
+// avec cascade: true, un save() sur User persist aussi les posts modifiés
+const user = userRepo.create({ email: 'alice@tribu.fr', name: 'Alice' })
+user.posts = [postRepo.create({ title: 'Bienvenue', body: '...' })]
+await userRepo.save(user)   // persiste user ET son post en une transaction
 ```
 
-> **Piege classique** : `cascade: true` est très pratique mais peut mener a des sauvegardes involontaires. Si vous modifiez un objet relie accidentellement, il sera sauvegarde aussi. Utilisez les cascades avec parcimonie.
+Cascades disponibles : `'insert'`, `'update'`, `'remove'`, `'soft-remove'`, `'recover'`. `cascade: true` active toutes.
 
----
+### 2.6 Pattern repository
 
-## 7. Le Repository Pattern
+**Injection du repository**
 
-### 7.1 Injection du Repository
-
-```typescript
-// users/users.service.ts
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { User } from './entities/user.entity';
-import { CreateUserDto } from './dto/create-user.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
+```ts
+import { Injectable, NotFoundException } from '@nestjs/common'
+import { InjectRepository } from '@nestjs/typeorm'
+import { Repository } from 'typeorm'
+import { User } from './user.entity'
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectRepository(User)
-    private readonly userRepository: Repository<User>,
+    private readonly userRepo: Repository<User>,
   ) {}
-
-  // Creer un utilisateur
-  async create(createUserDto: CreateUserDto): Promise<User> {
-    // create() cree une instance SANS sauvegarder en base
-    const user = this.userRepository.create(createUserDto);
-    // save() persiste en base de donnees
-    return this.userRepository.save(user);
-  }
-
-  // Recuperer tous les utilisateurs
-  async findAll(): Promise<User[]> {
-    return this.userRepository.find({
-      relations: { profile: true },
-      order: { createdAt: 'DESC' },
-    });
-  }
-
-  // Recuperer un utilisateur par ID
-  async findOne(id: number): Promise<User> {
-    const user = await this.userRepository.findOne({
-      where: { id },
-      relations: { profile: true, articles: true },
-    });
-    if (!user) {
-      throw new NotFoundException(`Utilisateur #${id} introuvable`);
-    }
-    return user;
-  }
-
-  // Mettre a jour un utilisateur
-  async update(id: number, updateUserDto: UpdateUserDto): Promise<User> {
-    // preload() charge l'entite existante et fusionne les nouvelles donnees
-    const user = await this.userRepository.preload({
-      id,
-      ...updateUserDto,
-    });
-    if (!user) {
-      throw new NotFoundException(`Utilisateur #${id} introuvable`);
-    }
-    return this.userRepository.save(user);
-  }
-
-  // Supprimer un utilisateur
-  async remove(id: number): Promise<void> {
-    const user = await this.findOne(id); // Verifie que l'utilisateur existe
-    await this.userRepository.remove(user);
-  }
-
-  // Soft delete (necessite @DeleteDateColumn dans l'entite)
-  async softRemove(id: number): Promise<void> {
-    const user = await this.findOne(id);
-    await this.userRepository.softRemove(user);
-  }
-
-  // Restaurer un utilisateur soft-deleted
-  async restore(id: number): Promise<void> {
-    await this.userRepository.restore(id);
-  }
-
-  // Trouver par email
-  async findByEmail(email: string): Promise<User | null> {
-    return this.userRepository.findOne({ where: { email } });
-  }
 }
 ```
 
-> **A retenir** : La différence entre `create()` et `save()` est fondamentale. `create()` créé une instance en mémoire (utile pour appliquer les valeurs par defaut et les transformations). `save()` persiste l'objet en base. Utilisez toujours `create()` avant `save()` pour un code propre.
+**Méthodes clés du repository**
 
-### 7.2 Différence entre save, update et delete
+```ts
+// Créer : create() instancie en mémoire, save() persiste
+const user = this.userRepo.create({ email, name })
+await this.userRepo.save(user)
 
-| Méthode | Retourne | Hooks d'entite | Cascade | Utilisation |
-|---------|---------|----------------|---------|-------------|
-| `save(entity)` | L'entite sauvegardee | Oui | Oui | Création ou mise a jour |
-| `update(criteria, data)` | UpdateResult | Non | Non | Mise a jour rapide sans charger |
-| `remove(entity)` | L'entite supprimee | Oui | Oui | Suppression après chargement |
-| `delete(criteria)` | DeleteResult | Non | Non | Suppression rapide sans charger |
-| `softRemove(entity)` | L'entite | Oui | Oui | Soft delete après chargement |
-| `softDelete(criteria)` | UpdateResult | Non | Non | Soft delete rapide |
+// Lire
+await this.userRepo.find({ where: { isActive: true }, order: { createdAt: 'DESC' } })
+await this.userRepo.findOne({ where: { email }, relations: { family: true } })
 
----
+// Mettre à jour : preload() charge + fusionne, save() persiste
+const user = await this.userRepo.preload({ id, ...dto })
 
-## 8. Exemple complet — Blog avec Users, Articles, Commentaires et Tags
+// Supprimer (hard)
+await this.userRepo.remove(user)          // charge l'entité, déclenche les hooks
+await this.userRepo.delete(id)            // SQL direct, pas de hooks
 
-Voici un exemple complet qui met en pratique tous les concepts :
+// Soft delete (nécessite @DeleteDateColumn)
+await this.userRepo.softRemove(user)
+await this.userRepo.restore(id)
+```
 
-```typescript
-// === entities/user.entity.ts ===
+| Méthode | Charge l'entité | Hooks / cascade | Usage |
+|---|---|---|---|
+| `save()` | Oui (si entité existante) | Oui | Création ou mise à jour |
+| `update(id, data)` | Non | Non | Mise à jour rapide sans charger |
+| `remove(entity)` | Non (déjà chargée) | Oui | Suppression après chargement |
+| `delete(id)` | Non | Non | Suppression SQL directe |
+| `softRemove(entity)` | Non | Oui | Soft delete après chargement |
+
+## 3. Worked examples
+
+### Exemple A — UserService CRUD avec relation Family
+
+```ts
+// src/users/user.entity.ts
 import {
-  Entity,
-  PrimaryGeneratedColumn,
-  Column,
-  OneToOne,
-  OneToMany,
-  CreateDateColumn,
-  UpdateDateColumn,
-  DeleteDateColumn,
-} from 'typeorm';
-import { Profile } from './profile.entity';
-import { Article } from './article.entity';
-import { Comment } from './comment.entity';
+  Entity, PrimaryGeneratedColumn, Column,
+  ManyToOne, JoinColumn,
+  CreateDateColumn, UpdateDateColumn,
+} from 'typeorm'
+import { Family } from '../families/family.entity'
 
 export enum UserRole {
-  ADMIN = 'admin',
-  AUTEUR = 'auteur',
-  LECTEUR = 'lecteur',
+  OWNER = 'owner',
+  MEMBER = 'member',
+  GUEST = 'guest',
 }
 
 @Entity('users')
 export class User {
-  @PrimaryGeneratedColumn()
-  id: number;
+  @PrimaryGeneratedColumn('uuid')
+  id: string
 
   @Column({ length: 100 })
-  nom: string;
+  name: string
 
   @Column({ unique: true })
-  email: string;
+  email: string
 
-  @Column({ select: false }) // Non inclus dans les SELECT par defaut
-  motDePasse: string;
+  @Column({ select: false })       // exclu des SELECT — ne jamais exposer dans les réponses API
+  passwordHash: string
 
-  @Column({
-    type: 'enum',
-    enum: UserRole,
-    default: UserRole.LECTEUR,
-  })
-  role: UserRole;
+  @Column({ type: 'enum', enum: UserRole, default: UserRole.GUEST })
+  role: UserRole
 
   @Column({ default: true })
-  actif: boolean;
+  isActive: boolean
 
-  @OneToOne(() => Profile, (profile) => profile.user, {
-    cascade: true,
+  // FK vers Family — nullable car un User peut ne pas encore avoir de famille
+  @ManyToOne(() => Family, (family) => family.members, {
+    nullable: true,
+    onDelete: 'SET NULL',
   })
-  profile: Profile;
+  @JoinColumn({ name: 'family_id' })
+  family: Family | null
 
-  @OneToMany(() => Article, (article) => article.auteur)
-  articles: Article[];
-
-  @OneToMany(() => Comment, (comment) => comment.auteur)
-  commentaires: Comment[];
+  @Column({ name: 'family_id', nullable: true })
+  familyId: string | null
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt: Date
 
   @UpdateDateColumn()
-  updatedAt: Date;
-
-  @DeleteDateColumn()
-  deletedAt: Date | null;
+  updatedAt: Date
 }
 ```
 
-```typescript
-// === entities/profile.entity.ts ===
-import {
-  Entity,
-  PrimaryGeneratedColumn,
-  Column,
-  OneToOne,
-  JoinColumn,
-} from 'typeorm';
-import { User } from './user.entity';
+```ts
+// src/families/family.entity.ts
+import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm'
+import { User } from '../users/user.entity'
 
-@Entity('profiles')
-export class Profile {
-  @PrimaryGeneratedColumn()
-  id: number;
+@Entity('families')
+export class Family {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
 
-  @Column({ type: 'text', nullable: true })
-  bio: string;
+  @Column({ length: 100, unique: true })
+  name: string
 
-  @Column({ nullable: true })
-  avatar: string;
+  @Column({ type: 'int', default: 12 })
+  maxSize: number
 
-  @Column({ nullable: true })
-  siteWeb: string;
-
-  @Column({ nullable: true })
-  twitter: string;
-
-  @Column({ nullable: true })
-  github: string;
-
-  @OneToOne(() => User, (user) => user.profile, {
-    onDelete: 'CASCADE',
-  })
-  @JoinColumn()
-  user: User;
-
-  @Column()
-  userId: number;
+  // Côté inverse — pas de colonne en base
+  @OneToMany(() => User, (user) => user.family)
+  members: User[]
 }
 ```
 
-```typescript
-// === entities/article.entity.ts ===
-import {
-  Entity,
-  PrimaryGeneratedColumn,
-  Column,
-  ManyToOne,
-  OneToMany,
-  ManyToMany,
-  JoinTable,
-  JoinColumn,
-  CreateDateColumn,
-  UpdateDateColumn,
-  Index,
-} from 'typeorm';
-import { User } from './user.entity';
-import { Comment } from './comment.entity';
-import { Tag } from './tag.entity';
+```ts
+// src/users/users.module.ts
+import { Module } from '@nestjs/common'
+import { TypeOrmModule } from '@nestjs/typeorm'
+import { User } from './user.entity'
+import { UsersService } from './users.service'
+import { UsersController } from './users.controller'
 
-export enum ArticleStatus {
-  BROUILLON = 'brouillon',
-  PUBLIE = 'publie',
-  ARCHIVE = 'archive',
+@Module({
+  imports: [TypeOrmModule.forFeature([User])],   // génère le provider Repository<User>
+  providers: [UsersService],
+  controllers: [UsersController],
+  exports: [UsersService],
+})
+export class UsersModule {}
+```
+
+```ts
+// src/users/users.service.ts
+import { Injectable, NotFoundException } from '@nestjs/common'
+import { InjectRepository } from '@nestjs/typeorm'
+import { Repository } from 'typeorm'
+import { User } from './user.entity'
+
+export interface CreateUserDto { name: string; email: string; passwordHash: string }
+export interface UpdateUserDto { name?: string; isActive?: boolean }
+
+@Injectable()
+export class UsersService {
+  constructor(
+    // @InjectRepository() est obligatoire — le token est généré par forFeature([User])
+    @InjectRepository(User)
+    private readonly userRepo: Repository<User>,
+  ) {}
+
+  async create(dto: CreateUserDto): Promise<User> {
+    // create() applique les valeurs par défaut et les transformations de l'entité
+    const user = this.userRepo.create(dto)
+    return this.userRepo.save(user)
+  }
+
+  async findAll(): Promise<User[]> {
+    return this.userRepo.find({
+      relations: { family: true },
+      order: { createdAt: 'DESC' },
+    })
+  }
+
+  async findOne(id: string): Promise<User> {
+    const user = await this.userRepo.findOne({
+      where: { id },
+      relations: { family: true },
+    })
+    // Lever une exception métier — le controller n'a pas à vérifier
+    if (!user) throw new NotFoundException(`User ${id} introuvable`)
+    return user
+  }
+
+  async update(id: string, dto: UpdateUserDto): Promise<User> {
+    // preload() charge l'entité existante et fusionne dto — lève rien si absent
+    const user = await this.userRepo.preload({ id, ...dto })
+    if (!user) throw new NotFoundException(`User ${id} introuvable`)
+    return this.userRepo.save(user)
+  }
+
+  async remove(id: string): Promise<void> {
+    const user = await this.findOne(id)   // vérifie l'existence + déclenche les hooks
+    await this.userRepo.remove(user)
+  }
+
+  async joinFamily(userId: string, familyId: string): Promise<User> {
+    // update() SQL direct — pas de chargement, pas de hooks
+    await this.userRepo.update(userId, { familyId })
+    return this.findOne(userId)
+  }
 }
+```
 
-@Entity('articles')
-export class Article {
-  @PrimaryGeneratedColumn()
-  id: number;
+**Pas-à-pas :** (1) `@Entity('users')` — nom de table explicite, pas de surprise ; (2) `@ManyToOne` + `@JoinColumn({ name: 'family_id' })` sur `User` — c'est lui qui porte la FK `family_id` ; (3) `@OneToMany` sur `Family` — côté inverse, aucune colonne créée ; (4) `TypeOrmModule.forFeature([User])` dans `UsersModule` — génère le provider `getRepositoryToken(User)` injectable via `@InjectRepository(User)` ; (5) `create()` avant `save()` — instancie l'entité correctement avec les valeurs par défaut avant la persistance.
+
+### Exemple B — Post avec ManyToMany et Invitation OneToOne
+
+```ts
+// src/posts/post.entity.ts
+import {
+  Entity, PrimaryGeneratedColumn, Column,
+  ManyToOne, ManyToMany, JoinTable, JoinColumn,
+  CreateDateColumn, UpdateDateColumn,
+} from 'typeorm'
+import { User } from '../users/user.entity'
+import { Family } from '../families/family.entity'
+
+@Entity('posts')
+export class Post {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
 
   @Column({ length: 200 })
-  titre: string;
-
-  @Column({ unique: true })
-  @Index() // Index pour les recherches par slug
-  slug: string;
-
-  @Column({ type: 'text', nullable: true })
-  resume: string;
+  title: string
 
   @Column({ type: 'text' })
-  contenu: string;
+  body: string
 
-  @Column({
-    type: 'enum',
-    enum: ArticleStatus,
-    default: ArticleStatus.BROUILLON,
-  })
-  statut: ArticleStatus;
+  @Column({ type: 'enum', enum: ['draft', 'published'], default: 'draft' })
+  status: 'draft' | 'published'
 
-  @Column({ default: 0 })
-  nombreVues: number;
+  // Auteur — suppression de l'auteur supprime ses posts
+  @ManyToOne(() => User, { nullable: false, onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'author_id' })
+  author: User
 
-  @ManyToOne(() => User, (user) => user.articles, {
-    nullable: false,
-    onDelete: 'CASCADE',
-  })
-  @JoinColumn({ name: 'auteur_id' })
-  auteur: User;
+  @Column({ name: 'author_id' })
+  authorId: string
 
-  @Column({ name: 'auteur_id' })
-  auteurId: number;
+  // Famille à laquelle appartient ce post
+  @ManyToOne(() => Family, { nullable: false, onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'family_id' })
+  family: Family
 
-  @OneToMany(() => Comment, (comment) => comment.article, {
-    cascade: true,
-  })
-  commentaires: Comment[];
+  @Column({ name: 'family_id' })
+  familyId: string
 
-  @ManyToMany(() => Tag, (tag) => tag.articles, {
-    cascade: ['insert'],
-  })
+  // Membres qui ont liké ce post — table de liaison 'post_likes'
+  @ManyToMany(() => User, { cascade: false })
   @JoinTable({
-    name: 'article_tag',
-    joinColumn: { name: 'article_id', referencedColumnName: 'id' },
-    inverseJoinColumn: { name: 'tag_id', referencedColumnName: 'id' },
+    name: 'post_likes',
+    joinColumn: { name: 'post_id', referencedColumnName: 'id' },
+    inverseJoinColumn: { name: 'user_id', referencedColumnName: 'id' },
   })
-  tags: Tag[];
+  likedBy: User[]
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt: Date
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updatedAt: Date
 }
 ```
 
-```typescript
-// === entities/comment.entity.ts ===
+```ts
+// src/invitations/invitation.entity.ts
 import {
-  Entity,
-  PrimaryGeneratedColumn,
-  Column,
-  ManyToOne,
-  JoinColumn,
-  CreateDateColumn,
-} from 'typeorm';
-import { User } from './user.entity';
-import { Article } from './article.entity';
+  Entity, PrimaryGeneratedColumn, Column,
+  ManyToOne, OneToOne, JoinColumn,
+} from 'typeorm'
+import { User } from '../users/user.entity'
+import { Family } from '../families/family.entity'
 
-@Entity('comments')
-export class Comment {
-  @PrimaryGeneratedColumn()
-  id: number;
+@Entity('invitations')
+export class Invitation {
+  @PrimaryGeneratedColumn('uuid')
+  id: string
 
-  @Column({ type: 'text' })
-  contenu: string;
+  @Column({ unique: true })
+  email: string
 
-  @ManyToOne(() => User, (user) => user.commentaires, {
-    nullable: false,
-    onDelete: 'CASCADE',
-  })
-  @JoinColumn({ name: 'auteur_id' })
-  auteur: User;
+  @Column({ type: 'enum', enum: ['pending', 'accepted', 'expired'], default: 'pending' })
+  status: 'pending' | 'accepted' | 'expired'
 
-  @Column({ name: 'auteur_id' })
-  auteurId: number;
+  @Column({ type: 'timestamp' })
+  expiresAt: Date
 
-  @ManyToOne(() => Article, (article) => article.commentaires, {
-    nullable: false,
-    onDelete: 'CASCADE',
-  })
-  @JoinColumn({ name: 'article_id' })
-  article: Article;
+  // Famille qui invite
+  @ManyToOne(() => Family, { nullable: false, onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'family_id' })
+  family: Family
 
-  @Column({ name: 'article_id' })
-  articleId: number;
+  @Column({ name: 'family_id' })
+  familyId: string
 
-  @CreateDateColumn()
-  createdAt: Date;
+  // Utilisateur qui a envoyé l'invitation
+  @ManyToOne(() => User, { nullable: false, onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'invited_by_id' })
+  invitedBy: User
+
+  @Column({ name: 'invited_by_id' })
+  invitedById: string
+
+  // OneToOne — l'invitation lie un seul User qui l'accepte
+  @OneToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'accepted_by_id' })
+  acceptedBy: User | null
+
+  @Column({ name: 'accepted_by_id', nullable: true })
+  acceptedById: string | null
 }
 ```
 
-```typescript
-// === entities/tag.entity.ts ===
-import {
-  Entity,
-  PrimaryGeneratedColumn,
-  Column,
-  ManyToMany,
-} from 'typeorm';
-import { Article } from './article.entity';
+**Pas-à-pas :** (1) `@ManyToMany` avec `@JoinTable` sur `Post.likedBy` — `@JoinTable` crée la table `post_likes` ; le côté `User` n'a pas de `@JoinTable` ; (2) `cascade: false` sur ManyToMany — on ne veut pas créer de User lors du save d'un Post ; (3) `@OneToOne` sur `Invitation.acceptedBy` — `@JoinColumn` sur le côté Invitation, donc Invitation porte la FK `accepted_by_id` ; (4) `nullable: true` sur `acceptedBy` — l'invitation peut être en attente sans utilisateur associé.
 
-@Entity('tags')
-export class Tag {
-  @PrimaryGeneratedColumn()
-  id: number;
+## 4. Pièges & misconceptions
 
-  @Column({ unique: true, length: 50 })
-  nom: string;
+- **`@OneToMany` sans `@ManyToOne`.** `@OneToMany` ne crée aucune colonne en base. Si tu places uniquement `@OneToMany` sans le `@ManyToOne` correspondant, TypeORM ne génère aucune clé étrangère — les relations ne peuvent pas être persistées. Toujours déclarer les deux côtés.
 
-  @Column({ nullable: true })
-  description: string;
+- **`@JoinColumn` absent sur un `@OneToOne`.** `@JoinColumn()` est obligatoire sur exactement un côté d'une relation `@OneToOne`. Sans lui, TypeORM lève une erreur au démarrage. Le côté qui le porte crée la colonne FK.
 
-  @Column({ nullable: true })
-  couleur: string;
+- **`@JoinTable` absent ou dupliqué sur un `@ManyToMany`.** `@JoinTable()` doit être présent sur **un seul côté** de la relation ManyToMany. Le placer sur les deux côtés crée deux tables de liaison distinctes. Le côté propriétaire est celui qui porte `@JoinTable`.
 
-  @ManyToMany(() => Article, (article) => article.tags)
-  articles: Article[];
-}
-```
+- **Problème N+1 avec chargement implicite.** Charger une liste de `User` puis accéder à `user.family` dans une boucle génère N+1 requêtes SQL. Solution : charger la relation dès le `find()` via `relations: { family: true }` ou utiliser le QueryBuilder avec `leftJoinAndSelect` (module 15).
 
----
+- **`save()` sur un objet créé sans `create()`.** `userRepo.save({ email, name })` fonctionnera mais bypasse les valeurs par défaut définies dans l'entité et les éventuels abonnés TypeORM. Toujours `userRepo.create(dto)` puis `save()`.
 
-## 9. Schema de la base de donnees
+- **`eager: true` sur des relations lourdes.** Une relation `eager` est chargée à **chaque** `find()` sur cette entité — même quand tu n'en as pas besoin. Sur un `User` avec des centaines de `Post`, cela dégrade les performances de toutes les requêtes. Réserver `eager` aux relations très légères et quasiment toujours utiles.
 
-Voici le schema resultant des entites definies ci-dessus :
+- **`synchronize: true` en production.** `synchronize: true` exécute des `ALTER TABLE` automatiques au démarrage pour correspondre à tes entités. En production, cela peut supprimer des colonnes ou des données. Toujours `synchronize: false` en prod et utiliser les migrations (module 15).
+
+## 5. Ancrage TribuZen
+
+Couche fil-rouge : **entités TypeORM de TribuZen (User, Family, Post, Invitation) et leurs relations** (`smaurier/tribuzen`).
+
+- `User` porte `@ManyToOne(() => Family)` avec FK `family_id` — un utilisateur appartient à une famille ou est sans famille (`nullable: true`, `onDelete: 'SET NULL'`). La `Family` a `@OneToMany(() => User)` côté inverse.
+- `Post` a `@ManyToOne(() => User)` pour l'auteur et `@ManyToOne(() => Family)` pour le fil familial. La relation `likedBy` utilise `@ManyToMany(() => User)` + `@JoinTable` avec table `post_likes`.
+- `Invitation` utilise `@OneToOne(() => User)` pour `acceptedBy` — une invitation ne peut être acceptée que par un seul utilisateur. Elle porte aussi deux `@ManyToOne` : la famille invitante et l'utilisateur qui a envoyé l'invitation.
+- `TypeOrmModule.forFeature([User])` dans `UsersModule`, `TypeOrmModule.forFeature([Family])` dans `FamiliesModule`, etc. — chaque module possède et exporte son repository via son service.
+- `UsersService` injecte `Repository<User>` via `@InjectRepository(User)` — remplace l'ancien store en mémoire du module 11 sans changer l'interface du service.
+
+Structure cible dans `smaurier/tribuzen` :
 
 ```
-┌─────────────┐     ┌──────────────┐     ┌─────────────┐
-│   users      │     │   articles    │     │    tags      │
-├─────────────┤     ├──────────────┤     ├─────────────┤
-│ id (PK)      │◄────│ auteur_id(FK) │     │ id (PK)      │
-│ nom          │     │ id (PK)       │     │ nom          │
-│ email        │     │ titre         │     │ description  │
-│ motDePasse   │     │ slug          │     │ couleur      │
-│ role         │     │ resume        │     └──────┬──────┘
-│ actif        │     │ contenu       │            │
-│ createdAt    │     │ statut        │     ┌──────┴──────┐
-│ updatedAt    │     │ nombreVues    │     │ article_tag  │
-│ deletedAt    │     │ createdAt     │     ├─────────────┤
-└──────┬──────┘     │ updatedAt     │     │ article_id   │
-       │            └──────┬───────┘     │ tag_id       │
-       │                   │              └─────────────┘
-┌──────┴──────┐     ┌──────┴───────┐
-│  profiles    │     │  comments     │
-├─────────────┤     ├──────────────┤
-│ id (PK)      │     │ id (PK)       │
-│ userId (FK)  │     │ contenu       │
-│ bio          │     │ auteur_id(FK) │
-│ avatar       │     │ article_id(FK)│
-│ siteWeb      │     │ createdAt     │
-│ twitter      │     └──────────────┘
-│ github       │
-└─────────────┘
+apps/api/src/
+  users/
+    user.entity.ts          ← @Entity, @PrimaryGeneratedColumn('uuid'), @ManyToOne Family
+    users.module.ts          ← TypeOrmModule.forFeature([User])
+    users.service.ts         ← @InjectRepository(User)
+  families/
+    family.entity.ts         ← @Entity, @OneToMany Users
+    families.module.ts
+    families.service.ts
+  posts/
+    post.entity.ts           ← @ManyToOne User+Family, @ManyToMany likedBy
+    posts.module.ts
+    posts.service.ts
+  invitations/
+    invitation.entity.ts     ← @OneToOne acceptedBy, @ManyToOne family+invitedBy
+    invitations.module.ts
+    invitations.service.ts
 ```
 
----
+## 6. Points clés
 
-## 10. Exercices pratiques
+1. `TypeOrmModule.forRoot()` initialise la connexion (DataSource) une fois dans `AppModule` ; `forRootAsync()` permet d'injecter `ConfigService` pour lire `.env`.
+2. `TypeOrmModule.forFeature([MyEntity])` dans chaque feature module génère le provider `Repository<MyEntity>` injectable via `@InjectRepository(MyEntity)`.
+3. `@Entity()` déclare une table ; `@PrimaryGeneratedColumn('uuid')` génère un UUID v4 ; `@Column({ select: false })` exclut une colonne des SELECT.
+4. `@ManyToOne` porte toujours la clé étrangère ; `@OneToMany` est le côté inverse sans colonne. `@JoinColumn({ name })` personnalise le nom de la FK.
+5. `@OneToOne` requiert `@JoinColumn()` sur exactement un côté — celui qui crée la FK.
+6. `@ManyToMany` requiert `@JoinTable()` sur exactement un côté — celui qui crée la table de liaison.
+7. Préférer le chargement explicite `relations: { relation: true }` à `eager: true` (trop large) ou `lazy` (risque N+1 invisible).
+8. `create()` instancie en mémoire avec les défauts ; `save()` persiste. `update()` et `delete()` sont des SQL directs sans hooks.
 
-### Exercice 1 : E-commerce
+## 7. Seeds Anki
 
-Creez les entites suivantes : `Category` (id, nom, description), `Product` (id, nom, prix, stock, description), `ProductImage` (id, url, alt). Relations : une categorie a plusieurs produits (ManyToOne), un produit a plusieurs images (OneToMany).
+```
+Quel côté d'une relation @ManyToOne/@OneToMany porte la clé étrangère ?|Le côté @ManyToOne — @OneToMany est le côté inverse et ne crée aucune colonne en base
+Pourquoi @JoinColumn() est-il obligatoire sur @OneToOne ?|TypeORM doit savoir quel côté de la relation possède la colonne FK — sans @JoinColumn sur un des deux côtés, il lève une erreur au démarrage
+Quel décorateur crée la table de liaison d'une relation ManyToMany ?|@JoinTable() — à placer sur exactement un des deux côtés de la relation @ManyToMany
+Différence entre save() et update() dans un Repository TypeORM ?|save() charge/instancie l'entité, déclenche les hooks et les cascades ; update() exécute un SQL UPDATE direct sans charger l'entité ni déclencher les hooks
+Pourquoi préférer le chargement explicite (relations: {}) à eager: true ?|eager: true charge la relation à chaque find() même quand on n'en a pas besoin — le chargement explicite permet de contrôler précisément ce qui est récupéré selon le cas d'usage
+Pourquoi appeler create() avant save() plutôt que save() directement sur un POJO ?|create() applique les valeurs par défaut définies dans l'entité et déclenche les transformations TypeORM — save() sur un POJO brut les bypasse
+Comment rendre une entité disponible pour injection dans un module NestJS ?|TypeOrmModule.forFeature([MyEntity]) dans le @Module().imports génère le provider Repository<MyEntity> injectable via @InjectRepository(MyEntity)
+Quel est le danger de synchronize: true en production ?|TypeORM exécute des ALTER TABLE automatiques au démarrage pour correspondre aux entités — cela peut supprimer des colonnes ou des données sans avertissement
+```
 
-### Exercice 2 : Relations avancees
+## Pont vers le lab
 
-Ajoutez a l'exercice 1 : une relation ManyToMany entre Product et Tag, un Profile sur le User avec OneToOne, et implementez le soft delete sur Product.
-
-### Exercice 3 : Service CRUD
-
-Creez un `ProductsService` complet avec les méthodes : create, findAll (avec pagination), findOne (avec relations), update, remove, softRemove, restore.
-
----
-
-## Liens
-
-| Ressource | Lien |
-|-----------|------|
-| Quiz Module 14 | `quiz/14-quiz.md` |
-| Lab Module 14 | `labs/14-lab-typeorm-entites.md` |
-| Screencast | `screencasts/14-screencast.md` |
-| Module précédent | [Module 13 — Pipes, Guards, Interceptors](13-nestjs-pipes-guards-interceptors.md) |
-| Module suivant | [Module 15 — TypeORM Requetes & Migrations](15-typeorm-requetes-migrations.md) |
-| Documentation TypeORM | https://typeorm.io/ |
-| @nestjs/typeorm | https://docs.nestjs.com/techniques/database |
-| TypeORM Relations | https://typeorm.io/relations |
+> Lab associé : `09-nestjs/labs/lab-14-typeorm-entites/README.md`. Tu y crées les entités User, Family et Post de TribuZen avec leurs relations, tu implémentes les services avec le repository pattern, et tu vérifies les endpoints manuellement avec `curl`. Corrigé complet commenté + variante J+30 dans le README du lab.
 
 ---
 
-<!-- parcours-recommande -->
-
-::: tip Parcours recommandé
-1. **Screencast** : [screencast 14 typeorm entites](../screencasts/screencast-14-typeorm-entites.md)
-2. **Lab** : [lab-14-typeorm-entites](../labs/lab-14-typeorm-entites/README)
-3. **Visualisation** : [ORM Query Flow](../visualizations/orm-query-flow.html)
-4. **Quiz** : [quiz 14 typeorm entites](../quizzes/quiz-14-typeorm-entites.html)
-:::
+| Navigation | |
+|---|---|
+| Précédent | [Module 13 — Pipes, Guards, Interceptors](13-nestjs-pipes-guards-interceptors.md) |
+| Suivant | [Module 15 — TypeORM Requêtes et Migrations](15-typeorm-requetes-migrations.md) |
