@@ -10,13 +10,9 @@ export default defineConfig({
 
   // Docs statiques : neutralise l'interpolation Vue `{{ }}` (délimiteurs improbables) pour que
   // les moustaches en prose et les expressions `${{ }}` (GitHub Actions) ne cassent pas le SSR.
-  vue: {
-    template: {
-      compilerOptions: {
-        delimiters: ['(%(', ')%)'],
-      },
-    },
-  },
+  // NB : override `delimiters` retiré (il cassait le {{ }} du thème par défaut).
+  // cf docs/curriculum/DETTE-vitepress-delimiters.md
+
 
   themeConfig: {
     nav: [
