@@ -212,7 +212,7 @@ Les requêtes brutes fonctionnent aussi dans une transaction interactive via `tx
 
 ### 2.4 Extensions et middleware Prisma
 
-**Middleware `$use` (Prisma 6 — compatible, marqué déprécié en v7)**
+**Middleware `$use` (Prisma 6 — compatible, marqué déprécié depuis Prisma 4.16 (au profit de `$extends`, encore fonctionnel en v6))**
 
 `$use` intercepte toutes les requêtes Prisma avant et après exécution — logique transversale (logging, soft delete).
 

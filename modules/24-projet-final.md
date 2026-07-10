@@ -5,7 +5,7 @@ notions: [assembler une API complète, architecture par modules de domaine, comb
 outcomes: [assembler une API NestJS complète (modules, DI, controllers, services, ORM, auth, tests), structurer proprement le projet, livrer une API testée et documentée]
 prerequis: [23-performance-deploiement]
 next: 25-mongodb-mongoose
-libs: [{ name: "@nestjs/core", version: "^11" }, { name: "@nestjs/testing", version: "^11" }, { name: "@nestjs/config", version: "^4" }, { name: "@nestjs/throttler", version: "^6" }, { name: "@nestjs/swagger", version: "^8" }, { name: "joi", version: "^17" }, { name: "@prisma/client", version: "^6" }]
+libs: [{ name: "@nestjs/core", version: "^11" }, { name: "@nestjs/testing", version: "^11" }, { name: "@nestjs/config", version: "^4" }, { name: "@nestjs/throttler", version: "^6" }, { name: "@nestjs/swagger", version: "^11" }, { name: "joi", version: "^17" }, { name: "@prisma/client", version: "^6" }]
 tribuzen: construire l'API TribuZen complète (FamilyModule, PostModule, InvitationModule, AuthModule) de bout en bout — capstone
 last-reviewed: 2026-07
 ---

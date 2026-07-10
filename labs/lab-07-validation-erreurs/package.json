@@ -3,12 +3,9 @@
   "version": "1.0.0",
   "type": "module",
   "description": "Lab 07 — Validation avec Zod et gestion d'erreurs",
-  "scripts": {
-    "exercise": "npx tsx exercise.ts",
-    "solution": "npx tsx solution.ts"
-  },
+  "scripts": {},
   "dependencies": {
-    "express": "^4.21.0",
+    "express": "^5.1.0",
     "zod": "^3.23.0"
   }
 }

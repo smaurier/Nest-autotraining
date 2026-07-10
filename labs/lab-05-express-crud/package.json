@@ -3,11 +3,8 @@
   "version": "1.0.0",
   "type": "module",
   "description": "Lab 05 — Express CRUD API",
-  "scripts": {
-    "exercise": "npx tsx exercise.ts",
-    "solution": "npx tsx solution.ts"
-  },
+  "scripts": {},
   "dependencies": {
-    "express": "^4.21.0"
+    "express": "^5.1.0"
   }
 }

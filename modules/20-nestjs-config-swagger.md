@@ -5,7 +5,7 @@ notions: [ConfigModule et variables d'environnement, validation du schéma de co
 outcomes: [charger et valider la configuration via ConfigModule, injecter ConfigService, générer une doc OpenAPI avec @nestjs/swagger, documenter DTOs et endpoints]
 prerequis: [19-nestjs-auth]
 next: 21-nestjs-websockets-fichiers
-libs: [{ name: "@nestjs/config", version: "^11" }, { name: "@nestjs/swagger", version: "^11" }]
+libs: [{ name: "@nestjs/config", version: "^4" }, { name: "@nestjs/swagger", version: "^11" }]
 tribuzen: configuration typée + documentation OpenAPI de l'API TribuZen
 last-reviewed: 2026-07
 ---
