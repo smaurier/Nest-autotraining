@@ -21,6 +21,8 @@
     "check:05": "cd lab-05-ajouter-un-endpoint && npx tsc --noEmit",
     "lab:06": "node lab-06-faille-autorisation/run-oracle.mjs lab",
     "solution:06": "node lab-06-faille-autorisation/run-oracle.mjs solution",
-    "check:06": "cd lab-06-faille-autorisation && npx tsc --noEmit"
+    "check:06": "cd lab-06-faille-autorisation && npx tsc --noEmit",
+    "lab:07": "node lab-07-migrer-nestjs-11/run-oracle.mjs lab",
+    "solution:07": "node lab-07-migrer-nestjs-11/run-oracle.mjs solution"
   }
 }
