@@ -11,13 +11,13 @@ Formation complete sur Node.js, Express et NestJS : de l'event loop au déploiem
 <!-- labs-gestes:start -->
 ## Labs — refonte du 22/09/2026 : un lab = un geste métier complet
 
-> Règle qualité 5 du parcours : chaque lab est **un geste métier complet**, sous deux formes — **Zéro** (construire de zéro un artefact réel et entier) ou **Intervention** (modifier de l'existant avec consommateurs, findings avant code, non-régression). Un lab n'entre en file qu'avec un **oracle exécutable** (`src/` starter · `test/` · `solution/` séparée). Les labs historiques de ce cours (un concept par lab, sans oracle) restent dans `labs/` jusqu'à remplacement et **ne sont plus la file**. Cible détaillée : [`docs/gestes-complets.md`](../docs/gestes-complets.md). État : **2/8 avec oracle**.
+> Règle qualité 5 du parcours : chaque lab est **un geste métier complet**, sous deux formes — **Zéro** (construire de zéro un artefact réel et entier) ou **Intervention** (modifier de l'existant avec consommateurs, findings avant code, non-régression). Un lab n'entre en file qu'avec un **oracle exécutable** (`src/` starter · `test/` · `solution/` séparée). Les labs historiques de ce cours (un concept par lab, sans oracle) restent dans `labs/` jusqu'à remplacement et **ne sont plus la file**. Cible détaillée : [`docs/gestes-complets.md`](../docs/gestes-complets.md). État : **3/8 avec oracle**.
 
 | # | Lab | Forme | Geste | Oracle |
 |---|-----|-------|-------|--------|
 | 01 | [`lab-01-api-de-zero`](labs/lab-01-api-de-zero/README.md) | Zéro | module, DTO + validation, guard, service, repository, tests unit + e2e, Docker, jusqu'au curl | ✅ vérifié |
 | 02 | [`lab-02-auth-jwt-de-zero`](labs/lab-02-auth-jwt-de-zero/README.md) | Zéro | AuthModule complet avec tests | ✅ vérifié |
-| 03 | `lab-03-websockets-de-zero` | Zéro | NotificationsGateway temps réel testée | · à écrire |
+| 03 | [`lab-03-websockets-de-zero`](labs/lab-03-websockets-de-zero/README.md) | Zéro | NotificationsGateway temps réel testée | ✅ vérifié |
 | 04 | `lab-04-clean-archi-de-zero` | Zéro | domain/application/infrastructure avec tests de frontière | · à écrire |
 | 05 | `lab-05-ajouter-un-endpoint` | Intervention | API existante consommée par un front, contrat OpenAPI à ne pas casser | · à écrire |
 | 06 | `lab-06-faille-autorisation` | Intervention | faille rapportée à reproduire, corriger, tester | · à écrire |
