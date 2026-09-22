@@ -8,6 +8,24 @@ Formation complete sur Node.js, Express et NestJS : de l'event loop au déploiem
 
 **Ce cours couvre tout le spectre** : l'event loop Node.js, les modules, les streams, les serveurs HTTP natifs, Express (routing, middleware, validation, auth), NestJS (controllers, providers, DI, modules, pipes, guards, interceptors), TypeORM, Prisma, testing, authentification JWT, WebSockets, taches planifiees, files d'attente, déploiement Docker, MongoDB/Mongoose et GraphQL.
 
+<!-- labs-gestes:start -->
+## Labs — refonte du 22/09/2026 : un lab = un geste métier complet
+
+> Règle qualité 5 du parcours : chaque lab est **un geste métier complet**, sous deux formes — **Zéro** (construire de zéro un artefact réel et entier) ou **Intervention** (modifier de l'existant avec consommateurs, findings avant code, non-régression). Un lab n'entre en file qu'avec un **oracle exécutable** (`src/` starter · `test/` · `solution/` séparée). Les labs historiques de ce cours (un concept par lab, sans oracle) restent dans `labs/` jusqu'à remplacement et **ne sont plus la file**. Cible détaillée : [`docs/gestes-complets.md`](../docs/gestes-complets.md). État : **0/8 avec oracle**.
+
+| # | Lab | Forme | Geste | Oracle |
+|---|-----|-------|-------|--------|
+| 01 | `lab-01-api-de-zero` | Zéro | module, DTO + validation, guard, service, repository, tests unit + e2e, Docker, jusqu'au curl | · à écrire |
+| 02 | `lab-02-auth-jwt-de-zero` | Zéro | AuthModule complet avec tests | · à écrire |
+| 03 | `lab-03-websockets-de-zero` | Zéro | NotificationsGateway temps réel testée | · à écrire |
+| 04 | `lab-04-clean-archi-de-zero` | Zéro | domain/application/infrastructure avec tests de frontière | · à écrire |
+| 05 | `lab-05-ajouter-un-endpoint` | Intervention | API existante consommée par un front, contrat OpenAPI à ne pas casser | · à écrire |
+| 06 | `lab-06-faille-autorisation` | Intervention | faille rapportée à reproduire, corriger, tester | · à écrire |
+| 07 | `lab-07-migrer-nestjs-11` | Intervention | migrer le lab-18 historique (pinné ^10) vers NestJS 11 | · à écrire |
+| 08 | `lab-08-relire-une-pr-api` | Intervention | findings avant vérité | · à écrire |
+
+<!-- labs-gestes:end -->
+
 ## Prérequis
 
 - JavaScript courant (ES2020+, async/await, Promises)
