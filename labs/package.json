@@ -15,6 +15,9 @@
     "check:03": "cd lab-03-websockets-de-zero && npx tsc --noEmit",
     "lab:04": "node lab-04-clean-archi-de-zero/run-oracle.mjs lab",
     "solution:04": "node lab-04-clean-archi-de-zero/run-oracle.mjs solution",
-    "check:04": "cd lab-04-clean-archi-de-zero && npx tsc --noEmit"
+    "check:04": "cd lab-04-clean-archi-de-zero && npx tsc --noEmit",
+    "lab:05": "node lab-05-ajouter-un-endpoint/run-oracle.mjs lab",
+    "solution:05": "node lab-05-ajouter-un-endpoint/run-oracle.mjs solution",
+    "check:05": "cd lab-05-ajouter-un-endpoint && npx tsc --noEmit"
   }
 }
