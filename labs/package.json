@@ -18,6 +18,9 @@
     "check:04": "cd lab-04-clean-archi-de-zero && npx tsc --noEmit",
     "lab:05": "node lab-05-ajouter-un-endpoint/run-oracle.mjs lab",
     "solution:05": "node lab-05-ajouter-un-endpoint/run-oracle.mjs solution",
-    "check:05": "cd lab-05-ajouter-un-endpoint && npx tsc --noEmit"
+    "check:05": "cd lab-05-ajouter-un-endpoint && npx tsc --noEmit",
+    "lab:06": "node lab-06-faille-autorisation/run-oracle.mjs lab",
+    "solution:06": "node lab-06-faille-autorisation/run-oracle.mjs solution",
+    "check:06": "cd lab-06-faille-autorisation && npx tsc --noEmit"
   }
 }
