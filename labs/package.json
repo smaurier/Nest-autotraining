@@ -23,6 +23,9 @@
     "solution:06": "node lab-06-faille-autorisation/run-oracle.mjs solution",
     "check:06": "cd lab-06-faille-autorisation && npx tsc --noEmit",
     "lab:07": "node lab-07-migrer-nestjs-11/run-oracle.mjs lab",
-    "solution:07": "node lab-07-migrer-nestjs-11/run-oracle.mjs solution"
+    "solution:07": "node lab-07-migrer-nestjs-11/run-oracle.mjs solution",
+    "lab:08": "node lab-08-relire-une-pr-api/run-oracle.mjs lab",
+    "solution:08": "node lab-08-relire-une-pr-api/run-oracle.mjs solution",
+    "check:08": "cd lab-08-relire-une-pr-api && npx tsc --noEmit"
   }
 }
