@@ -11,7 +11,7 @@ Formation complete sur Node.js, Express et NestJS : de l'event loop au déploiem
 <!-- labs-gestes:start -->
 ## Labs — refonte du 22/09/2026 : un lab = un geste métier complet
 
-> Règle qualité 5 du parcours : chaque lab est **un geste métier complet**, sous deux formes — **Zéro** (construire de zéro un artefact réel et entier) ou **Intervention** (modifier de l'existant avec consommateurs, findings avant code, non-régression). Un lab n'entre en file qu'avec un **oracle exécutable** (`src/` starter · `test/` · `solution/` séparée). Les labs historiques de ce cours (un concept par lab, sans oracle) restent dans `labs/` jusqu'à remplacement et **ne sont plus la file**. Cible détaillée : [`docs/gestes-complets.md`](../docs/gestes-complets.md). État : **7/8 avec oracle**.
+> Règle qualité 5 du parcours : chaque lab est **un geste métier complet**, sous deux formes — **Zéro** (construire de zéro un artefact réel et entier) ou **Intervention** (modifier de l'existant avec consommateurs, findings avant code, non-régression). Un lab n'entre en file qu'avec un **oracle exécutable** (`src/` starter · `test/` · `solution/` séparée). Les labs historiques de ce cours (un concept par lab, sans oracle) restent dans `labs/` jusqu'à remplacement et **ne sont plus la file**. Cible détaillée : [`docs/gestes-complets.md`](../docs/gestes-complets.md). État : **8/8 avec oracle**.
 
 | # | Lab | Forme | Geste | Oracle |
 |---|-----|-------|-------|--------|
@@ -22,7 +22,7 @@ Formation complete sur Node.js, Express et NestJS : de l'event loop au déploiem
 | 05 | [`lab-05-ajouter-un-endpoint`](labs/lab-05-ajouter-un-endpoint/README.md) | Intervention | API existante consommée par un front, contrat OpenAPI à ne pas casser | ✅ vérifié |
 | 06 | [`lab-06-faille-autorisation`](labs/lab-06-faille-autorisation/README.md) | Intervention | faille rapportée à reproduire, corriger, tester | ✅ vérifié |
 | 07 | [`lab-07-migrer-nestjs-11`](labs/lab-07-migrer-nestjs-11/README.md) | Intervention | migrer le lab-18 historique (pinné ^10) vers NestJS 11 | ✅ vérifié |
-| 08 | `lab-08-relire-une-pr-api` | Intervention | findings avant vérité | · à écrire |
+| 08 | [`lab-08-relire-une-pr-api`](labs/lab-08-relire-une-pr-api/README.md) | Intervention | findings avant vérité | ✅ vérifié |
 
 <!-- labs-gestes:end -->
 
