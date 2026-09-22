@@ -9,6 +9,9 @@
     "check:01": "cd lab-01-api-de-zero && npx tsc --noEmit",
     "lab:02": "node lab-02-auth-jwt-de-zero/run-oracle.mjs lab",
     "solution:02": "node lab-02-auth-jwt-de-zero/run-oracle.mjs solution",
-    "check:02": "cd lab-02-auth-jwt-de-zero && npx tsc --noEmit"
+    "check:02": "cd lab-02-auth-jwt-de-zero && npx tsc --noEmit",
+    "lab:03": "node lab-03-websockets-de-zero/run-oracle.mjs lab",
+    "solution:03": "node lab-03-websockets-de-zero/run-oracle.mjs solution",
+    "check:03": "cd lab-03-websockets-de-zero && npx tsc --noEmit"
   }
 }
