@@ -1,0 +1,11 @@
+{
+  "name": "nestjs-labs",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Oracles executables des labs NestJS (regle : un lab = un geste metier complet).",
+  "scripts": {
+    "lab:01": "node lab-01-api-de-zero/run-oracle.mjs lab",
+    "solution:01": "node lab-01-api-de-zero/run-oracle.mjs solution",
+    "check:01": "cd lab-01-api-de-zero && npx tsc --noEmit"
+  }
+}
